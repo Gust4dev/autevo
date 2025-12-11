@@ -1,0 +1,373 @@
+// Filmtech OS - Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum UserRole {
+  ADMIN_SAAS
+  ESTRATEGISTA
+  ORQUESTRADOR
+  OPERACIONAL
+}
+
+enum MovementType {
+  ENTRADA
+  SAIDA_OS
+  AJUSTE
+}
+
+enum OrderStatus {
+  AGENDADO
+  EM_VISTORIA
+  EM_EXECUCAO
+  AGUARDANDO_PAGAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum PaymentMethod {
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  DINHEIRO
+  TRANSFERENCIA
+}
+
+enum NotificationType {
+  AGENDAMENTO_CONFIRMADO
+  VISTORIA_LINK
+  SERVICO_CONCLUIDO
+  LEMBRETE_RETORNO
+}
+
+// Tenant & Billing
+model Tenant {
+  id               String       @id @default(cuid())
+  name             String
+  slug             String       @unique
+  logo             String?
+  primaryColor     String       @default("#DC2626")
+  secondaryColor   String       @default("#1F2937")
+  status           TenantStatus @default(TRIAL)
+  plan             String       @default("pro_monthly")
+  trialEndsAt      DateTime?
+  nextBillingAt    DateTime?
+  stripeCustomerId String?
+  phone            String?
+  email            String?
+  address          String?
+  cnpj             String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  users         User[]
+  customers     Customer[]
+  vehicles      Vehicle[]
+  services      Service[]
+  products      Product[]
+  orders        ServiceOrder[]
+  settlements   CommissionSettlement[]
+  notifications NotificationLog[]
+}
+
+model User {
+  id                       String     @id @default(cuid())
+  clerkId                  String     @unique
+  email                    String
+  name                     String
+  role                     UserRole   @default(OPERACIONAL)
+  avatarUrl                String?
+  phone                    String?
+  defaultCommissionPercent Decimal?   @default(0) @db.Decimal(5, 2)
+  tenantId                 String
+  tenant                   Tenant     @relation(fields: [tenantId], references: [id])
+  isActive                 Boolean    @default(true)
+  createdAt                DateTime   @default(now())
+
+  assignedOrders ServiceOrder[]          @relation("AssignedTo")
+  createdOrders  ServiceOrder[]          @relation("CreatedBy")
+  commissions    OrderItemCommission[]
+
+  @@index([tenantId])
+  @@index([clerkId])
+}
+
+// Core Entities
+model Customer {
+  id            String    @id @default(cuid())
+  name          String
+  phone         String
+  email         String?
+  document      String?
+  birthDate     DateTime?
+  notes         String?
+  whatsappOptIn Boolean   @default(true)
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  vehicles Vehicle[]
+
+  @@index([tenantId, phone])
+  @@index([tenantId, name])
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  plate      String
+  brand      String
+  model      String
+  color      String
+  year       Int?
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders ServiceOrder[]
+
+  @@unique([tenantId, plate])
+  @@index([tenantId])
+}
+
+// Catalog
+model Service {
+  id                       String   @id @default(cuid())
+  name                     String
+  description              String?
+  basePrice                Decimal  @db.Decimal(10, 2)
+  estimatedTime            Int?
+  returnDays               Int?
+  isActive                 Boolean  @default(true)
+  defaultCommissionPercent Decimal? @default(0) @db.Decimal(5, 2)
+  defaultCommissionFixed   Decimal? @db.Decimal(10, 2)
+  tenantId                 String
+  tenant                   Tenant   @relation(fields: [tenantId], references: [id])
+
+  orderItems OrderItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sku         String?
+  unit        String   @default("un")
+  costPrice   Decimal? @db.Decimal(10, 2)
+  salePrice   Decimal? @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  minStock    Int      @default(5)
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  orderProducts  OrderProduct[]
+
+  @@index([tenantId])
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id])
+  quantity  Int
+  type      MovementType
+  reference String?
+  notes     String?
+  createdAt DateTime     @default(now())
+  createdBy String
+
+  @@index([productId])
+}
+
+// Service Order
+model ServiceOrder {
+  id                 String        @id @default(cuid())
+  code               String
+  status             OrderStatus   @default(AGENDADO)
+  version            Int           @default(0)
+  scheduledAt        DateTime
+  startedAt          DateTime?
+  completedAt        DateTime?
+  vehicleId          String
+  vehicle            Vehicle       @relation(fields: [vehicleId], references: [id])
+  assignedToId       String
+  assignedTo         User          @relation("AssignedTo", fields: [assignedToId], references: [id])
+  createdById        String
+  createdBy          User          @relation("CreatedBy", fields: [createdById], references: [id])
+  tenantId           String
+  tenant             Tenant        @relation(fields: [tenantId], references: [id])
+  subtotal           Decimal       @default(0) @db.Decimal(10, 2)
+  discountType       DiscountType?
+  discountValue      Decimal?      @db.Decimal(10, 2)
+  total              Decimal       @default(0) @db.Decimal(10, 2)
+  totalCommission    Decimal       @default(0) @db.Decimal(10, 2)
+  notificationSentAt DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  items      OrderItem[]
+  products   OrderProduct[]
+  inspection Inspection?
+  payments   Payment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledAt])
+  @@index([tenantId, assignedToId])
+  @@index([code])
+}
+
+model OrderItem {
+  id         String       @id @default(cuid())
+  orderId    String
+  order      ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  serviceId  String?
+  service    Service?     @relation(fields: [serviceId], references: [id])
+  customName String?
+  price      Decimal      @db.Decimal(10, 2)
+  quantity   Int          @default(1)
+  notes      String?
+
+  commissions OrderItemCommission[]
+
+  @@index([orderId])
+}
+
+model OrderItemCommission {
+  id              String                @id @default(cuid())
+  orderItemId     String
+  orderItem       OrderItem             @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id])
+  commissionValue Decimal               @db.Decimal(10, 2)
+  calculatedAt    DateTime              @default(now())
+  settlementId    String?
+  settlement      CommissionSettlement? @relation(fields: [settlementId], references: [id])
+
+  @@index([userId])
+  @@index([settlementId])
+  @@index([orderItemId])
+}
+
+model CommissionSettlement {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  userId        String
+  periodStart   DateTime
+  periodEnd     DateTime
+  totalPaid     Decimal  @db.Decimal(10, 2)
+  paymentMethod String?
+  paymentRef    String?
+  createdAt     DateTime @default(now())
+  createdBy     String
+
+  items OrderItemCommission[]
+
+  @@index([tenantId, userId])
+  @@index([tenantId, periodStart, periodEnd])
+}
+
+model OrderProduct {
+  id        String       @id @default(cuid())
+  orderId   String
+  order     ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product      @relation(fields: [productId], references: [id])
+  quantity  Int
+
+  @@index([orderId])
+}
+
+// Inspection
+model Inspection {
+  id            String       @id @default(cuid())
+  orderId       String       @unique
+  order         ServiceOrder @relation(fields: [orderId], references: [id])
+  version       Int          @default(0)
+  checklistData Json         @default("{}")
+  signatureUrl  String?
+  signedAt      DateTime?
+  signedVia     String?
+  lastSyncedAt  DateTime?
+  pendingSync   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  damages InspectionDamage[]
+}
+
+model InspectionDamage {
+  id           String     @id @default(cuid())
+  inspectionId String
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  position     String
+  x            Float
+  y            Float
+  damageType   String
+  photoUrl     String?
+  notes        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([inspectionId])
+}
+
+// Payments
+model Payment {
+  id         String        @id @default(cuid())
+  orderId    String
+  order      ServiceOrder  @relation(fields: [orderId], references: [id])
+  method     PaymentMethod
+  amount     Decimal       @db.Decimal(10, 2)
+  paidAt     DateTime      @default(now())
+  receivedBy String
+  notes      String?
+
+  @@index([orderId])
+}
+
+// Notifications
+model NotificationLog {
+  id         String           @id @default(cuid())
+  tenantId   String
+  tenant     Tenant           @relation(fields: [tenantId], references: [id])
+  orderId    String?
+  customerId String?
+  type       NotificationType
+  channel    String           @default("whatsapp")
+  recipient  String
+  message    String
+  status     String           @default("pending")
+  sentAt     DateTime?
+  error      String?
+  createdAt  DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([orderId])
+}
