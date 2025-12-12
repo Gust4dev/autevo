@@ -49,6 +49,7 @@ const paymentSchema = z.object({
     orderId: z.string(),
     method: z.nativeEnum(PaymentMethod),
     amount: z.number().min(0),
+    paidAt: z.date().optional(), // Backdating support
     notes: z.string().optional(),
 });
 
@@ -119,7 +120,18 @@ export const orderRouter = router({
                 });
             }
 
-            return order;
+            // Calculate paid amount and balance
+            const paidAmount = order.payments.reduce(
+                (sum, p) => sum + Number(p.amount),
+                0
+            );
+            const balance = Number(order.total) - paidAmount;
+
+            return {
+                ...order,
+                paidAmount,
+                balance,
+            };
         }),
 
     list: protectedProcedure
@@ -303,7 +315,7 @@ export const orderRouter = router({
             return order;
         }),
 
-    // Add payment
+    // Add payment with auto-completion logic
     addPayment: protectedProcedure
         .input(paymentSchema)
         .mutation(async ({ ctx, input }) => {
@@ -319,27 +331,49 @@ export const orderRouter = router({
                 });
             }
 
+            const orderTotal = Number(order.total);
             const currentPaid = order.payments.reduce(
                 (sum, p) => sum + Number(p.amount),
                 0
             );
+            const balance = orderTotal - currentPaid;
 
-            if (currentPaid + input.amount > Number(order.total)) {
+            // Margin of error for decimal comparison (1 centavo)
+            const EPSILON = 0.01;
+
+            if (input.amount - balance > EPSILON) {
                 throw new TRPCError({
                     code: 'BAD_REQUEST',
-                    message: 'Valor do pagamento excede o saldo devedor',
+                    message: `Valor excede o saldo devedor de R$ ${balance.toFixed(2)}`,
                 });
             }
 
+            // Create payment record
             const payment = await ctx.db.payment.create({
                 data: {
                     orderId: input.orderId,
                     method: input.method,
                     amount: input.amount,
+                    paidAt: input.paidAt || new Date(),
                     receivedBy: ctx.user!.id,
                     notes: input.notes,
                 },
             });
+
+            // Check if order is fully paid
+            const newTotalPaid = currentPaid + input.amount;
+            const remaining = orderTotal - newTotalPaid;
+
+            if (remaining < EPSILON) {
+                // Auto-complete the order
+                await ctx.db.serviceOrder.update({
+                    where: { id: input.orderId },
+                    data: {
+                        status: 'CONCLUIDO',
+                        completedAt: new Date(),
+                    },
+                });
+            }
 
             return payment;
         }),

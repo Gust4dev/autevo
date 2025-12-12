@@ -10,11 +10,14 @@ import {
   Clock,
   ArrowRight,
   Loader2,
+  Wallet,
+  Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui';
 import { trpc } from '@/lib/trpc/provider';
 
 // Helper to get today's date range
@@ -31,8 +34,12 @@ export default function DashboardPage() {
   const { start: todayStart, end: todayEnd } = getTodayRange();
 
   // Queries
-  const statsQuery = trpc.order.getStats.useQuery(undefined, {
+  const quickStatsQuery = trpc.dashboard.getQuickStats.useQuery(undefined, {
     refetchInterval: 5000,
+  });
+
+  const financialStatsQuery = trpc.dashboard.getFinancialStats.useQuery(undefined, {
+    refetchInterval: 10000,
   });
   
   const recentOrdersQuery = trpc.order.getRecent.useQuery({ limit: 5 }, {
@@ -67,7 +74,8 @@ export default function DashboardPage() {
   };
 
   const isLoading = 
-    statsQuery.isLoading || 
+    quickStatsQuery.isLoading || 
+    financialStatsQuery.isLoading ||
     recentOrdersQuery.isLoading || 
     todayScheduleQuery.isLoading || 
     customerCountQuery.isLoading ||
@@ -75,9 +83,20 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[50vh] flex-col items-center justify-center space-y-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Carregando painel...</p>
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
       </div>
     );
   }
@@ -104,17 +123,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Grid - 6 columns on xl */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard
           title="Agendamentos Hoje"
-          value={statsQuery.data?.todayOrders.toString() || '0'}
+          value={quickStatsQuery.data?.todayOrders.toString() || '0'}
           description="Para hoje"
           icon={Calendar}
         />
         <StatCard
           title="OS em Andamento"
-          value={statsQuery.data?.inProgress.toString() || '0'}
+          value={quickStatsQuery.data?.inProgress.toString() || '0'}
           description="Em execução/vistoria"
           icon={ClipboardList}
         />
@@ -126,10 +145,23 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Faturamento Mês"
-          value={formatCurrency(statsQuery.data?.monthRevenue || 0)}
+          value={formatCurrency(financialStatsQuery.data?.revenue || 0)}
           description="Recebido em pagamentos"
           icon={TrendingUp}
-          trend="up"
+          highlight
+        />
+        <StatCard
+          title="Ticket Médio"
+          value={formatCurrency(financialStatsQuery.data?.avgTicket || 0)}
+          description="Por OS concluída"
+          icon={Receipt}
+        />
+        <StatCard
+          title="A Receber"
+          value={formatCurrency(financialStatsQuery.data?.receivables || 0)}
+          description="Saldo em aberto"
+          icon={Wallet}
+          variant="warning"
         />
       </div>
 
@@ -235,26 +267,46 @@ function StatCard({
   value,
   description,
   icon: Icon,
-  trend,
+  highlight,
+  variant,
 }: {
   title: string;
   value: string;
   description: string;
   icon: React.ElementType;
-  trend?: 'up' | 'down';
+  highlight?: boolean;
+  variant?: 'default' | 'warning';
 }) {
+  const iconBgClass = variant === 'warning' 
+    ? 'bg-orange-500/10' 
+    : highlight 
+      ? 'bg-green-500/10' 
+      : 'bg-primary/10';
+  
+  const iconTextClass = variant === 'warning' 
+    ? 'text-orange-500' 
+    : highlight 
+      ? 'text-green-500' 
+      : 'text-primary';
+
+  const valueClass = variant === 'warning'
+    ? 'text-orange-600'
+    : highlight
+      ? 'text-green-600'
+      : '';
+
   return (
-    <Card>
+    <Card className={highlight ? 'border-green-500/30' : variant === 'warning' ? 'border-orange-500/30' : ''}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className="rounded-lg bg-primary/10 p-2">
-          <Icon className="h-4 w-4 text-primary" />
+        <div className={`rounded-lg p-2 ${iconBgClass}`}>
+          <Icon className={`h-4 w-4 ${iconTextClass}`} />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className={`text-2xl font-bold ${valueClass}`}>{value}</div>
         <p className="text-xs text-muted-foreground">{description}</p>
       </CardContent>
     </Card>

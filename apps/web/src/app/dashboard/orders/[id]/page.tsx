@@ -135,11 +135,12 @@ export default function OrderDetailPage({ params }: PageProps) {
     });
   };
 
-  const handleAddPayment = async (data: { method: string; amount: number; notes?: string }) => {
+  const handleAddPayment = async (data: { method: string; amount: number; paidAt?: Date; notes?: string }) => {
     await addPayment.mutateAsync({
       orderId: id,
       method: data.method as any,
       amount: data.amount,
+      paidAt: data.paidAt,
       notes: data.notes,
     });
   };
@@ -500,6 +501,14 @@ export default function OrderDetailPage({ params }: PageProps) {
         orderId={id}
         totalAmount={Number(order.total)}
         paidAmount={paidAmount}
+        payments={order.payments.map(p => ({
+          id: p.id,
+          method: p.method,
+          amount: Number(p.amount),
+          paidAt: p.paidAt,
+          receivedBy: p.receivedBy,
+          notes: p.notes,
+        }))}
         onSubmit={handleAddPayment}
       />
     </div>

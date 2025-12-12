@@ -18,6 +18,7 @@ import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
+import { useTenantTheme } from '@/components/providers/TenantThemeProvider';
 
 interface NavItem {
   href: string;
@@ -50,6 +51,7 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const theme = useTenantTheme();
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -62,12 +64,23 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
-              <span className="text-lg font-bold text-primary-foreground">F</span>
-            </div>
+            {theme?.logo ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={theme.logo}
+                alt={theme.name || 'Logo'}
+                className="h-9 w-9 shrink-0 rounded-lg object-contain"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
+                <span className="text-lg font-bold text-primary-foreground">
+                  {theme?.name?.[0] || 'F'}
+                </span>
+              </div>
+            )}
             {!isCollapsed && (
-              <span className="text-lg font-semibold text-foreground">
-                Filmtech OS
+              <span className="text-lg font-semibold text-foreground truncate">
+                {theme?.name || 'Filmtech OS'}
               </span>
             )}
           </Link>

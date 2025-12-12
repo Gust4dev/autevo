@@ -75,6 +75,8 @@ model Tenant {
   email            String?
   address          String?
   cnpj             String?
+  pixKey           String?
+  paymentTerms     String?      @db.Text
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 

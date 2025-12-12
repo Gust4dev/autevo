@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { TenantThemeProvider } from '@/components/providers/TenantThemeProvider';
 import { cn } from '@/lib/cn';
 
 interface DashboardShellProps {
@@ -47,39 +48,42 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          onToggle={handleSidebarToggle}
-        />
-      </div>
+    <TenantThemeProvider>
+      <div className="flex min-h-screen bg-background">
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:block">
+          <Sidebar
+            isCollapsed={isSidebarCollapsed}
+            onToggle={handleSidebarToggle}
+          />
+        </div>
 
-      {/* Mobile Navigation */}
-      <MobileNav
-        isOpen={isMobileNavOpen}
-        onClose={() => setIsMobileNavOpen(false)}
-      />
-
-      {/* Main Content Area */}
-      <div
-        className={cn(
-          'flex flex-1 flex-col transition-all duration-300',
-          isSidebarCollapsed ? 'lg:ml-[68px]' : 'lg:ml-[240px]'
-        )}
-      >
-        {/* Header */}
-        <Header
-          isSidebarCollapsed={isSidebarCollapsed}
-          onMobileMenuToggle={() => setIsMobileNavOpen(true)}
+        {/* Mobile Navigation */}
+        <MobileNav
+          isOpen={isMobileNavOpen}
+          onClose={() => setIsMobileNavOpen(false)}
         />
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          {children}
-        </main>
+        {/* Main Content Area */}
+        <div
+          className={cn(
+            'flex flex-1 flex-col transition-all duration-300',
+            isSidebarCollapsed ? 'lg:ml-[68px]' : 'lg:ml-[240px]'
+          )}
+        >
+          {/* Header */}
+          <Header
+            isSidebarCollapsed={isSidebarCollapsed}
+            onMobileMenuToggle={() => setIsMobileNavOpen(true)}
+          />
+
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </TenantThemeProvider>
   );
 }
+
