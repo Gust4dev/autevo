@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -17,6 +16,8 @@ import {
   Input,
   Label,
 } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 const productFormSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
@@ -33,7 +34,16 @@ type ProductFormData = z.infer<typeof productFormSchema>;
 
 export default function NewProductPage() {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createMutation = trpc.product.create.useMutation({
+    onSuccess: () => {
+      toast.success('Produto cadastrado com sucesso');
+      router.push('/dashboard/products');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const {
     register,
@@ -53,24 +63,17 @@ export default function NewProductPage() {
     },
   });
 
-  const onSubmit = async (data: ProductFormData) => {
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        ...data,
-        costPrice: data.costPrice ? parseFloat(data.costPrice.replace(/[^\d,]/g, '').replace(',', '.')) : undefined,
-        salePrice: data.salePrice ? parseFloat(data.salePrice.replace(/[^\d,]/g, '').replace(',', '.')) : undefined,
-        stock: parseInt(data.stock) || 0,
-        minStock: parseInt(data.minStock) || 5,
-      };
-      console.log('Create product:', payload);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      router.push('/dashboard/products');
-    } catch (error) {
-      console.error('Error creating product:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const onSubmit = (data: ProductFormData) => {
+    createMutation.mutate({
+      name: data.name,
+      description: data.description || undefined,
+      sku: data.sku || undefined,
+      unit: data.unit,
+      costPrice: data.costPrice ? parseFloat(data.costPrice.replace(/[^\d,]/g, '').replace(',', '.')) : undefined,
+      salePrice: data.salePrice ? parseFloat(data.salePrice.replace(/[^\d,]/g, '').replace(',', '.')) : undefined,
+      stock: parseInt(data.stock) || 0,
+      minStock: parseInt(data.minStock) || 5,
+    });
   };
 
   const formatCurrency = (value: string) => {
@@ -194,8 +197,8 @@ export default function NewProductPage() {
               <Button type="button" variant="outline" asChild>
                 <Link href="/dashboard/products">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>
                 ) : (
                   <><Save className="mr-2 h-4 w-4" />Salvar Produto</>

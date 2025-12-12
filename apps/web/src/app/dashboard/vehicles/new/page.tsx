@@ -17,6 +17,8 @@ import {
   Input,
   Label,
 } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 // Form validation schema
 const vehicleFormSchema = z.object({
@@ -30,26 +32,52 @@ const vehicleFormSchema = z.object({
 
 type VehicleFormData = z.infer<typeof vehicleFormSchema>;
 
-// Mock customers for search
-const mockCustomers = [
-  { id: '1', name: 'João Silva', phone: '(11) 99999-1234' },
-  { id: '2', name: 'Maria Santos', phone: '(11) 98888-5678' },
-  { id: '3', name: 'Carlos Oliveira', phone: '(11) 97777-9012' },
-];
-
 export default function NewVehiclePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedCustomerId = searchParams.get('customerId');
   
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<typeof mockCustomers[0] | null>(
-    preselectedCustomerId 
-      ? mockCustomers.find(c => c.id === preselectedCustomerId) || null
-      : null
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string;
+    name: string;
+    phone: string;
+  } | null>(null);
+
+  const { data: customers = [] } = trpc.customer.search.useQuery(
+    { query: customerSearch || '' },
+    { enabled: customerSearch.length >= 2 }
   );
+
+  // Load preselected customer
+  const { data: preloadedCustomer } = trpc.customer.getById.useQuery(
+    { id: preselectedCustomerId! },
+    { enabled: !!preselectedCustomerId && !selectedCustomer }
+  );
+
+  // Set selected customer from preloaded
+  if (preloadedCustomer && !selectedCustomer) {
+    setSelectedCustomer({
+      id: preloadedCustomer.id,
+      name: preloadedCustomer.name,
+      phone: preloadedCustomer.phone,
+    });
+  }
+
+  const createMutation = trpc.vehicle.create.useMutation({
+    onSuccess: () => {
+      toast.success('Veículo cadastrado com sucesso');
+      if (preselectedCustomerId) {
+        router.push(`/dashboard/customers/${preselectedCustomerId}`);
+      } else {
+        router.push('/dashboard/vehicles');
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const {
     register,
@@ -68,25 +96,15 @@ export default function NewVehiclePage() {
     },
   });
 
-  const onSubmit = async (data: VehicleFormData) => {
-    setIsSubmitting(true);
-    try {
-      // TODO: Call tRPC mutation
-      console.log('Create vehicle:', data);
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      if (preselectedCustomerId) {
-        router.push(`/dashboard/customers/${preselectedCustomerId}`);
-      } else {
-        router.push('/dashboard/vehicles');
-      }
-    } catch (error) {
-      console.error('Error creating vehicle:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const onSubmit = (data: VehicleFormData) => {
+    createMutation.mutate({
+      plate: data.plate.replace('-', ''),
+      brand: data.brand,
+      model: data.model,
+      color: data.color,
+      year: data.year ? parseInt(data.year) : undefined,
+      customerId: data.customerId,
+    });
   };
 
   // Format plate as user types
@@ -97,13 +115,7 @@ export default function NewVehiclePage() {
     return `${clean.slice(0, 3)}-${clean.slice(3, 7)}`;
   };
 
-  // Filter customers based on search
-  const filteredCustomers = mockCustomers.filter((c) =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.phone.includes(customerSearch)
-  );
-
-  const selectCustomer = (customer: typeof mockCustomers[0]) => {
+  const selectCustomer = (customer: { id: string; name: string; phone: string }) => {
     setSelectedCustomer(customer);
     setValue('customerId', customer.id);
     setCustomerSearch('');
@@ -177,14 +189,14 @@ export default function NewVehiclePage() {
                     className="pl-10"
                     error={errors.customerId?.message}
                   />
-                  {showCustomerDropdown && customerSearch && (
+                  {showCustomerDropdown && customerSearch.length >= 2 && (
                     <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg">
-                      {filteredCustomers.length === 0 ? (
+                      {customers.length === 0 ? (
                         <div className="p-4 text-center text-sm text-muted-foreground">
                           Nenhum cliente encontrado
                         </div>
                       ) : (
-                        filteredCustomers.map((customer) => (
+                        customers.map((customer) => (
                           <button
                             key={customer.id}
                             type="button"
@@ -277,8 +289,8 @@ export default function NewVehiclePage() {
                   Cancelar
                 </Link>
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Salvando...

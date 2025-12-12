@@ -19,79 +19,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Skeleton,
 } from '@/components/ui';
 import type { Column } from '@/components/ui';
-
-// Mock data
-interface Product {
-  id: string;
-  name: string;
-  description: string | null;
-  sku: string | null;
-  unit: string;
-  costPrice: number | null;
-  salePrice: number | null;
-  stock: number;
-  minStock: number;
-}
-
-const mockProducts: Product[] = [
-  {
-    id: 'p1',
-    name: 'Película PPF 3M Pro Series',
-    description: 'Película premium para proteção de pintura',
-    sku: 'PPF-3M-001',
-    unit: 'm²',
-    costPrice: 180,
-    salePrice: null,
-    stock: 45,
-    minStock: 20,
-  },
-  {
-    id: 'p2',
-    name: 'Ceramic Coating Gtechniq Crystal Serum',
-    description: 'Coating cerâmico de alta durabilidade',
-    sku: 'CC-GT-001',
-    unit: 'un',
-    costPrice: 450,
-    salePrice: null,
-    stock: 8,
-    minStock: 5,
-  },
-  {
-    id: 'p3',
-    name: 'Película de Vidro Llumar',
-    description: 'Insulfilm premium para vidros automotivos',
-    sku: 'VID-LL-001',
-    unit: 'm²',
-    costPrice: 85,
-    salePrice: null,
-    stock: 3,
-    minStock: 10,
-  },
-  {
-    id: 'p4',
-    name: 'Shampoo Neutro Meguiars',
-    description: 'Shampoo para lavagem profissional',
-    sku: 'SH-MG-001',
-    unit: 'un',
-    costPrice: 45,
-    salePrice: null,
-    stock: 25,
-    minStock: 10,
-  },
-  {
-    id: 'p5',
-    name: 'Microfibra Premium 40x40',
-    description: 'Pano de microfibra alta qualidade',
-    sku: 'MF-40-001',
-    unit: 'un',
-    costPrice: 12,
-    salePrice: null,
-    stock: 0,
-    minStock: 20,
-  },
-];
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -99,30 +31,39 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [showLowStock, setShowLowStock] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string; } | null>(null);
 
-  // Filter mock data
-  const filteredProducts = mockProducts.filter((p) => {
-    if (showLowStock && p.stock > p.minStock) return false;
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(searchLower) ||
-      p.sku?.toLowerCase().includes(searchLower)
-    );
+  const { data, isLoading, refetch } = trpc.product.list.useQuery({
+    page,
+    limit: 20,
+    search: search || undefined,
+    lowStock: showLowStock || undefined,
   });
 
-  const lowStockCount = mockProducts.filter((p) => p.stock <= p.minStock).length;
+  const deleteMutation = trpc.product.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Produto excluído com sucesso');
+      refetch();
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
-  const handleDelete = (product: Product) => {
+  const products = data?.products || [];
+  const pagination = data?.pagination;
+
+  const handleDelete = (product: (typeof products)[number]) => {
     setProductToDelete(product);
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = () => {
-    console.log('Delete product:', productToDelete?.id);
-    setDeleteDialogOpen(false);
-    setProductToDelete(null);
+    if (productToDelete) {
+      deleteMutation.mutate({ id: productToDelete.id });
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -132,7 +73,7 @@ export default function ProductsPage() {
     }).format(value);
   };
 
-  const columns: Column<Product>[] = [
+  const columns: Column<(typeof products)[number]>[] = [
     {
       key: 'name',
       header: 'Produto',
@@ -142,58 +83,60 @@ export default function ProductsPage() {
             <Package className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{product.name}</span>
-            </div>
+            <span className="font-medium">{product.name}</span>
             {product.sku && (
-              <span className="text-sm text-muted-foreground font-mono">
+              <p className="text-xs text-muted-foreground font-mono">
                 {product.sku}
-              </span>
+              </p>
             )}
           </div>
         </div>
       ),
     },
     {
-      key: 'costPrice',
-      header: 'Custo',
+      key: 'salePrice',
+      header: 'Preço',
       render: (product) => (
-        product.costPrice ? (
-          <span>{formatCurrency(product.costPrice)}</span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )
+        <span className="font-medium">{formatCurrency(Number(product.salePrice ?? 0))}</span>
       ),
     },
     {
       key: 'stock',
       header: 'Estoque',
       render: (product) => {
-        const isLow = product.stock <= product.minStock;
-        const isEmpty = product.stock === 0;
+        const isLowStock = product.stock <= product.minStock;
         return (
           <div className="flex items-center gap-2">
-            <span className={isEmpty ? 'text-destructive font-semibold' : isLow ? 'text-amber-600 font-semibold' : ''}>
+            {isLowStock && (
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            )}
+            <span className={isLowStock ? 'text-destructive font-medium' : ''}>
               {product.stock} {product.unit}
             </span>
-            {isEmpty && (
-              <Badge variant="destructive" className="text-xs">Zerado</Badge>
-            )}
-            {!isEmpty && isLow && (
-              <Badge variant="warning" className="text-xs">Baixo</Badge>
-            )}
           </div>
         );
       },
     },
     {
       key: 'minStock',
-      header: 'Mínimo',
+      header: 'Mín.',
       render: (product) => (
-        <span className="text-muted-foreground">{product.minStock} {product.unit}</span>
+        <span className="text-muted-foreground">{product.minStock}</span>
       ),
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -202,19 +145,17 @@ export default function ProductsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Produtos</h1>
           <p className="text-muted-foreground">
-            Gerencie os produtos e controle de estoque
+            Gerencie o estoque de produtos
           </p>
         </div>
         <div className="flex gap-2">
-          {lowStockCount > 0 && (
-            <Button
-              variant={showLowStock ? 'secondary' : 'outline'}
-              onClick={() => setShowLowStock(!showLowStock)}
-            >
-              <AlertTriangle className="mr-2 h-4 w-4 text-amber-500" />
-              {lowStockCount} Estoque Baixo
-            </Button>
-          )}
+          <Button
+            variant={showLowStock ? 'destructive' : 'outline'}
+            onClick={() => setShowLowStock(!showLowStock)}
+          >
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            {showLowStock ? 'Mostrar Todos' : 'Estoque Baixo'}
+          </Button>
           <Button asChild>
             <Link href="/dashboard/products/new">
               <Plus className="mr-2 h-4 w-4" />
@@ -227,11 +168,11 @@ export default function ProductsPage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filteredProducts}
-        isLoading={false}
+        data={products}
+        isLoading={isLoading}
         page={page}
-        totalPages={1}
-        total={filteredProducts.length}
+        totalPages={pagination?.totalPages || 1}
+        total={pagination?.total || 0}
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}
@@ -282,15 +223,20 @@ export default function ProductsPage() {
             <DialogTitle>Excluir Produto</DialogTitle>
             <DialogDescription>
               Tem certeza que deseja excluir o produto{' '}
-              <strong>{productToDelete?.name}</strong>?
+              <strong>{productToDelete?.name}</strong>? Esta ação não pode ser
+              desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Excluir
+            <Button 
+              variant="destructive" 
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

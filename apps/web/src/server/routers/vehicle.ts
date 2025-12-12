@@ -94,6 +94,9 @@ export const vehicleRouter = router({
                             },
                         },
                     },
+                    _count: {
+                        select: { orders: true },
+                    },
                 },
             });
 

@@ -15,120 +15,12 @@ import {
   DropdownMenuTrigger,
   Card,
   CardContent,
+  Skeleton,
 } from '@/components/ui';
 import { StatusBadge } from '@/components/orders';
 import type { Column } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
 
-// Mock data
-interface Order {
-  id: string;
-  code: string;
-  status: string;
-  scheduledAt: Date;
-  total: number;
-  vehicle: {
-    id: string;
-    plate: string;
-    brand: string;
-    model: string;
-    customer: {
-      id: string;
-      name: string;
-      phone: string;
-    };
-  };
-  assignedTo: {
-    id: string;
-    name: string;
-  };
-  _count: {
-    items: number;
-    payments: number;
-  };
-}
-
-const mockOrders: Order[] = [
-  {
-    id: 'os1',
-    code: 'OS-2024-001',
-    status: 'CONCLUIDO',
-    scheduledAt: new Date('2024-12-10'),
-    total: 7300,
-    vehicle: {
-      id: 'v1',
-      plate: 'ABC-1234',
-      brand: 'BMW',
-      model: 'X5',
-      customer: { id: 'c1', name: 'João Silva', phone: '(11) 99999-1234' },
-    },
-    assignedTo: { id: 'u1', name: 'Carlos Técnico' },
-    _count: { items: 2, payments: 2 },
-  },
-  {
-    id: 'os2',
-    code: 'OS-2024-002',
-    status: 'EM_EXECUCAO',
-    scheduledAt: new Date('2024-12-11'),
-    total: 4500,
-    vehicle: {
-      id: 'v2',
-      plate: 'XYZ-5678',
-      brand: 'Mercedes',
-      model: 'C300',
-      customer: { id: 'c2', name: 'Maria Santos', phone: '(11) 98888-5678' },
-    },
-    assignedTo: { id: 'u1', name: 'Carlos Técnico' },
-    _count: { items: 1, payments: 0 },
-  },
-  {
-    id: 'os3',
-    code: 'OS-2024-003',
-    status: 'AGENDADO',
-    scheduledAt: new Date('2024-12-15'),
-    total: 12000,
-    vehicle: {
-      id: 'v3',
-      plate: 'DEF-9012',
-      brand: 'Porsche',
-      model: '911',
-      customer: { id: 'c3', name: 'Pedro Oliveira', phone: '(11) 97777-9012' },
-    },
-    assignedTo: { id: 'u2', name: 'Ana Técnica' },
-    _count: { items: 3, payments: 0 },
-  },
-  {
-    id: 'os4',
-    code: 'OS-2024-004',
-    status: 'AGUARDANDO_PAGAMENTO',
-    scheduledAt: new Date('2024-12-08'),
-    total: 2800,
-    vehicle: {
-      id: 'v4',
-      plate: 'GHI-3456',
-      brand: 'Audi',
-      model: 'A4',
-      customer: { id: 'c4', name: 'Ana Costa', phone: '(11) 96666-3456' },
-    },
-    assignedTo: { id: 'u1', name: 'Carlos Técnico' },
-    _count: { items: 1, payments: 1 },
-  },
-  {
-    id: 'os5',
-    code: 'OS-2024-005',
-    status: 'EM_VISTORIA',
-    scheduledAt: new Date('2024-12-11'),
-    total: 5500,
-    vehicle: {
-      id: 'v5',
-      plate: 'JKL-7890',
-      brand: 'Tesla',
-      model: 'Model 3',
-      customer: { id: 'c5', name: 'Lucas Mendes', phone: '(11) 95555-7890' },
-    },
-    assignedTo: { id: 'u2', name: 'Ana Técnica' },
-    _count: { items: 2, payments: 0 },
-  },
-];
 
 const statusOptions = [
   { value: 'AGENDADO', label: 'Agendado' },
@@ -146,19 +38,15 @@ export default function OrdersPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Filter mock data
-  const filteredOrders = mockOrders.filter((order) => {
-    if (selectedStatuses.length > 0 && !selectedStatuses.includes(order.status)) {
-      return false;
-    }
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      order.code.toLowerCase().includes(searchLower) ||
-      order.vehicle.plate.toLowerCase().includes(searchLower) ||
-      order.vehicle.customer.name.toLowerCase().includes(searchLower)
-    );
+  const { data, isLoading } = trpc.order.list.useQuery({
+    page,
+    limit: 20,
+    search: search || undefined,
+    status: selectedStatuses.length > 0 ? selectedStatuses as ('AGENDADO' | 'EM_VISTORIA' | 'EM_EXECUCAO' | 'AGUARDANDO_PAGAMENTO' | 'CONCLUIDO' | 'CANCELADO')[] : undefined,
   });
+
+  const orders = data?.orders || [];
+  const pagination = data?.pagination;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -172,7 +60,7 @@ export default function OrdersPage() {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-    }).format(date);
+    }).format(new Date(date));
   };
 
   const toggleStatus = (status: string) => {
@@ -183,7 +71,7 @@ export default function OrdersPage() {
     );
   };
 
-  const columns: Column<Order>[] = [
+  const columns: Column<(typeof orders)[number]>[] = [
     {
       key: 'code',
       header: 'OS',
@@ -231,17 +119,29 @@ export default function OrdersPage() {
       key: 'total',
       header: 'Valor',
       render: (order) => (
-        <span className="font-semibold">{formatCurrency(order.total)}</span>
+        <span className="font-semibold">{formatCurrency(Number(order.total))}</span>
       ),
     },
     {
       key: 'assignedTo',
       header: 'Responsável',
       render: (order) => (
-        <span className="text-sm">{order.assignedTo.name}</span>
+        <span className="text-sm">{order.assignedTo?.name || '-'}</span>
       ),
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -315,11 +215,11 @@ export default function OrdersPage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filteredOrders}
-        isLoading={false}
+        data={orders}
+        isLoading={isLoading}
         page={page}
-        totalPages={1}
-        total={filteredOrders.length}
+        totalPages={pagination?.totalPages || 1}
+        total={pagination?.total || 0}
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}

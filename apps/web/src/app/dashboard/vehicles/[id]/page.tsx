@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -23,54 +23,21 @@ import {
   CardDescription,
   Badge,
   Separator,
+  Skeleton,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui';
-
-// Mock data
-const mockVehicle = {
-  id: 'v1',
-  plate: 'ABC-1234',
-  brand: 'BMW',
-  model: 'X5',
-  color: 'Preta',
-  year: 2023,
-  createdAt: new Date('2024-01-15'),
-  customer: {
-    id: '1',
-    name: 'João Silva',
-    phone: '(11) 99999-1234',
-  },
-  orders: [
-    {
-      id: 'os1',
-      code: 'OS-2024-001',
-      status: 'CONCLUIDO',
-      scheduledAt: new Date('2024-02-10'),
-      total: 4500,
-      services: ['PPF Frontal', 'Ceramic Coating'],
-    },
-    {
-      id: 'os2',
-      code: 'OS-2024-015',
-      status: 'EM_EXECUCAO',
-      scheduledAt: new Date('2024-03-15'),
-      total: 2800,
-      services: ['Vitrificação'],
-    },
-    {
-      id: 'os3',
-      code: 'OS-2024-028',
-      status: 'AGENDADO',
-      scheduledAt: new Date('2024-04-20'),
-      total: 6200,
-      services: ['PPF Full'],
-    },
-  ],
-};
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'info' | 'destructive' }> = {
   AGENDADO: { label: 'Agendado', variant: 'secondary' },
@@ -88,13 +55,22 @@ interface PageProps {
 export default function VehicleDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  
-  // TODO: Replace with tRPC query
-  const vehicle = mockVehicle;
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const { data: vehicle, isLoading } = trpc.vehicle.getById.useQuery({ id });
+
+  const deleteMutation = trpc.vehicle.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Veículo excluído com sucesso');
+      router.push('/dashboard/vehicles');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const handleDelete = () => {
-    // TODO: Implement delete with confirmation dialog
-    console.log('Delete vehicle:', id);
+    deleteMutation.mutate({ id });
   };
 
   const formatCurrency = (value: number) => {
@@ -103,6 +79,35 @@ export default function VehicleDetailPage({ params }: PageProps) {
       currency: 'BRL',
     }).format(value);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10" />
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32 mt-2" />
+          </div>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64 lg:col-span-2" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!vehicle) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Veículo não encontrado</p>
+        <Button className="mt-4" asChild>
+          <Link href="/dashboard/vehicles">Voltar para Veículos</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -124,7 +129,7 @@ export default function VehicleDetailPage({ params }: PageProps) {
               </Badge>
             </div>
             <p className="text-muted-foreground">
-              {vehicle.color} • {vehicle.year}
+              {vehicle.color} • {vehicle.year || 'N/A'}
             </p>
           </div>
         </div>
@@ -151,7 +156,7 @@ export default function VehicleDetailPage({ params }: PageProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={handleDelete}
+                onClick={() => setDeleteDialogOpen(true)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Excluir Veículo
@@ -201,7 +206,7 @@ export default function VehicleDetailPage({ params }: PageProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Cadastrado em</p>
                 <p className="font-medium">
-                  {new Intl.DateTimeFormat('pt-BR').format(vehicle.createdAt)}
+                  {new Intl.DateTimeFormat('pt-BR').format(new Date(vehicle.createdAt))}
                 </p>
               </div>
             </div>
@@ -210,12 +215,13 @@ export default function VehicleDetailPage({ params }: PageProps) {
 
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-2xl font-bold">{vehicle.orders.length}</p>
+                <p className="text-2xl font-bold">{vehicle._count.orders}</p>
                 <p className="text-xs text-muted-foreground">Total de OS</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-2xl font-bold">
-                  {formatCurrency(vehicle.orders.reduce((acc, o) => acc + o.total, 0))}
+                  {formatCurrency(vehicle.orders?.reduce((acc: number, o: { total: unknown }) => 
+                    acc + Number(o.total || 0), 0) || 0)}
                 </p>
                 <p className="text-xs text-muted-foreground">Faturado</p>
               </div>
@@ -240,7 +246,7 @@ export default function VehicleDetailPage({ params }: PageProps) {
             </Button>
           </CardHeader>
           <CardContent>
-            {vehicle.orders.length === 0 ? (
+            {!vehicle.orders || vehicle.orders.length === 0 ? (
               <div className="py-8 text-center">
                 <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground/50" />
                 <p className="mt-2 text-muted-foreground">
@@ -255,7 +261,14 @@ export default function VehicleDetailPage({ params }: PageProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                {vehicle.orders.map((order) => {
+                {vehicle.orders.map((order: {
+                  id: string;
+                  code: string;
+                  status: string;
+                  scheduledAt: Date;
+                  total: unknown;
+                  items: { service: { name: string } | null }[];
+                }) => {
                   const status = statusConfig[order.status] || statusConfig.AGENDADO;
                   return (
                     <Link
@@ -269,14 +282,14 @@ export default function VehicleDetailPage({ params }: PageProps) {
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {order.services.join(', ')}
+                          {order.items?.map(i => i.service?.name).filter(Boolean).join(', ') || 'Sem serviços'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Intl.DateTimeFormat('pt-BR').format(order.scheduledAt)}
+                          {new Intl.DateTimeFormat('pt-BR').format(new Date(order.scheduledAt))}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(order.total)}</p>
+                        <p className="font-semibold">{formatCurrency(Number(order.total))}</p>
                       </div>
                     </Link>
                   );
@@ -286,6 +299,31 @@ export default function VehicleDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Veículo</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o veículo{' '}
+              <strong>{vehicle.brand} {vehicle.model}</strong> ({vehicle.plate})?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

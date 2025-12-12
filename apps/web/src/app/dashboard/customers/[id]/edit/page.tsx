@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -18,6 +18,8 @@ import {
   Label,
   Skeleton,
 } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 // Form validation schema
 const customerFormSchema = z.object({
@@ -31,17 +33,6 @@ const customerFormSchema = z.object({
 
 type CustomerFormData = z.infer<typeof customerFormSchema>;
 
-// Mock data - will be replaced with tRPC
-const mockCustomer = {
-  id: '1',
-  name: 'João Silva',
-  phone: '(11) 99999-1234',
-  email: 'joao@email.com',
-  document: '123.456.789-00',
-  notes: 'Cliente VIP. Preferência por agendamentos pela manhã.',
-  whatsappOptIn: true,
-};
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -49,8 +40,6 @@ interface PageProps {
 export default function EditCustomerPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
@@ -73,39 +62,44 @@ export default function EditCustomerPage({ params }: PageProps) {
 
   const whatsappOptIn = watch('whatsappOptIn');
 
-  // Load customer data
-  useEffect(() => {
-    // TODO: Replace with tRPC query
-    const loadCustomer = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      reset({
-        name: mockCustomer.name,
-        phone: mockCustomer.phone,
-        email: mockCustomer.email || '',
-        document: mockCustomer.document || '',
-        notes: mockCustomer.notes || '',
-        whatsappOptIn: mockCustomer.whatsappOptIn,
-      });
-      setIsLoading(false);
-    };
-    loadCustomer();
-  }, [id, reset]);
+  const { data: customer, isLoading } = trpc.customer.getById.useQuery({ id });
 
-  const onSubmit = async (data: CustomerFormData) => {
-    setIsSubmitting(true);
-    try {
-      // TODO: Call tRPC mutation
-      console.log('Update customer:', id, data);
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+  const updateMutation = trpc.customer.update.useMutation({
+    onSuccess: () => {
+      toast.success('Cliente atualizado com sucesso');
       router.push(`/dashboard/customers/${id}`);
-    } catch (error) {
-      console.error('Error updating customer:', error);
-    } finally {
-      setIsSubmitting(false);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  // Load customer data into form
+  useEffect(() => {
+    if (customer) {
+      reset({
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email || '',
+        document: customer.document || '',
+        notes: customer.notes || '',
+        whatsappOptIn: customer.whatsappOptIn,
+      });
     }
+  }, [customer, reset]);
+
+  const onSubmit = (data: CustomerFormData) => {
+    updateMutation.mutate({
+      id,
+      data: {
+        name: data.name,
+        phone: data.phone.replace(/\D/g, ''),
+        email: data.email || undefined,
+        document: data.document || undefined,
+        notes: data.notes || undefined,
+        whatsappOptIn: data.whatsappOptIn,
+      },
+    });
   };
 
   // Format phone number as user types
@@ -162,6 +156,17 @@ export default function EditCustomerPage({ params }: PageProps) {
             ))}
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Cliente não encontrado</p>
+        <Button className="mt-4" asChild>
+          <Link href="/dashboard/customers">Voltar para Clientes</Link>
+        </Button>
       </div>
     );
   }
@@ -277,8 +282,8 @@ export default function EditCustomerPage({ params }: PageProps) {
               <Button type="button" variant="outline" asChild>
                 <Link href={`/dashboard/customers/${id}`}>Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Salvando...

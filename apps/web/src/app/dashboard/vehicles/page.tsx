@@ -19,10 +19,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Skeleton,
 } from '@/components/ui';
 import type { Column } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
-// Mock data - will be replaced with tRPC
 interface Vehicle {
   id: string;
   plate: string;
@@ -40,59 +42,6 @@ interface Vehicle {
   };
 }
 
-const mockVehicles: Vehicle[] = [
-  {
-    id: 'v1',
-    plate: 'ABC-1234',
-    brand: 'BMW',
-    model: 'X5',
-    color: 'Preta',
-    year: 2023,
-    customer: { id: '1', name: 'João Silva', phone: '(11) 99999-1234' },
-    _count: { orders: 3 },
-  },
-  {
-    id: 'v2',
-    plate: 'XYZ-5678',
-    brand: 'Mercedes-Benz',
-    model: 'C200',
-    color: 'Branca',
-    year: 2022,
-    customer: { id: '1', name: 'João Silva', phone: '(11) 99999-1234' },
-    _count: { orders: 1 },
-  },
-  {
-    id: 'v3',
-    plate: 'DEF-9012',
-    brand: 'Audi',
-    model: 'A4',
-    color: 'Cinza',
-    year: 2024,
-    customer: { id: '2', name: 'Maria Santos', phone: '(11) 98888-5678' },
-    _count: { orders: 5 },
-  },
-  {
-    id: 'v4',
-    plate: 'GHI-3456',
-    brand: 'Porsche',
-    model: '911 Carrera',
-    color: 'Vermelha',
-    year: 2023,
-    customer: { id: '3', name: 'Carlos Oliveira', phone: '(11) 97777-9012' },
-    _count: { orders: 2 },
-  },
-  {
-    id: 'v5',
-    plate: 'JKL-7890',
-    brand: 'Tesla',
-    model: 'Model S',
-    color: 'Azul',
-    year: 2024,
-    customer: { id: '4', name: 'Ana Costa', phone: '(11) 96666-3456' },
-    _count: { orders: 0 },
-  },
-];
-
 export default function VehiclesPage() {
   const router = useRouter();
   const [page, setPage] = useState(1);
@@ -100,17 +49,26 @@ export default function VehiclesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
 
-  // Filter mock data (will be replaced with tRPC query)
-  const filteredVehicles = mockVehicles.filter((v) => {
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      v.plate.toLowerCase().includes(searchLower) ||
-      v.brand.toLowerCase().includes(searchLower) ||
-      v.model.toLowerCase().includes(searchLower) ||
-      v.customer.name.toLowerCase().includes(searchLower)
-    );
+  const { data, isLoading, refetch } = trpc.vehicle.list.useQuery({
+    page,
+    limit: 20,
+    search: search || undefined,
   });
+
+  const deleteMutation = trpc.vehicle.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Veículo excluído com sucesso');
+      refetch();
+      setDeleteDialogOpen(false);
+      setVehicleToDelete(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const vehicles = data?.vehicles || [];
+  const pagination = data?.pagination;
 
   const handleDelete = (vehicle: Vehicle) => {
     setVehicleToDelete(vehicle);
@@ -118,10 +76,9 @@ export default function VehiclesPage() {
   };
 
   const confirmDelete = () => {
-    // TODO: Call tRPC mutation
-    console.log('Delete vehicle:', vehicleToDelete?.id);
-    setDeleteDialogOpen(false);
-    setVehicleToDelete(null);
+    if (vehicleToDelete) {
+      deleteMutation.mutate({ id: vehicleToDelete.id });
+    }
   };
 
   const columns: Column<Vehicle>[] = [
@@ -180,6 +137,18 @@ export default function VehiclesPage() {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -201,11 +170,11 @@ export default function VehiclesPage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filteredVehicles}
-        isLoading={false}
+        data={vehicles}
+        isLoading={isLoading}
         page={page}
-        totalPages={1}
-        total={filteredVehicles.length}
+        totalPages={pagination?.totalPages || 1}
+        total={pagination?.total || 0}
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}
@@ -270,8 +239,12 @@ export default function VehiclesPage() {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Excluir
+            <Button 
+              variant="destructive" 
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

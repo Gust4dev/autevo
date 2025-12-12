@@ -25,44 +25,22 @@ import {
   CardDescription,
   Badge,
   Separator,
+  Skeleton,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui';
-
-// Mock data - will be replaced with tRPC
-const mockCustomer = {
-  id: '1',
-  name: 'João Silva',
-  phone: '(11) 99999-1234',
-  email: 'joao@email.com',
-  document: '123.456.789-00',
-  notes: 'Cliente VIP. Preferência por agendamentos pela manhã.',
-  whatsappOptIn: true,
-  createdAt: new Date('2024-01-15'),
-  vehicles: [
-    {
-      id: 'v1',
-      plate: 'ABC-1234',
-      brand: 'BMW',
-      model: 'X5',
-      color: 'Preta',
-      year: 2023,
-      _count: { orders: 3 },
-    },
-    {
-      id: 'v2',
-      plate: 'XYZ-5678',
-      brand: 'Mercedes-Benz',
-      model: 'C200',
-      color: 'Branca',
-      year: 2022,
-      _count: { orders: 1 },
-    },
-  ],
-};
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
+import { useState } from 'react';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -71,14 +49,52 @@ interface PageProps {
 export default function CustomerDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  
-  // TODO: Replace with tRPC query
-  const customer = mockCustomer;
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const { data: customer, isLoading } = trpc.customer.getById.useQuery({ id });
+
+  const deleteMutation = trpc.customer.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Cliente excluído com sucesso');
+      router.push('/dashboard/customers');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const handleDelete = () => {
-    // TODO: Implement delete with confirmation dialog
-    console.log('Delete customer:', id);
+    deleteMutation.mutate({ id });
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10" />
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32 mt-2" />
+          </div>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64 lg:col-span-2" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Cliente não encontrado</p>
+        <Button className="mt-4" asChild>
+          <Link href="/dashboard/customers">Voltar para Clientes</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -98,7 +114,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
             </div>
             <p className="text-muted-foreground">
-              Cliente desde {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(customer.createdAt)}
+              Cliente desde {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(customer.createdAt))}
             </p>
           </div>
         </div>
@@ -131,7 +147,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={handleDelete}
+                onClick={() => setDeleteDialogOpen(true)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Excluir Cliente
@@ -189,7 +205,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Cadastrado em</p>
                 <p className="font-medium">
-                  {new Intl.DateTimeFormat('pt-BR').format(customer.createdAt)}
+                  {new Intl.DateTimeFormat('pt-BR').format(new Date(customer.createdAt))}
                 </p>
               </div>
             </div>
@@ -271,6 +287,31 @@ export default function CustomerDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Cliente</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir <strong>{customer.name}</strong>?
+              Todos os veículos e dados associados serão perdidos.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

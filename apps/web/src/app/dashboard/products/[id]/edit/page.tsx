@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -18,6 +18,8 @@ import {
   Label,
   Skeleton,
 } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 const productFormSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
@@ -32,18 +34,6 @@ const productFormSchema = z.object({
 
 type ProductFormData = z.infer<typeof productFormSchema>;
 
-const mockProduct = {
-  id: 'p1',
-  name: 'Película PPF 3M Pro Series',
-  description: 'Película premium para proteção de pintura',
-  sku: 'PPF-3M-001',
-  unit: 'm²',
-  costPrice: 180,
-  salePrice: null as number | null,
-  stock: 45,
-  minStock: 20,
-};
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -51,8 +41,18 @@ interface PageProps {
 export default function EditProductPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: product, isLoading } = trpc.product.getById.useQuery({ id });
+
+  const updateMutation = trpc.product.update.useMutation({
+    onSuccess: () => {
+      toast.success('Produto atualizado com sucesso');
+      router.push('/dashboard/products');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const {
     register,
@@ -64,38 +64,38 @@ export default function EditProductPage({ params }: PageProps) {
   });
 
   useEffect(() => {
-    const loadProduct = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+    if (product) {
       reset({
-        name: mockProduct.name,
-        description: mockProduct.description || '',
-        sku: mockProduct.sku || '',
-        unit: mockProduct.unit,
-        costPrice: mockProduct.costPrice 
-          ? mockProduct.costPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
+        name: product.name,
+        description: product.description || '',
+        sku: product.sku || '',
+        unit: product.unit,
+        costPrice: product.costPrice 
+          ? Number(product.costPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
           : '',
-        salePrice: mockProduct.salePrice 
-          ? mockProduct.salePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
+        salePrice: product.salePrice 
+          ? Number(product.salePrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
           : '',
-        stock: mockProduct.stock.toString(),
-        minStock: mockProduct.minStock.toString(),
+        stock: product.stock.toString(),
+        minStock: product.minStock.toString(),
       });
-      setIsLoading(false);
-    };
-    loadProduct();
-  }, [id, reset]);
-
-  const onSubmit = async (data: ProductFormData) => {
-    setIsSubmitting(true);
-    try {
-      console.log('Update product:', id, data);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      router.push('/dashboard/products');
-    } catch (error) {
-      console.error('Error updating product:', error);
-    } finally {
-      setIsSubmitting(false);
     }
+  }, [product, reset]);
+
+  const onSubmit = (data: ProductFormData) => {
+    updateMutation.mutate({
+      id,
+      data: {
+        name: data.name,
+        description: data.description || undefined,
+        sku: data.sku || undefined,
+        unit: data.unit,
+        costPrice: data.costPrice ? parseFloat(data.costPrice.replace(/[^\d,]/g, '').replace(',', '.')) : undefined,
+        salePrice: data.salePrice ? parseFloat(data.salePrice.replace(/[^\d,]/g, '').replace(',', '.')) : undefined,
+        stock: parseInt(data.stock) || 0,
+        minStock: parseInt(data.minStock) || 5,
+      },
+    });
   };
 
   const formatCurrency = (value: string) => {
@@ -125,6 +125,17 @@ export default function EditProductPage({ params }: PageProps) {
             ))}
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Produto não encontrado</p>
+        <Button className="mt-4" asChild>
+          <Link href="/dashboard/products">Voltar para Produtos</Link>
+        </Button>
       </div>
     );
   }
@@ -212,8 +223,8 @@ export default function EditProductPage({ params }: PageProps) {
               <Button type="button" variant="outline" asChild>
                 <Link href="/dashboard/products">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>
                 ) : (
                   <><Save className="mr-2 h-4 w-4" />Salvar Alterações</>

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -17,6 +16,8 @@ import {
   Input,
   Label,
 } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 // Form validation schema
 const serviceFormSchema = z.object({
@@ -33,7 +34,16 @@ type ServiceFormData = z.infer<typeof serviceFormSchema>;
 
 export default function NewServicePage() {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createMutation = trpc.service.create.useMutation({
+    onSuccess: () => {
+      toast.success('Serviço cadastrado com sucesso');
+      router.push('/dashboard/services');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const {
     register,
@@ -56,26 +66,18 @@ export default function NewServicePage() {
 
   const isActive = watch('isActive');
 
-  const onSubmit = async (data: ServiceFormData) => {
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        ...data,
-        basePrice: parseFloat(data.basePrice.replace(/[^\d,]/g, '').replace(',', '.')),
-        estimatedTime: data.estimatedTime ? parseInt(data.estimatedTime) : undefined,
-        returnDays: data.returnDays ? parseInt(data.returnDays) : undefined,
-        defaultCommissionPercent: data.defaultCommissionPercent 
-          ? parseFloat(data.defaultCommissionPercent) 
-          : undefined,
-      };
-      console.log('Create service:', payload);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      router.push('/dashboard/services');
-    } catch (error) {
-      console.error('Error creating service:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const onSubmit = (data: ServiceFormData) => {
+    createMutation.mutate({
+      name: data.name,
+      description: data.description || undefined,
+      basePrice: parseFloat(data.basePrice.replace(/[^\d,]/g, '').replace(',', '.')),
+      estimatedTime: data.estimatedTime ? parseInt(data.estimatedTime) : undefined,
+      returnDays: data.returnDays ? parseInt(data.returnDays) : undefined,
+      defaultCommissionPercent: data.defaultCommissionPercent 
+        ? parseFloat(data.defaultCommissionPercent) 
+        : undefined,
+      isActive: data.isActive,
+    });
   };
 
   // Format currency as user types
@@ -220,8 +222,8 @@ export default function NewServicePage() {
               <Button type="button" variant="outline" asChild>
                 <Link href="/dashboard/services">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Salvando...

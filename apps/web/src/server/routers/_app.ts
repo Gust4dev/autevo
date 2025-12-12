@@ -5,6 +5,7 @@ import { vehicleRouter } from './vehicle';
 import { serviceRouter } from './service';
 import { productRouter } from './product';
 import { orderRouter } from './order';
+import { userRouter } from './user';
 
 export const appRouter = router({
     health: healthRouter,
@@ -13,7 +14,9 @@ export const appRouter = router({
     service: serviceRouter,
     product: productRouter,
     order: orderRouter,
+    user: userRouter,
 });
 
 export type AppRouter = typeof appRouter;
+
 

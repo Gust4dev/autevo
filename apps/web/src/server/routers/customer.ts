@@ -80,6 +80,9 @@ export const customerRouter = router({
                 include: {
                     vehicles: {
                         orderBy: { createdAt: 'desc' },
+                        include: {
+                            _count: { select: { orders: true } },
+                        },
                     },
                 },
             });

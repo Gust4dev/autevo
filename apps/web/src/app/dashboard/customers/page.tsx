@@ -19,10 +19,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Skeleton,
 } from '@/components/ui';
 import type { Column } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
-// Mock data - will be replaced with tRPC
 interface Customer {
   id: string;
   name: string;
@@ -36,98 +38,35 @@ interface Customer {
   };
 }
 
-const mockCustomers: Customer[] = [
-  {
-    id: '1',
-    name: 'João Silva',
-    phone: '(11) 99999-1234',
-    email: 'joao@email.com',
-    document: '123.456.789-00',
-    whatsappOptIn: true,
-    createdAt: new Date('2024-01-15'),
-    _count: { vehicles: 2 },
-  },
-  {
-    id: '2',
-    name: 'Maria Santos',
-    phone: '(11) 98888-5678',
-    email: 'maria@email.com',
-    document: null,
-    whatsappOptIn: true,
-    createdAt: new Date('2024-02-20'),
-    _count: { vehicles: 1 },
-  },
-  {
-    id: '3',
-    name: 'Carlos Oliveira',
-    phone: '(11) 97777-9012',
-    email: null,
-    document: '987.654.321-00',
-    whatsappOptIn: false,
-    createdAt: new Date('2024-03-10'),
-    _count: { vehicles: 3 },
-  },
-  {
-    id: '4',
-    name: 'Ana Costa',
-    phone: '(11) 96666-3456',
-    email: 'ana.costa@email.com',
-    document: null,
-    whatsappOptIn: true,
-    createdAt: new Date('2024-04-05'),
-    _count: { vehicles: 1 },
-  },
-  {
-    id: '5',
-    name: 'Pedro Ferreira',
-    phone: '(11) 95555-7890',
-    email: 'pedro.f@email.com',
-    document: '111.222.333-44',
-    whatsappOptIn: true,
-    createdAt: new Date('2024-05-12'),
-    _count: { vehicles: 2 },
-  },
-];
-
 export default function CustomersPage() {
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<string>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
-  // Filter and sort mock data (will be replaced with tRPC query)
-  const filteredCustomers = mockCustomers
-    .filter((c) => {
-      if (!search) return true;
-      const searchLower = search.toLowerCase();
-      return (
-        c.name.toLowerCase().includes(searchLower) ||
-        c.phone.includes(search) ||
-        c.email?.toLowerCase().includes(searchLower)
-      );
-    })
-    .sort((a, b) => {
-      const aVal = a[sortBy as keyof Customer];
-      const bVal = b[sortBy as keyof Customer];
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' 
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
-      }
-      return 0;
-    });
+  // tRPC query
+  const { data, isLoading, refetch } = trpc.customer.list.useQuery({
+    page,
+    limit: 20,
+    search: search || undefined,
+  });
 
-  const handleSort = (key: string) => {
-    if (sortBy === key) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(key);
-      setSortOrder('asc');
-    }
-  };
+  // tRPC mutation
+  const deleteMutation = trpc.customer.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Cliente excluído com sucesso');
+      refetch();
+      setDeleteDialogOpen(false);
+      setCustomerToDelete(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const customers = data?.customers || [];
+  const pagination = data?.pagination;
 
   const handleDelete = (customer: Customer) => {
     setCustomerToDelete(customer);
@@ -135,10 +74,9 @@ export default function CustomersPage() {
   };
 
   const confirmDelete = () => {
-    // TODO: Call tRPC mutation
-    console.log('Delete customer:', customerToDelete?.id);
-    setDeleteDialogOpen(false);
-    setCustomerToDelete(null);
+    if (customerToDelete) {
+      deleteMutation.mutate({ id: customerToDelete.id });
+    }
   };
 
   const columns: Column<Customer>[] = [
@@ -195,11 +133,23 @@ export default function CustomersPage() {
       sortable: true,
       render: (customer) => (
         <span className="text-sm text-muted-foreground">
-          {new Intl.DateTimeFormat('pt-BR').format(customer.createdAt)}
+          {new Intl.DateTimeFormat('pt-BR').format(new Date(customer.createdAt))}
         </span>
       ),
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -222,15 +172,12 @@ export default function CustomersPage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filteredCustomers}
-        isLoading={false}
+        data={customers}
+        isLoading={isLoading}
         page={page}
-        totalPages={1}
-        total={filteredCustomers.length}
+        totalPages={pagination?.totalPages || 1}
+        total={pagination?.total || 0}
         onPageChange={setPage}
-        sortBy={sortBy}
-        sortOrder={sortOrder}
-        onSort={handleSort}
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Buscar por nome, telefone ou email..."
@@ -294,8 +241,12 @@ export default function CustomersPage() {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Excluir
+            <Button 
+              variant="destructive" 
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

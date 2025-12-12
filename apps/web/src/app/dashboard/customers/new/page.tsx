@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -17,6 +16,8 @@ import {
   Input,
   Label,
 } from '@/components/ui';
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 // Form validation schema
 const customerFormSchema = z.object({
@@ -32,7 +33,6 @@ type CustomerFormData = z.infer<typeof customerFormSchema>;
 
 export default function NewCustomerPage() {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
@@ -54,21 +54,25 @@ export default function NewCustomerPage() {
 
   const whatsappOptIn = watch('whatsappOptIn');
 
-  const onSubmit = async (data: CustomerFormData) => {
-    setIsSubmitting(true);
-    try {
-      // TODO: Call tRPC mutation
-      console.log('Create customer:', data);
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+  const createMutation = trpc.customer.create.useMutation({
+    onSuccess: () => {
+      toast.success('Cliente cadastrado com sucesso');
       router.push('/dashboard/customers');
-    } catch (error) {
-      console.error('Error creating customer:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const onSubmit = (data: CustomerFormData) => {
+    createMutation.mutate({
+      name: data.name,
+      phone: data.phone.replace(/\D/g, ''),
+      email: data.email || undefined,
+      document: data.document || undefined,
+      notes: data.notes || undefined,
+      whatsappOptIn: data.whatsappOptIn,
+    });
   };
 
   // Format phone number as user types
@@ -212,8 +216,8 @@ export default function NewCustomerPage() {
               <Button type="button" variant="outline" asChild>
                 <Link href="/dashboard/customers">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Salvando...

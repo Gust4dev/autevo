@@ -19,73 +19,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Skeleton,
 } from '@/components/ui';
 import type { Column } from '@/components/ui';
-
-// Mock data
-interface Service {
-  id: string;
-  name: string;
-  description: string | null;
-  basePrice: number;
-  estimatedTime: number | null;
-  returnDays: number | null;
-  isActive: boolean;
-  defaultCommissionPercent: number | null;
-}
-
-const mockServices: Service[] = [
-  {
-    id: 's1',
-    name: 'PPF Frontal',
-    description: 'Proteção de pintura na parte frontal do veículo',
-    basePrice: 4500,
-    estimatedTime: 480,
-    returnDays: 365,
-    isActive: true,
-    defaultCommissionPercent: 10,
-  },
-  {
-    id: 's2',
-    name: 'PPF Full',
-    description: 'Proteção completa de pintura',
-    basePrice: 12000,
-    estimatedTime: 1440,
-    returnDays: 365,
-    isActive: true,
-    defaultCommissionPercent: 12,
-  },
-  {
-    id: 's3',
-    name: 'Ceramic Coating',
-    description: 'Vitrificação cerâmica profissional',
-    basePrice: 2800,
-    estimatedTime: 360,
-    returnDays: 180,
-    isActive: true,
-    defaultCommissionPercent: 8,
-  },
-  {
-    id: 's4',
-    name: 'Vitrificação de Vidros',
-    description: 'Tratamento hidrofóbico para vidros',
-    basePrice: 450,
-    estimatedTime: 90,
-    returnDays: 90,
-    isActive: true,
-    defaultCommissionPercent: 5,
-  },
-  {
-    id: 's5',
-    name: 'Polimento Técnico',
-    description: 'Correção de pintura e remoção de marcas',
-    basePrice: 800,
-    estimatedTime: 240,
-    returnDays: null,
-    isActive: false,
-    defaultCommissionPercent: 8,
-  },
-];
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 export default function ServicesPage() {
   const router = useRouter();
@@ -93,32 +31,57 @@ export default function ServicesPage() {
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null);
+  const [serviceToDelete, setServiceToDelete] = useState<{
+    id: string;
+    name: string;
+    isActive: boolean;
+  } | null>(null);
 
-  // Filter mock data
-  const filteredServices = mockServices.filter((s) => {
-    if (!showInactive && !s.isActive) return false;
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      s.name.toLowerCase().includes(searchLower) ||
-      s.description?.toLowerCase().includes(searchLower)
-    );
+  const { data, isLoading, refetch } = trpc.service.list.useQuery({
+    page,
+    limit: 20,
+    search: search || undefined,
+    isActive: showInactive ? undefined : true,
   });
 
-  const handleDelete = (service: Service) => {
+  const toggleActiveMutation = trpc.service.toggleActive.useMutation({
+    onSuccess: () => {
+      toast.success('Status atualizado');
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const deleteMutation = trpc.service.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Serviço excluído com sucesso');
+      refetch();
+      setDeleteDialogOpen(false);
+      setServiceToDelete(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const services = data?.services || [];
+  const pagination = data?.pagination;
+
+  const handleDelete = (service: (typeof services)[number]) => {
     setServiceToDelete(service);
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = () => {
-    console.log('Delete service:', serviceToDelete?.id);
-    setDeleteDialogOpen(false);
-    setServiceToDelete(null);
+    if (serviceToDelete) {
+      deleteMutation.mutate({ id: serviceToDelete.id });
+    }
   };
 
-  const handleToggleActive = (service: Service) => {
-    console.log('Toggle active:', service.id, !service.isActive);
+  const handleToggleActive = (service: (typeof services)[number]) => {
+    toggleActiveMutation.mutate({ id: service.id });
   };
 
   const formatCurrency = (value: number) => {
@@ -135,7 +98,7 @@ export default function ServicesPage() {
     return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
   };
 
-  const columns: Column<Service>[] = [
+  const columns: Column<(typeof services)[number]>[] = [
     {
       key: 'name',
       header: 'Serviço',
@@ -162,7 +125,7 @@ export default function ServicesPage() {
       render: (service) => (
         <div className="flex items-center gap-1.5">
           <DollarSign className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{formatCurrency(service.basePrice)}</span>
+          <span className="font-medium">{formatCurrency(Number(service.basePrice))}</span>
         </div>
       ),
     },
@@ -196,13 +159,25 @@ export default function ServicesPage() {
       header: 'Comissão',
       render: (service) => (
         service.defaultCommissionPercent ? (
-          <Badge variant="outline">{service.defaultCommissionPercent}%</Badge>
+          <Badge variant="outline">{Number(service.defaultCommissionPercent)}%</Badge>
         ) : (
           <span className="text-muted-foreground">-</span>
         )
       ),
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -233,11 +208,11 @@ export default function ServicesPage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filteredServices}
-        isLoading={false}
+        data={services}
+        isLoading={isLoading}
         page={page}
-        totalPages={1}
-        total={filteredServices.length}
+        totalPages={pagination?.totalPages || 1}
+        total={pagination?.total || 0}
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}
@@ -315,8 +290,12 @@ export default function ServicesPage() {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Excluir
+            <Button 
+              variant="destructive" 
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

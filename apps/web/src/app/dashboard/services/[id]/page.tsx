@@ -1,7 +1,8 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   Pencil, 
@@ -21,20 +22,16 @@ import {
   CardTitle,
   Badge,
   Separator,
+  Skeleton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui';
-
-// Mock data
-const mockService = {
-  id: 's1',
-  name: 'PPF Frontal',
-  description: 'Proteção de pintura na parte frontal do veículo. Inclui capô, para-lamas, para-choque dianteiro e retrovisores.',
-  basePrice: 4500,
-  estimatedTime: 480,
-  returnDays: 365,
-  isActive: true,
-  defaultCommissionPercent: 10,
-  createdAt: new Date('2024-01-01'),
-};
+import { trpc } from '@/lib/trpc/provider';
+import { toast } from 'sonner';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -42,8 +39,30 @@ interface PageProps {
 
 export default function ServiceDetailPage({ params }: PageProps) {
   const { id } = use(params);
+  const router = useRouter();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
-  const service = mockService;
+  const { data: service, isLoading, refetch } = trpc.service.getById.useQuery({ id });
+
+  const toggleActiveMutation = trpc.service.toggleActive.useMutation({
+    onSuccess: () => {
+      toast.success('Status atualizado');
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const deleteMutation = trpc.service.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Serviço excluído com sucesso');
+      router.push('/dashboard/services');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -60,8 +79,41 @@ export default function ServiceDetailPage({ params }: PageProps) {
   };
 
   const handleToggleActive = () => {
-    console.log('Toggle active:', id, !service.isActive);
+    toggleActiveMutation.mutate({ id });
   };
+
+  const handleDelete = () => {
+    deleteMutation.mutate({ id });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10" />
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32 mt-2" />
+          </div>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!service) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Serviço não encontrado</p>
+        <Button className="mt-4" asChild>
+          <Link href="/dashboard/services">Voltar para Serviços</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -83,7 +135,7 @@ export default function ServiceDetailPage({ params }: PageProps) {
               )}
             </div>
             <p className="text-muted-foreground">
-              Cadastrado em {new Intl.DateTimeFormat('pt-BR').format(service.createdAt)}
+              Cadastrado em {new Intl.DateTimeFormat('pt-BR').format(new Date())}
             </p>
           </div>
         </div>
@@ -97,6 +149,7 @@ export default function ServiceDetailPage({ params }: PageProps) {
           <Button 
             variant={service.isActive ? 'outline' : 'default'}
             onClick={handleToggleActive}
+            disabled={toggleActiveMutation.isPending}
           >
             {service.isActive ? (
               <>
@@ -127,7 +180,7 @@ export default function ServiceDetailPage({ params }: PageProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Preço Base</p>
-                <p className="text-xl font-bold">{formatCurrency(service.basePrice)}</p>
+                <p className="text-xl font-bold">{formatCurrency(Number(service.basePrice))}</p>
               </div>
             </div>
 
@@ -162,7 +215,7 @@ export default function ServiceDetailPage({ params }: PageProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Comissão Padrão</p>
-                  <p className="font-medium">{service.defaultCommissionPercent}%</p>
+                  <p className="font-medium">{Number(service.defaultCommissionPercent)}%</p>
                 </div>
               </div>
             )}
@@ -212,12 +265,37 @@ export default function ServiceDetailPage({ params }: PageProps) {
               Esta ação é irreversível. Serviços com OS vinculadas não podem ser excluídos.
             </p>
           </div>
-          <Button variant="destructive">
+          <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
             <Trash2 className="mr-2 h-4 w-4" />
             Excluir
           </Button>
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Serviço</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o serviço <strong>{service.name}</strong>?
+              Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
