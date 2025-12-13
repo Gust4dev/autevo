@@ -140,8 +140,8 @@ model Vehicle {
   model      String
   color      String
   year       Int?
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   createdAt  DateTime @default(now())

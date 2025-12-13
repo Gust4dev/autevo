@@ -15,6 +15,7 @@ import {
   Plus,
   Trash2,
   Search,
+  UserX,
 } from 'lucide-react';
 import { 
   Button, 
@@ -26,12 +27,20 @@ import {
   Input,
   Label,
   Badge,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui';
 import { trpc } from '@/lib/trpc/provider';
 import { toast } from 'sonner';
 
 interface SelectedItem {
-  serviceId: string;
+  tempId: string;
+  serviceId?: string;
+  customName?: string;
   name: string;
   price: number;
   quantity: number;
@@ -63,6 +72,15 @@ export default function NewOrderPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [customerSearch, setCustomerSearch] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
+  
+  // Anonymous Order State
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [newVehicle, setNewVehicle] = useState({
+    plate: '',
+    brand: '',
+    model: '',
+    color: '',
+  });
 
   const [orderData, setOrderData] = useState<OrderData>({
     customerId: preselectedCustomerId || '',
@@ -73,10 +91,14 @@ export default function NewOrderPage() {
     assignedToId: '',
   });
 
+  // Custom Service State
+  const [customServiceOpen, setCustomServiceOpen] = useState(false);
+  const [customServiceData, setCustomServiceData] = useState({ name: '', price: '' });
+
   // tRPC Queries
   const customersQuery = trpc.customer.list.useQuery(
     { search: customerSearch, limit: 10 },
-    { keepPreviousData: true }
+    { placeholderData: (previousData) => previousData }
   );
 
   const vehiclesQuery = trpc.vehicle.list.useQuery(
@@ -87,6 +109,17 @@ export default function NewOrderPage() {
   const servicesQuery = trpc.service.listActive.useQuery();
 
   const usersQuery = trpc.user.listForSelect.useQuery();
+
+  const createVehicle = trpc.vehicle.create.useMutation({
+    onSuccess: (vehicle) => {
+       toast.success('Veículo registrado!');
+       setOrderData(prev => ({ ...prev, vehicleId: vehicle.id }));
+       // If successful, we can optionally move to next step or just show it's selected
+    },
+    onError: (err) => {
+       toast.error(err.message || 'Erro ao criar veículo');
+    }
+  });
 
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
@@ -103,6 +136,9 @@ export default function NewOrderPage() {
   const filteredCustomers = customersQuery.data?.customers || [];
   
   const customerVehicles = vehiclesQuery.data?.vehicles || [];
+  // For anonymous, we might need to fetch the vehicle if we just created it, or store it in state? 
+  // Simpler: if vehicleId is set and isAnonymous, we show the 'New Vehicle' data or a summary.
+  // But standard logic:
   const selectedVehicle = customerVehicles.find(v => v.id === orderData.vehicleId);
 
   const availableServices = servicesQuery.data || [];
@@ -128,6 +164,10 @@ export default function NewOrderPage() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
+        if (isAnonymous) {
+             // Need a created vehicle ID
+             return !!orderData.vehicleId;
+        }
         return !!(orderData.customerId && orderData.vehicleId);
       case 2:
         return orderData.items.length > 0;
@@ -136,6 +176,23 @@ export default function NewOrderPage() {
       default:
         return false;
     }
+  };
+
+  const handleCreateAnonymousVehicle = async () => {
+      if (!newVehicle.plate || !newVehicle.brand || !newVehicle.model || !newVehicle.color) {
+          toast.error("Preencha todos os dados do veículo");
+          return;
+      }
+      try {
+          const v = await createVehicle.mutateAsync({
+              ...newVehicle,
+              // customerId is optional now
+          });
+          // already handled in onSuccess, but simpler/safer here too
+          setOrderData(prev => ({ ...prev, vehicleId: v.id, customerId: '' }));
+      } catch (e) {
+          // handled in onError
+      }
   };
 
   const handleAddService = (service: typeof availableServices[0]) => {
@@ -147,6 +204,7 @@ export default function NewOrderPage() {
       items: [
         ...prev.items,
         {
+          tempId: Math.random().toString(36).substr(2, 9),
           serviceId: service.id,
           name: service.name,
           price: Number(service.basePrice),
@@ -156,18 +214,41 @@ export default function NewOrderPage() {
     }));
   };
 
-  const handleRemoveItem = (serviceId: string) => {
+  const handleAddCustomService = () => {
+    if (!customServiceData.name || !customServiceData.price) {
+      toast.error('Preencha o nome e o preço do serviço');
+      return;
+    }
+
     setOrderData((prev) => ({
       ...prev,
-      items: prev.items.filter((i) => i.serviceId !== serviceId),
+      items: [
+        ...prev.items,
+        {
+          tempId: Math.random().toString(36).substr(2, 9),
+          customName: customServiceData.name,
+          name: customServiceData.name,
+          price: Number(customServiceData.price),
+          quantity: 1,
+        },
+      ],
+    }));
+    setCustomServiceOpen(false);
+    setCustomServiceData({ name: '', price: '' });
+  };
+
+  const handleRemoveItem = (tempId: string) => {
+    setOrderData((prev) => ({
+      ...prev,
+      items: prev.items.filter((i) => i.tempId !== tempId),
     }));
   };
 
-  const handleUpdatePrice = (serviceId: string, newPrice: number) => {
+  const handleUpdatePrice = (tempId: string, newPrice: number) => {
     setOrderData((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
-        item.serviceId === serviceId ? { ...item, price: newPrice } : item
+        item.tempId === tempId ? { ...item, price: newPrice } : item
       ),
     }));
   };
@@ -176,7 +257,6 @@ export default function NewOrderPage() {
     const scheduledDateTime = new Date(`${orderData.scheduledAt}T${orderData.scheduledTime}`);
     
     await createOrder.mutateAsync({
-      customerId: orderData.customerId, // Not required by schema but good context
       vehicleId: orderData.vehicleId,
       assignedToId: orderData.assignedToId,
       scheduledAt: scheduledDateTime,
@@ -184,6 +264,7 @@ export default function NewOrderPage() {
       discountValue: orderData.discountValue,
       items: orderData.items.map(item => ({
         serviceId: item.serviceId,
+        customName: item.customName,
         price: item.price,
         quantity: item.quantity,
       })),
@@ -261,104 +342,198 @@ export default function NewOrderPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Customer Search */}
-              <div className="space-y-3">
-                <Label>Cliente</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nome ou telefone..."
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-
-                {/* Customer List */}
-                <div className="max-h-48 space-y-2 overflow-y-auto">
-                  {customersQuery.isLoading && (
-                    <div className="flex justify-center p-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                  
-                  {!customersQuery.isLoading && filteredCustomers.length === 0 && (
-                    <p className="text-center text-sm text-muted-foreground py-4">
-                      Nenhum cliente encontrado.
-                    </p>
-                  )}
-
-                  {filteredCustomers.map((customer) => (
-                    <button
-                      key={customer.id}
-                      type="button"
-                      onClick={() => setOrderData((prev) => ({
-                        ...prev,
-                        customerId: customer.id,
-                        vehicleId: '', // Reset vehicle when customer changes
-                      }))}
-                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                        orderData.customerId === customer.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-input hover:bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{customer.name}</p>
-                          <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                        </div>
-                        {/* Note: We don't have vehicle count in list query, would need to add to router if needed */}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              
+              <div className="flex items-center space-x-2 rounded-lg border p-4 bg-muted/20">
+                 <input 
+                    type="checkbox" 
+                    id="anonymous" 
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={isAnonymous}
+                    onChange={(e) => {
+                        setIsAnonymous(e.target.checked);
+                        setOrderData(prev => ({ ...prev, customerId: '', vehicleId: '' }));
+                    }}
+                 />
+                 <Label htmlFor="anonymous" className="font-medium cursor-pointer flex items-center gap-2">
+                    <UserX className="h-4 w-4" />
+                    Cliente não cadastrado (Ordem Avulsa)
+                 </Label>
               </div>
 
-              {/* Vehicle Selection */}
-              {orderData.customerId && (
-                <div className="space-y-3">
-                  <Label>Veículo</Label>
-                  {vehiclesQuery.isLoading ? (
-                    <div className="flex justify-center p-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              {isAnonymous ? (
+                 <div className="space-y-4 border rounded-lg p-4 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center">
+                        <h3 className="font-semibold flex items-center gap-2">
+                            <Car className="h-4 w-4 text-primary" />
+                            Cadastrar Veículo Rápido
+                        </h3>
+                        {orderData.vehicleId && <Badge variant="default" className="bg-green-600">Veículo Selecionado</Badge>}
                     </div>
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                    {customerVehicles.map((vehicle) => (
-                      <button
-                        key={vehicle.id}
-                        type="button"
-                        onClick={() => setOrderData((prev) => ({ ...prev, vehicleId: vehicle.id }))}
-                        className={`rounded-lg border p-4 text-left transition-colors ${
-                          orderData.vehicleId === vehicle.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-input hover:bg-muted/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                            <Car className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-mono font-semibold">{vehicle.plate}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {vehicle.brand} {vehicle.model} • {vehicle.color}
-                            </p>
-                          </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Placa</Label>
+                            <Input 
+                                placeholder="ABC1D23" 
+                                value={newVehicle.plate}
+                                onChange={e => setNewVehicle(prev => ({...prev, plate: e.target.value.toUpperCase()}))}
+                                maxLength={8}
+                                disabled={!!orderData.vehicleId}
+                            />
                         </div>
-                      </button>
-                    ))}
-                    <Link
-                      href={`/dashboard/vehicles/new?customerId=${orderData.customerId}&returnTo=/dashboard/orders/new`}
-                      className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-input p-4 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                    >
-                      <Plus className="h-5 w-5" />
-                      Adicionar Veículo
-                    </Link>
+                        <div className="space-y-2">
+                            <Label>Marca</Label>
+                            <Input 
+                                placeholder="Ex: Toyota" 
+                                value={newVehicle.brand}
+                                onChange={e => setNewVehicle(prev => ({...prev, brand: e.target.value}))}
+                                disabled={!!orderData.vehicleId}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Modelo</Label>
+                            <Input 
+                                placeholder="Ex: Corolla" 
+                                value={newVehicle.model}
+                                onChange={e => setNewVehicle(prev => ({...prev, model: e.target.value}))}
+                                disabled={!!orderData.vehicleId}
+                            />
+                        </div>
+                         <div className="space-y-2">
+                            <Label>Cor</Label>
+                            <Input 
+                                placeholder="Ex: Preto" 
+                                value={newVehicle.color}
+                                onChange={e => setNewVehicle(prev => ({...prev, color: e.target.value}))}
+                                disabled={!!orderData.vehicleId}
+                            />
+                        </div>
+                    </div>
+                    
+                    {!orderData.vehicleId ? (
+                        <Button 
+                            type="button" 
+                            onClick={handleCreateAnonymousVehicle}
+                            disabled={createVehicle.isPending}
+                            className="w-full"
+                        >
+                            {createVehicle.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                            Confirmar Veículo
+                        </Button>
+                    ) : (
+                        <Button 
+                            type="button" 
+                            variant="outline"
+                            onClick={() => setOrderData(prev => ({ ...prev, vehicleId: '' }))}
+                            className="w-full"
+                        >
+                            Alterar Veículo
+                        </Button>
+                    )}
+                 </div>
+              ) : (
+                <>
+                  {/* Standard Customer Search */}
+                  {/* Customer Search */}
+                  <div className="space-y-3">
+                    <Label>Cliente</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por nome ou telefone..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {/* Customer List */}
+                    <div className="max-h-48 space-y-2 overflow-y-auto">
+                      {customersQuery.isLoading && (
+                        <div className="flex justify-center p-4">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      
+                      {!customersQuery.isLoading && filteredCustomers.length === 0 && (
+                        <p className="text-center text-sm text-muted-foreground py-4">
+                          Nenhum cliente encontrado.
+                        </p>
+                      )}
+
+                      {filteredCustomers.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => setOrderData((prev) => ({
+                            ...prev,
+                            customerId: customer.id,
+                            vehicleId: '', // Reset vehicle when customer changes
+                          }))}
+                          className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                            orderData.customerId === customer.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-input hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{customer.name}</p>
+                              <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                            </div>
+                            {/* Note: We don't have vehicle count in list query, would need to add to router if needed */}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Vehicle Selection */}
+                  {orderData.customerId && (
+                    <div className="space-y-3">
+                      <Label>Veículo</Label>
+                      {vehiclesQuery.isLoading ? (
+                        <div className="flex justify-center p-4">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                        {customerVehicles.map((vehicle) => (
+                          <button
+                            key={vehicle.id}
+                            type="button"
+                            onClick={() => setOrderData((prev) => ({ ...prev, vehicleId: vehicle.id }))}
+                            className={`rounded-lg border p-4 text-left transition-colors ${
+                              orderData.vehicleId === vehicle.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-input hover:bg-muted/50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                                <Car className="h-5 w-5 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-mono font-semibold">{vehicle.plate}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {vehicle.brand} {vehicle.model} • {vehicle.color}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                        <Link
+                          href={`/dashboard/vehicles/new?customerId=${orderData.customerId}&returnTo=/dashboard/orders/new`}
+                          className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-input p-4 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                        >
+                          <Plus className="h-5 w-5" />
+                          Adicionar Veículo
+                        </Link>
+                      </div>
+                      )}
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </CardContent>
           </>
@@ -411,6 +586,14 @@ export default function NewOrderPage() {
                         </button>
                       );
                     })}
+                    <button
+                        type="button"
+                        onClick={() => setCustomServiceOpen(true)}
+                        className="rounded-lg border border-dashed border-primary/50 px-4 py-2 text-sm text-primary transition-colors hover:bg-primary/5 flex items-center gap-2"
+                    >
+                        <Plus className="h-3 w-3" />
+                        Adicionar Personalizado
+                    </button>
                   </div>
                 )}
               </div>
@@ -422,17 +605,18 @@ export default function NewOrderPage() {
                   <div className="space-y-2">
                     {orderData.items.map((item) => (
                       <div
-                        key={item.serviceId}
+                        key={item.tempId}
                         className="flex items-center justify-between rounded-lg border border-input p-3"
                       >
                         <div className="flex-1">
                           <p className="font-medium">{item.name}</p>
+                          {item.customName && <Badge variant="outline" className="text-[10px] h-5">Personalizado</Badge>}
                         </div>
                         <div className="flex items-center gap-3">
                           <Input
                             type="number"
                             value={item.price}
-                            onChange={(e) => handleUpdatePrice(item.serviceId, Number(e.target.value))}
+                            onChange={(e) => handleUpdatePrice(item.tempId, Number(e.target.value))}
                             className="w-32 text-right"
                             min="0"
                             step="0.01"
@@ -441,7 +625,7 @@ export default function NewOrderPage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleRemoveItem(item.serviceId)}
+                            onClick={() => handleRemoveItem(item.tempId)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -460,6 +644,42 @@ export default function NewOrderPage() {
                 </div>
               )}
             </CardContent>
+
+             <Dialog open={customServiceOpen} onOpenChange={setCustomServiceOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Adicionar Serviço Personalizado</DialogTitle>
+                        <DialogDescription>
+                            Adicione um serviço ou produto avulso à ordem.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label>Nome do Serviço/Produto</Label>
+                            <Input 
+                                placeholder="Ex: Higienização Especial"
+                                value={customServiceData.name}
+                                onChange={(e) => setCustomServiceData(prev => ({ ...prev, name: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Preço (R$)</Label>
+                            <Input 
+                                type="number"
+                                placeholder="0,00"
+                                value={customServiceData.price}
+                                onChange={(e) => setCustomServiceData(prev => ({ ...prev, price: e.target.value }))}
+                                min="0"
+                                step="0.01"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCustomServiceOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleAddCustomService}>Adicionar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
           </>
         )}
 
@@ -550,7 +770,7 @@ export default function NewOrderPage() {
                       }))}
                       className="w-32"
                       min="0"
-                    />
+                      />
                   )}
                 </div>
               </div>
@@ -561,11 +781,21 @@ export default function NewOrderPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cliente:</span>
-                    <span>{customersQuery.data?.customers.find(c => c.id === orderData.customerId)?.name}</span>
+                    <span>
+                         {isAnonymous 
+                            ? <span className="text-amber-500 font-medium">Cliente não cadastrado</span>
+                            : customersQuery.data?.customers.find(c => c.id === orderData.customerId)?.name || '-'
+                         }
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Veículo:</span>
-                    <span>{selectedVehicle?.plate} - {selectedVehicle?.brand} {selectedVehicle?.model}</span>
+                    <span>
+                        {isAnonymous && newVehicle.plate 
+                            ? `${newVehicle.plate} - ${newVehicle.brand} ${newVehicle.model}`
+                            : selectedVehicle ? `${selectedVehicle.plate} - ${selectedVehicle.brand} ${selectedVehicle.model}` : '-'
+                        }
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Serviços:</span>

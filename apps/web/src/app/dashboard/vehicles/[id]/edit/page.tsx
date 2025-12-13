@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Loader2, User } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Search, X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -28,6 +28,7 @@ const vehicleFormSchema = z.object({
   model: z.string().min(1, 'Modelo obrigatório'),
   color: z.string().min(2, 'Cor obrigatória'),
   year: z.string().optional(),
+  customerId: z.string().optional(),
 });
 
 type VehicleFormData = z.infer<typeof vehicleFormSchema>;
@@ -40,8 +41,17 @@ export default function EditVehiclePage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
   
+  // State for customer search
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [isChangingCustomer, setIsChangingCustomer] = useState(false);
+
   // Queries
   const vehicleQuery = trpc.vehicle.getById.useQuery({ id });
+  const customersQuery = trpc.customer.list.useQuery(
+    { search: customerSearch, limit: 5 },
+    { enabled: isChangingCustomer || !vehicleQuery.data?.customer, placeholderData: (prev) => prev }
+  );
+  
   const utils = trpc.useUtils();
 
   // Mutation
@@ -63,9 +73,13 @@ export default function EditVehiclePage({ params }: PageProps) {
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleFormSchema),
   });
+
+  const selectedCustomerId = watch('customerId');
+  const filteredCustomers = customersQuery.data?.customers || [];
 
   // Load data into form
   useEffect(() => {
@@ -77,7 +91,12 @@ export default function EditVehiclePage({ params }: PageProps) {
         model: vehicle.model,
         color: vehicle.color,
         year: vehicle.year?.toString() || '',
+        customerId: vehicle.customerId || '',
       });
+      // If no customer, we default to showing the search
+      if (!vehicle.customerId) {
+          setIsChangingCustomer(true);
+      }
     }
   }, [vehicleQuery.data, reset]);
 
@@ -97,6 +116,22 @@ export default function EditVehiclePage({ params }: PageProps) {
     if (clean.length <= 7) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
     return `${clean.slice(0, 3)}-${clean.slice(3, 7)}`;
   };
+
+  // Find selected customer name for display
+  const getSelectedCustomerName = () => {
+      if (!selectedCustomerId) return null;
+      // Try to find in query or existing vehicle
+      const fromQuery = filteredCustomers.find(c => c.id === selectedCustomerId);
+      if (fromQuery) return fromQuery;
+      
+      if (vehicleQuery.data?.customer?.id === selectedCustomerId) {
+          return vehicleQuery.data.customer;
+      }
+      return null;
+  };
+
+  const selectedCustomerDisplay = getSelectedCustomerName();
+
 
   if (vehicleQuery.isLoading) {
     return (
@@ -135,8 +170,6 @@ export default function EditVehiclePage({ params }: PageProps) {
     );
   }
 
-  const vehicle = vehicleQuery.data;
-
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Header */}
@@ -164,21 +197,81 @@ export default function EditVehiclePage({ params }: PageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Owner (read-only) */}
+            
+            {/* Owner Section */}
             <div className="space-y-2">
               <Label>Proprietário</Label>
-              <div className="flex items-center gap-3 rounded-lg border border-input bg-muted/50 p-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{vehicle.customer.name}</p>
-                  <p className="text-sm text-muted-foreground">{vehicle.customer.phone}</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Para alterar o proprietário, exclua este veículo e crie um novo.
-              </p>
+              
+              {!isChangingCustomer ? (
+                  /* Display Current Owner */
+                  <div className="flex items-center justify-between rounded-lg border border-input bg-muted/50 p-3">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                        <User className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                        <p className="font-medium">{selectedCustomerDisplay?.name || 'Sem proprietário'}</p>
+                        <p className="text-sm text-muted-foreground">{selectedCustomerDisplay?.phone || '-'}</p>
+                        </div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setIsChangingCustomer(true)}>
+                        Alterar
+                    </Button>
+                  </div>
+              ) : (
+                  /* Customer Search */
+                  <div className="space-y-3 rounded-lg border border-input p-4 bg-muted/20">
+                    <div className="flex items-center justify-between">
+                         <Label className="text-xs font-semibold uppercase text-muted-foreground">Buscar Cliente</Label>
+                         {selectedCustomerDisplay && (
+                             <Button type="button" variant="ghost" size="sm" onClick={() => setIsChangingCustomer(false)}>
+                                 <X className="h-4 w-4 mr-1" /> Cancelar
+                             </Button>
+                         )}
+                    </div>
+                    
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        placeholder="Nome ou telefone..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        className="pl-10 bg-background"
+                      />
+                    </div>
+
+                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border bg-background p-1">
+                      {customersQuery.isLoading && (
+                        <div className="flex justify-center p-4">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      
+                      {!customersQuery.isLoading && filteredCustomers.length === 0 && (
+                        <p className="text-center text-xs text-muted-foreground py-2">
+                          Nenhum cliente encontrado.
+                        </p>
+                      )}
+
+                      {filteredCustomers.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                              setValue('customerId', customer.id);
+                              setIsChangingCustomer(false);
+                          }}
+                          className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                              selectedCustomerId === customer.id ? 'bg-accent text-accent-foreground' : ''
+                          }`}
+                        >
+                          <div className="font-medium">{customer.name}</div>
+                          <div className="text-xs text-muted-foreground">{customer.phone}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+              )}
             </div>
 
             {/* Plate */}

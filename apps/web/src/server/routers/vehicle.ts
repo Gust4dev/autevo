@@ -9,10 +9,10 @@ const vehicleCreateSchema = z.object({
     model: z.string().min(1, 'Modelo obrigatório'),
     color: z.string().min(2, 'Cor obrigatória'),
     year: z.number().min(1900).max(2030).optional(),
-    customerId: z.string(),
+    customerId: z.string().optional(),
 });
 
-const vehicleUpdateSchema = vehicleCreateSchema.omit({ customerId: true }).partial();
+const vehicleUpdateSchema = vehicleCreateSchema.partial();
 
 const vehicleListSchema = z.object({
     page: z.number().min(1).default(1),
@@ -114,19 +114,21 @@ export const vehicleRouter = router({
     create: protectedProcedure
         .input(vehicleCreateSchema)
         .mutation(async ({ ctx, input }) => {
-            // Verify customer belongs to tenant
-            const customer = await ctx.db.customer.findFirst({
-                where: {
-                    id: input.customerId,
-                    tenantId: ctx.tenantId!,
-                },
-            });
-
-            if (!customer) {
-                throw new TRPCError({
-                    code: 'NOT_FOUND',
-                    message: 'Cliente não encontrado',
+            // Verify customer belongs to tenant (if provided)
+            if (input.customerId) {
+                const customer = await ctx.db.customer.findFirst({
+                    where: {
+                        id: input.customerId,
+                        tenantId: ctx.tenantId!,
+                    },
                 });
+
+                if (!customer) {
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Cliente não encontrado',
+                    });
+                }
             }
 
             // Check for duplicate plate in tenant
@@ -146,8 +148,12 @@ export const vehicleRouter = router({
 
             const vehicle = await ctx.db.vehicle.create({
                 data: {
-                    ...input,
                     plate: input.plate.toUpperCase(),
+                    brand: input.brand,
+                    model: input.model,
+                    color: input.color,
+                    year: input.year,
+                    customerId: input.customerId || null,
                     tenantId: ctx.tenantId!,
                 },
             });
@@ -193,6 +199,23 @@ export const vehicleRouter = router({
                     throw new TRPCError({
                         code: 'CONFLICT',
                         message: 'Já existe outro veículo com esta placa',
+                    });
+                }
+            }
+
+            // Verify customer if changing
+            if (input.data.customerId && input.data.customerId !== existing.customerId) {
+                const customer = await ctx.db.customer.findFirst({
+                    where: {
+                        id: input.data.customerId,
+                        tenantId: ctx.tenantId!,
+                    },
+                });
+
+                if (!customer) {
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Cliente não encontrado',
                     });
                 }
             }

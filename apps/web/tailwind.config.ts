@@ -68,6 +68,17 @@ const config: Config = {
                 sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
                 mono: ['var(--font-geist-mono)', 'monospace'],
             },
+
+            animation: {
+                'accordion-down': 'accordion-down 0.2s ease-out',
+                'accordion-up': 'accordion-up 0.2s ease-out',
+                shimmer: 'shimmer 1.5s infinite',
+                'fade-in-up': 'fade-in-up 0.5s ease-out forwards',
+                'fade-in': 'fade-in 0.3s ease-out forwards',
+                'scale-in': 'scale-in 0.2s ease-out forwards',
+                'slide-in-right': 'slide-in-right 0.3s ease-out',
+                pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
             keyframes: {
                 'accordion-down': {
                     from: { height: '0' },
@@ -80,15 +91,26 @@ const config: Config = {
                 shimmer: {
                     '100%': { transform: 'translateX(100%)' },
                 },
-            },
-            animation: {
-                'accordion-down': 'accordion-down 0.2s ease-out',
-                'accordion-up': 'accordion-up 0.2s ease-out',
-                shimmer: 'shimmer 1.5s infinite',
+                'fade-in-up': {
+                    '0%': { opacity: '0', transform: 'translateY(10px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                },
+                'fade-in': {
+                    '0%': { opacity: '0' },
+                    '100%': { opacity: '1' },
+                },
+                'scale-in': {
+                    '0%': { opacity: '0', transform: 'scale(0.95)' },
+                    '100%': { opacity: '1', transform: 'scale(1)' },
+                },
+                'slide-in-right': {
+                    '0%': { transform: 'translateX(100%)' },
+                    '100%': { transform: 'translateX(0)' },
+                },
             },
         },
     },
     plugins: [require('tailwindcss-animate')],
 };
 
-export default config;
+    export default config;

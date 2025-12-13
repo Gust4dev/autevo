@@ -189,13 +189,24 @@ export default function VehicleDetailPage({ params }: PageProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Proprietário</p>
-                <Link 
-                  href={`/dashboard/customers/${vehicle.customer.id}`}
-                  className="font-medium hover:text-primary hover:underline"
-                >
-                  {vehicle.customer.name}
-                </Link>
-                <p className="text-sm text-muted-foreground">{vehicle.customer.phone}</p>
+                {vehicle.customer ? (
+                  <>
+                    <Link 
+                      href={`/dashboard/customers/${vehicle.customer.id}`}
+                      className="font-medium hover:text-primary hover:underline"
+                    >
+                      {vehicle.customer.name}
+                    </Link>
+                    <p className="text-sm text-muted-foreground">{vehicle.customer.phone}</p>
+                  </>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium text-sm flex items-center gap-2">
+                     Sem proprietário vinculado
+                     <Button variant="link" asChild className="p-0 h-auto text-amber-600 underline">
+                        <Link href={`/dashboard/vehicles/${id}/edit`}>Vincular</Link>
+                     </Button>
+                  </span>
+                )}
               </div>
             </div>
 

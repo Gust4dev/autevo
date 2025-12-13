@@ -1,223 +1,175 @@
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { Lexend_Deca, Delius } from 'next/font/google';
+import { 
+  ArrowRight, 
+  Calendar, 
+  Car, 
+  Wallet, 
+  Smartphone,
+  Play
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
+import { HeroSection } from '@/components/landing/HeroSection';
 
-export default async function HomePage() {
+const lexendDeca = Lexend_Deca({ 
+  subsets: ['latin'], 
+  weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900'] 
+});
+
+const delius = Delius({ 
+  subsets: ['latin'], 
+  weight: ['400'] 
+});
+
+export default async function LandingPage() {
   const { userId } = await auth();
 
-  // If logged in, redirect to dashboard
   if (userId) {
     redirect('/dashboard');
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            }}
-          />
+    <div className={cn("min-h-screen bg-[#0A0A0B] text-white selection:bg-indigo-500/30 overflow-x-hidden", lexendDeca.className)}>
+      
+      {/* Navbar */}
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#0A0A0B]/60 backdrop-blur-xl transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/50">
+              <span className={cn("font-bold text-white", delius.className)}>F</span>
+            </div>
+            <span className={cn("font-bold text-lg tracking-tight", delius.className)}>Filmtech<span className="text-indigo-400">OS</span></span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/sign-in" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+              Entrar
+            </Link>
+            <Link href="/sign-up">
+              <Button size="sm" className="bg-white text-black hover:bg-zinc-200 border-none shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)]">
+                Criar Conta Grátis
+              </Button>
+            </Link>
+          </div>
         </div>
+      </nav>
 
-        <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-          <div className="text-center">
-            {/* Logo */}
-            <div className="mb-8 flex justify-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-red-600 shadow-2xl shadow-red-600/30">
-                <span className="text-4xl font-bold text-white">F</span>
-              </div>
-            </div>
+      {/* Interactive Hero Section */}
+      <HeroSection />
 
-            {/* Title */}
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Filmtech{' '}
-              <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
-                OS
-              </span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-300">
-              Sistema completo de Ordem de Serviço para Estéticas Automotivas.
-              Gerencie agendamentos, vistorias, serviços e pagamentos em um só lugar.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link
-                href="/sign-in"
-                className="rounded-xl bg-red-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-red-600/30 transition-all hover:bg-red-500 hover:shadow-xl hover:shadow-red-600/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
-              >
-                Entrar
-              </Link>
-              <Link
-                href="/sign-up"
-                className="rounded-xl border border-gray-600 bg-gray-800/50 px-8 py-4 text-lg font-semibold text-white backdrop-blur-sm transition-all hover:bg-gray-800 hover:border-gray-500"
-              >
-                Criar Conta
-              </Link>
-            </div>
+      {/* Bento Grid Features */}
+      <section className="py-24 px-6 relative z-10">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4 drop-shadow-xl">Tudo que você precisa em um só lugar</h2>
+            <p className="text-zinc-400 text-lg">Funcionalidades poderosas para escalar sua estética automotiva.</p>
           </div>
 
-          {/* Features Grid */}
-          <div className="mt-24 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="group relative rounded-2xl border border-gray-700 bg-gray-800/50 p-8 backdrop-blur-sm transition-all hover:border-red-600/50 hover:bg-gray-800"
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-red-600/20 text-red-500 transition-colors group-hover:bg-red-600 group-hover:text-white">
-                  {feature.icon}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]">
+            {/* Feature 1: Large - Calendar */}
+            <div className="md:col-span-2 rounded-3xl p-8 bg-zinc-900/50 border border-white/10 backdrop-blur-xl relative overflow-hidden group hover:border-indigo-500/50 transition-all duration-500 shadow-2xl hover:shadow-[0_0_50px_-10px_rgba(79,70,229,0.2)]">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="relative z-10 h-full flex flex-col">
+                <div className="bg-indigo-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 ring-1 ring-indigo-500/20 group-hover:scale-110 transition-transform duration-300">
+                  <Calendar className="text-indigo-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-white">
-                  {feature.title}
-                </h3>
-                <p className="mt-2 text-gray-400">{feature.description}</p>
+                <h3 className="text-2xl font-bold mb-2">Agendamento Inteligente</h3>
+                <p className="text-zinc-400 max-w-md">Sistema visual de calendário que evita conflitos e lembra seus clientes automaticamente via WhatsApp.</p>
+                
+                {/* Visual */}
+                <div className="flex-1 mt-6 rounded-t-xl bg-[#0A0A0B]/80 border border-white/10 p-4 translate-y-4 shadow-2xl group-hover:translate-y-2 transition-transform duration-500">
+                  <div className="grid grid-cols-7 gap-2 opacity-50 group-hover:opacity-100 transition-opacity duration-500">
+                     {[...Array(7)].map((_, i) => (
+                       <div key={i} className="h-20 rounded bg-white/5 border border-white/5 relative">
+                          {i === 2 && <div className="absolute top-2 left-2 right-2 h-8 rounded bg-indigo-500/50 text-[10px] p-1 text-white shadow-lg shadow-indigo-500/20">BMW X5 - Polimento</div>}
+                       </div>
+                     ))}
+                  </div>
+                </div>
               </div>
-            ))}
+            </div>
+
+            {/* Feature 2: Financeiro */}
+            <div className="rounded-3xl p-8 bg-zinc-900/50 border border-white/10 backdrop-blur-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all duration-500 shadow-2xl hover:shadow-[0_0_50px_-10px_rgba(16,185,129,0.2)]">
+               <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-emerald-500/20 rounded-full blur-[50px] transition-all duration-500 group-hover:blur-[80px]" />
+               <div className="bg-emerald-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 ring-1 ring-emerald-500/20 group-hover:scale-110 transition-transform duration-300">
+                  <Wallet className="text-emerald-400" />
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Financeiro</h3>
+                <p className="text-zinc-400 text-sm">Controle total de fluxo de caixa, comissões e vendas.</p>
+                <div className="mt-6">
+                   <div className="text-3xl font-mono font-bold text-white mb-1 group-hover:text-emerald-400 transition-colors">R$ 48.250</div>
+                   <div className="text-emerald-400 text-sm flex items-center gap-1">
+                     <ArrowRight className="h-3 w-3 rotate-[-45deg]" />
+                     +12.5% esse mês
+                   </div>
+                </div>
+            </div>
+            
+             {/* Feature 3: Vistoria */}
+            <div className="rounded-3xl p-8 bg-zinc-900/50 border border-white/10 backdrop-blur-xl relative overflow-hidden group hover:border-yellow-500/50 transition-all duration-500 shadow-2xl hover:shadow-[0_0_50px_-10px_rgba(234,179,8,0.2)]">
+                 <div className="absolute inset-0 bg-yellow-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                 <div className="bg-yellow-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 ring-1 ring-yellow-500/20 group-hover:scale-110 transition-transform duration-300">
+                  <Smartphone className="text-yellow-400" />
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Vistoria Mobile</h3>
+                <p className="text-zinc-400 text-sm">Checklist digital com fotos e marcação de avarias no veículo.</p>
+            </div>
+
+             {/* Feature 4: Customers */}
+            <div className="md:col-span-2 rounded-3xl p-8 bg-zinc-900/50 border border-white/10 backdrop-blur-xl relative overflow-hidden group hover:border-violet-500/50 transition-all duration-500 shadow-2xl hover:shadow-[0_0_50px_-10px_rgba(139,92,246,0.2)]">
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-900/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="relative z-10 flex items-center justify-between h-full">
+                 <div className="max-w-sm">
+                    <div className="bg-violet-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 ring-1 ring-violet-500/20 group-hover:scale-110 transition-transform duration-300">
+                      <Car className="text-violet-400" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2">Histórico de Veículos</h3>
+                    <p className="text-zinc-400">Saiba exatamente o que foi feito em cada carro. Fidelize clientes com atendimento personalizado.</p>
+                 </div>
+                 {/* Decorative Mockup */}
+                 <div className="hidden md:block w-64 h-full bg-[#0A0A0B]/50 border-l border-white/5 p-4 shadow-xl -mr-8 group-hover:-mr-4 transition-all duration-500">
+                     <div className="space-y-3">
+                        <div className="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/5">
+                           <div className="w-8 h-8 rounded-full bg-indigo-500/50" />
+                           <div className="flex-1">
+                              <div className="h-2 w-20 bg-white/20 rounded mb-1" />
+                              <div className="h-2 w-12 bg-white/10 rounded" />
+                           </div>
+                        </div>
+                         <div className="flex items-center gap-3 p-2 rounded-lg bg-white/5 opacity-50">
+                           <div className="w-8 h-8 rounded-full bg-white/10" />
+                           <div className="flex-1">
+                              <div className="h-2 w-20 bg-white/20 rounded mb-1" />
+                              <div className="h-2 w-12 bg-white/10 rounded" />
+                           </div>
+                        </div>
+                     </div>
+                 </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 bg-gray-900/50 py-8">
-        <div className="mx-auto max-w-7xl px-4 text-center text-sm text-gray-500">
-          <p>© 2024 Filmtech OS. Todos os direitos reservados.</p>
+      <footer className="border-t border-white/5 bg-[#0A0A0B] py-12 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all duration-300">
+            <div className="h-6 w-6 rounded bg-indigo-600 flex items-center justify-center">
+              <span className="font-bold text-white text-xs">F</span>
+            </div>
+            <span className="font-bold text-zinc-200">FilmtechOS</span>
+          </div>
+          <p className="text-zinc-500 text-sm">© 2024 Filmtech OS. Todos os direitos reservados.</p>
+          <div className="flex gap-6">
+            <Link href="#" className="text-zinc-500 hover:text-white transition-colors">Termos</Link>
+            <Link href="#" className="text-zinc-500 hover:text-white transition-colors">Privacidade</Link>
+          </div>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }
-
-const features = [
-  {
-    title: 'Agendamento Inteligente',
-    description:
-      'Busca unificada por placa, nome ou telefone. O sistema lembra dos clientes e preenche automaticamente.',
-    icon: (
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: 'Vistoria com Fotos',
-    description:
-      'Marque danos no mapa do veículo, tire fotos e colete assinatura digital. Tudo offline.',
-    icon: (
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: 'OS Flexível',
-    description:
-      'Adicione serviços do catálogo ou crie personalizados. Calcule descontos em tempo real.',
-    icon: (
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: 'Checkout Completo',
-    description:
-      'Receba por Pix, cartão ou dinheiro. Divida em múltiplos métodos. Baixa automática de estoque.',
-    icon: (
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: 'Comissionamento',
-    description:
-      'Calcule comissões automaticamente por serviço ou funcionário. Fechamento em lote.',
-    icon: (
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: 'Multi-Empresa',
-    description:
-      'Logo e cores personalizadas por empresa. Dados 100% isolados. Pronto para franquias.',
-    icon: (
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"
-        />
-      </svg>
-    ),
-  },
-];

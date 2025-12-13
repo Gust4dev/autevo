@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui';
 import { trpc } from '@/lib/trpc/provider';
+import { cn } from '@/lib/cn';
 
 // Helper to get today's date range
 const getTodayRange = () => {
@@ -185,7 +186,7 @@ export default function DashboardPage() {
                 <ScheduleItem
                   key={order.id}
                   time={formatTime(order.scheduledAt)}
-                  customer={order.vehicle.customer.name}
+                  customer={order.vehicle.customer?.name || 'Cliente desconhecido'}
                   vehicle={`${order.vehicle.brand} ${order.vehicle.model}`}
                   service={`${order.items.length} serviço(s)`}
                   status="confirmed"
@@ -219,7 +220,7 @@ export default function DashboardPage() {
                 <OrderItem
                   key={order.id}
                   code={order.code}
-                  customer={order.vehicle.customer.name}
+                  customer={order.vehicle.customer?.name || 'Cliente desconhecido'}
                   total={formatCurrency(Number(order.total))}
                   status={order.status}
                 />
@@ -296,18 +297,21 @@ function StatCard({
       : '';
 
   return (
-    <Card className={highlight ? 'border-green-500/30' : variant === 'warning' ? 'border-orange-500/30' : ''}>
+    <Card className={cn(
+      "overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1",
+      highlight ? 'border-green-500/30 bg-green-500/5' : variant === 'warning' ? 'border-orange-500/30 bg-orange-500/5' : 'bg-card/50 backdrop-blur-sm'
+    )}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className={`rounded-lg p-2 ${iconBgClass}`}>
+        <div className={`rounded-xl p-2.5 ${iconBgClass} transition-colors duration-300 group-hover:scale-110`}>
           <Icon className={`h-4 w-4 ${iconTextClass}`} />
         </div>
       </CardHeader>
       <CardContent>
         <div className={`text-2xl font-bold ${valueClass}`}>{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
       </CardContent>
     </Card>
   );
@@ -327,14 +331,18 @@ function ScheduleItem({
   status: 'confirmed' | 'pending' | 'cancelled';
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-border p-3 transition-colors hover:bg-muted/50">
-      <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-primary/10">
-        <Clock className="h-4 w-4 text-primary" />
-        <span className="mt-0.5 text-xs font-semibold text-primary">{time}</span>
+    <div className="group flex items-center gap-4 rounded-xl border border-border/40 bg-card/30 p-3 transition-all hover:bg-card/80 hover:shadow-sm hover:border-primary/20">
+      <div className="flex h-12 w-12 flex-col items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+        <Clock className="h-4 w-4 text-primary group-hover:text-white" />
+        <span className="mt-0.5 text-[10px] font-bold text-primary group-hover:text-white">{time}</span>
       </div>
       <div className="flex-1 space-y-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium">{customer}</span>
+          {customer === 'Cliente desconhecido' ? (
+             <span className="font-medium italic text-muted-foreground">Cliente desconhecido</span>
+          ) : (
+             <span className="font-medium">{customer}</span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           {vehicle} • {service}
@@ -352,30 +360,35 @@ function OrderItem({
 }: {
   code: string;
   customer: string;
+  customerId?: string;
   total: string;
   status: string;
 }) {
   const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     AGENDADO: { label: 'Agendado', variant: 'secondary' },
     EM_VISTORIA: { label: 'Em Vistoria', variant: 'outline' },
-    EM_EXECUCAO: { label: 'Em Execução', variant: 'default' }, // Using default (blue-ish usually or black) or we can enable custom variants if they exist
+    EM_EXECUCAO: { label: 'Em Execução', variant: 'default' },
     AGUARDANDO_PAGAMENTO: { label: 'Aguardando Pag.', variant: 'secondary' },
-    CONCLUIDO: { label: 'Concluído', variant: 'outline' }, // Replaced 'success' which might not exist in standard badge
+    CONCLUIDO: { label: 'Concluído', variant: 'outline' },
     CANCELADO: { label: 'Cancelado', variant: 'destructive' },
   };
 
   const config = statusConfig[status] || { label: status, variant: 'outline' };
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-muted/50">
+    <div className="group flex items-center justify-between rounded-xl border border-border/40 bg-card/30 p-3 transition-all hover:bg-card/80 hover:shadow-sm hover:border-primary/20">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm font-medium">{code}</span>
-          <Badge variant={config.variant} className="text-[10px]">
+          <Badge variant={config.variant} className="text-[10px] uppercase tracking-wider font-bold">
             {config.label}
           </Badge>
         </div>
-        <p className="text-sm text-muted-foreground">{customer}</p>
+        {customer === 'Cliente desconhecido' ? (
+            <p className="text-sm text-muted-foreground italic">Cliente desconhecido</p>
+        ) : (
+            <p className="text-sm text-muted-foreground">{customer}</p>
+        )}
       </div>
       <div className="text-right">
         <span className="font-semibold">{total}</span>
@@ -397,10 +410,10 @@ function QuickActionCard({
 }) {
   return (
     <Link href={href}>
-      <Card className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+      <Card className="cursor-pointer transition-all duration-300 hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 bg-card/50 backdrop-blur-sm group">
         <CardContent className="flex items-center gap-4 p-4">
-          <div className="rounded-lg bg-primary/10 p-3">
-            <Icon className="h-5 w-5 text-primary" />
+          <div className="rounded-xl bg-primary/10 p-3 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+            <Icon className="h-5 w-5 text-primary group-hover:text-white" />
           </div>
           <div>
             <h3 className="font-medium">{title}</h3>

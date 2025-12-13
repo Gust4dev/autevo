@@ -95,13 +95,17 @@ export default function OrdersPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
             <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <Link 
-              href={`/dashboard/customers/${order.vehicle.customer.id}`}
-              className="font-medium hover:text-primary hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {order.vehicle.customer.name}
-            </Link>
+            {order.vehicle.customer ? (
+              <Link 
+                href={`/dashboard/customers/${order.vehicle.customer.id}`}
+                className="font-medium hover:text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {order.vehicle.customer.name}
+              </Link>
+            ) : (
+              <span className="text-muted-foreground font-medium italic">Cliente desconhecido</span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Car className="h-3.5 w-3.5" />
@@ -259,12 +263,14 @@ export default function OrdersPage() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/customers/${order.vehicle.customer.id}`}>
-                  <User className="mr-2 h-4 w-4" />
-                  Ver Cliente
-                </Link>
-              </DropdownMenuItem>
+              {order.vehicle.customer && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/dashboard/customers/${order.vehicle.customer.id}`}>
+                    <User className="mr-2 h-4 w-4" />
+                    Ver Cliente
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link href={`/dashboard/vehicles/${order.vehicle.id}`}>
                   <Car className="mr-2 h-4 w-4" />

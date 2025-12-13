@@ -36,7 +36,7 @@ interface Vehicle {
     id: string;
     name: string;
     phone: string;
-  };
+  } | null;
   _count: {
     orders: number;
   };
@@ -119,14 +119,21 @@ export default function VehiclesPage() {
       key: 'customer',
       header: 'Proprietário',
       render: (vehicle) => (
-        <Link 
-          href={`/dashboard/customers/${vehicle.customer.id}`}
-          className="flex items-center gap-2 hover:text-primary"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <User className="h-4 w-4 text-muted-foreground" />
-          <span>{vehicle.customer.name}</span>
-        </Link>
+        vehicle.customer ? (
+          <Link 
+            href={`/dashboard/customers/${vehicle.customer.id}`}
+            className="flex items-center gap-2 hover:text-primary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <User className="h-4 w-4 text-muted-foreground" />
+            <span>{vehicle.customer.name}</span>
+          </Link>
+        ) : (
+          <span className="text-muted-foreground italic flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground/50" />
+             Sem proprietário
+          </span>
+        )
       ),
     },
     {

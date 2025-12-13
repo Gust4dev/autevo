@@ -16,6 +16,7 @@ import {
   Printer,
   Send,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { 
   Button, 
@@ -243,12 +244,14 @@ export default function OrderDetailPage({ params }: PageProps) {
                 Enviar WhatsApp
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/customers/${order.vehicle.customer.id}`}>
-                  <User className="mr-2 h-4 w-4" />
-                  Ver Cliente
-                </Link>
-              </DropdownMenuItem>
+              {order.vehicle.customer && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/dashboard/customers/${order.vehicle.customer.id}`}>
+                    <User className="mr-2 h-4 w-4" />
+                    Ver Cliente
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link href={`/dashboard/vehicles/${order.vehicle.id}`}>
                   <Car className="mr-2 h-4 w-4" />
@@ -271,23 +274,44 @@ export default function OrderDetailPage({ params }: PageProps) {
             <CardContent className="grid gap-6 sm:grid-cols-2">
               {/* Customer */}
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                    <User className="h-5 w-5 text-primary" />
+                {!order.vehicle.customer ? (
+                  <div className="rounded-md bg-amber-50 p-3 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/50">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0">
+                         <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Falta dados do cliente</h3>
+                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          Esta OS não possui cliente vinculado.
+                        </p>
+                        <Button variant="link" size="sm" asChild className="p-0 h-auto mt-2 text-amber-800 dark:text-amber-200 underline">
+                          <Link href={`/dashboard/vehicles/${order.vehicle.id}`}>
+                            Vincular Cliente
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Link 
-                      href={`/dashboard/customers/${order.vehicle.customer.id}`}
-                      className="font-medium hover:text-primary hover:underline"
-                    >
-                      {order.vehicle.customer.name}
-                    </Link>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      {order.vehicle.customer.phone}
-                    </p>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <Link 
+                        href={`/dashboard/customers/${order.vehicle.customer.id}`}
+                        className="font-medium hover:text-primary hover:underline"
+                      >
+                        {order.vehicle.customer.name}
+                      </Link>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {order.vehicle.customer.phone}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Vehicle */}

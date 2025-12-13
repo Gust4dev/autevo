@@ -57,8 +57,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border bg-card transition-all duration-300',
-          isCollapsed ? 'w-[68px]' : 'w-[240px]'
+          'fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/40 bg-card/80 backdrop-blur-xl transition-all duration-500 ease-out shadow-2xl',
+          isCollapsed ? 'w-[68px]' : 'w-[260px]'
         )}
       >
         {/* Logo */}
@@ -179,12 +179,12 @@ function NavItem({
     <Link
       href={item.href}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-        'hover:bg-accent hover:text-accent-foreground',
+        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ease-out relative overflow-hidden group',
+        'hover:bg-primary/10 hover:text-primary hover:shadow-sm hover:translate-x-1',
         isActive
-          ? 'bg-primary/10 text-primary'
+          ? 'bg-primary/15 text-primary shadow-sm font-semibold after:absolute after:left-0 after:top-1/2 after:-translate-y-1/2 after:h-8 after:w-1 after:bg-primary after:rounded-r-full after:animate-fade-in'
           : 'text-muted-foreground',
-        isCollapsed && 'justify-center px-2'
+        isCollapsed && 'justify-center px-2 hover:translate-x-0'
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
