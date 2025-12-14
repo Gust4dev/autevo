@@ -234,10 +234,10 @@ model ServiceOrder {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  items      OrderItem[]
-  products   OrderProduct[]
-  inspection Inspection?
-  payments   Payment[]
+  items       OrderItem[]
+  products    OrderProduct[]
+  inspections Inspection[]
+  payments    Payment[]
 
   @@index([tenantId, status])
   @@index([tenantId, scheduledAt])
@@ -310,7 +310,8 @@ model OrderProduct {
 // Inspection
 model Inspection {
   id            String       @id @default(cuid())
-  orderId       String       @unique
+  orderId       String
+  type          String       @default("entrada") // entrada, pos_limpeza, final
   order         ServiceOrder @relation(fields: [orderId], references: [id])
   version       Int          @default(0)
   checklistData Json         @default("{}")
@@ -323,6 +324,9 @@ model Inspection {
   updatedAt     DateTime     @updatedAt
 
   damages InspectionDamage[]
+
+  @@unique([orderId, type])
+  @@index([orderId])
 }
 
 model InspectionDamage {
@@ -332,6 +336,11 @@ model InspectionDamage {
   position     String
   x            Float
   y            Float
+  z            Float      @default(0)
+  normalX      Float      @default(0)
+  normalY      Float      @default(1)
+  normalZ      Float      @default(0)
+  is3D         Boolean    @default(false)
   damageType   String
   photoUrl     String?
   notes        String?
@@ -339,6 +348,7 @@ model InspectionDamage {
 
   @@index([inspectionId])
 }
+
 
 // Payments
 model Payment {

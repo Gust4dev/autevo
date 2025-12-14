@@ -17,6 +17,8 @@ import {
   Send,
   Loader2,
   AlertTriangle,
+  Eye,
+  ClipboardCheck,
 } from 'lucide-react';
 import { 
   Button, 
@@ -63,6 +65,100 @@ const paymentMethodLabels: Record<string, string> = {
   DINHEIRO: 'Dinheiro',
   TRANSFERENCIA: 'Transferência',
 };
+
+const INSPECTION_TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
+  entrada: { label: 'Entrada', emoji: '📥' },
+  pos_limpeza: { label: 'Pós-Limpeza', emoji: '🧽' },
+  final: { label: 'Final', emoji: '✅' },
+};
+
+function InspectionsSection({ orderId }: { orderId: string }) {
+  const { data: inspections, isLoading } = trpc.inspection.list.useQuery({ orderId });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Vistorias 3D</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-lg">Vistorias 3D</CardTitle>
+          <CardDescription>
+            {inspections?.length || 0} vistoria{inspections?.length !== 1 ? 's' : ''} realizada{inspections?.length !== 1 ? 's' : ''}
+          </CardDescription>
+        </div>
+        <Button size="sm" asChild>
+          <Link href={`/dashboard/orders/${orderId}/inspection`}>
+            <ClipboardCheck className="mr-2 h-4 w-4" />
+            Nova Vistoria
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {!inspections || inspections.length === 0 ? (
+          <div className="text-center py-8">
+            <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              Nenhuma vistoria realizada ainda
+            </p>
+            <Button variant="link" size="sm" asChild className="mt-2">
+              <Link href={`/dashboard/orders/${orderId}/inspection`}>
+                Realizar primeira vistoria
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {inspections.map((inspection) => {
+              const typeInfo = INSPECTION_TYPE_LABELS[inspection.type] || { label: inspection.type, emoji: '📋' };
+              return (
+                <Link
+                  key={inspection.id}
+                  href={`/dashboard/orders/${orderId}/inspection/${inspection.id}/report`}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{typeInfo.emoji}</span>
+                    <div>
+                      <p className="font-medium group-hover:text-primary transition-colors">
+                        {typeInfo.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(inspection.createdAt).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      {inspection._count.damages} dano{inspection._count.damages !== 1 ? 's' : ''}
+                    </Badge>
+                    <Eye className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -222,6 +318,16 @@ export default function OrderDetailPage({ params }: PageProps) {
             </DropdownMenu>
           )}
 
+          {/* Inspection Button - Highlighted when in inspection status */}
+          {(order.status === 'EM_VISTORIA' || order.status === 'AGENDADO') && (
+            <Button variant="secondary" asChild>
+              <Link href={`/dashboard/orders/${id}/inspection`}>
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Vistoria 3D
+              </Link>
+            </Button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon">
@@ -229,6 +335,13 @@ export default function OrderDetailPage({ params }: PageProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/orders/${id}/inspection`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Abrir Vistoria 3D
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href={`/dashboard/orders/${id}/edit`}>
                   <Pencil className="mr-2 h-4 w-4" />
@@ -457,6 +570,9 @@ export default function OrderDetailPage({ params }: PageProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Inspections / Vistorias */}
+          <InspectionsSection orderId={id} />
         </div>
 
         {/* Sidebar */}

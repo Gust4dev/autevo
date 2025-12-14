@@ -8,6 +8,7 @@ import { orderRouter } from './order';
 import { userRouter } from './user';
 import { settingsRouter } from './settings';
 import { dashboardRouter } from './dashboard';
+import { inspectionRouter } from './inspection';
 
 export const appRouter = router({
     health: healthRouter,
@@ -19,7 +20,9 @@ export const appRouter = router({
     user: userRouter,
     settings: settingsRouter,
     dashboard: dashboardRouter,
+    inspection: inspectionRouter,
 });
+
 
 export type AppRouter = typeof appRouter;
 
