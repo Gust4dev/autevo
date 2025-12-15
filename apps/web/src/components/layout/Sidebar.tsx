@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -13,6 +14,7 @@ import {
   Settings,
   ChevronLeft,
   type LucideIcon,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
@@ -20,15 +22,19 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { Separator } from '@/components/ui/separator';
 import { useTenantTheme } from '@/components/providers/TenantThemeProvider';
 
+type UserRole = 'OWNER' | 'MANAGER' | 'MEMBER';
+
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
   badge?: number;
+  roles?: UserRole[];
 }
 
 const mainNavItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/financial', label: 'Financeiro', icon: TrendingUp, roles: ['OWNER', 'MANAGER'] },
   { href: '/dashboard/orders', label: 'Ordens de Serviço', icon: ClipboardList },
   { href: '/dashboard/scheduling', label: 'Agendamentos', icon: Calendar },
   { href: '/dashboard/customers', label: 'Clientes', icon: Users },
@@ -41,7 +47,7 @@ const catalogNavItems: NavItem[] = [
 ];
 
 const settingsNavItems: NavItem[] = [
-  { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
+  { href: '/dashboard/settings', label: 'Configurações', icon: Settings, roles: ['OWNER'] },
 ];
 
 interface SidebarProps {
@@ -52,6 +58,14 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const theme = useTenantTheme();
+  const { user, isLoaded } = useUser();
+  const userRole = user?.publicMetadata?.role as UserRole | undefined;
+
+  // Don't render nav until we know the role to avoid flash of content
+  // OR render operational items by default? Better to wait slightly or default to safe subset.
+  // Actually, for better UX, we can just render what's safe.
+  // If not loaded, we can assume lowest privilege or just wait.
+  // Let's pass userRole to NavSection.
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -92,6 +106,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             items={mainNavItems}
             isCollapsed={isCollapsed}
             pathname={pathname}
+            userRole={userRole}
           />
 
           <Separator className="my-3" />
@@ -101,14 +116,17 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             items={catalogNavItems}
             isCollapsed={isCollapsed}
             pathname={pathname}
+            userRole={userRole}
           />
 
           <Separator className="my-3" />
 
+          {/* Settings Section - Only show if has items */}
           <NavSection
             items={settingsNavItems}
             isCollapsed={isCollapsed}
             pathname={pathname}
+            userRole={userRole}
           />
         </nav>
 
@@ -140,14 +158,24 @@ function NavSection({
   items,
   isCollapsed,
   pathname,
+  userRole,
 }: {
   items: NavItem[];
   isCollapsed: boolean;
   pathname: string;
+  userRole?: UserRole;
 }) {
+  const filteredItems = items.filter(item => {
+    if (!item.roles) return true; // Accessible by everyone
+    if (!userRole) return false; // Protected but no role loaded yet
+    return item.roles.includes(userRole);
+  });
+
+  if (filteredItems.length === 0) return null;
+
   return (
     <div className="space-y-1">
-      {items.map((item) => {
+      {filteredItems.map((item) => {
         const isActive = pathname === item.href || 
           (item.href !== '/dashboard' && pathname.startsWith(item.href));
 

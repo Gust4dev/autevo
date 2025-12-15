@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 
 import './globals.css';
 import { TRPCProvider } from '@/lib/trpc/provider';
+import { DevTools } from '@/components/debug/DevTools';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -42,6 +43,7 @@ export default function RootLayout({
               closeButton
               duration={4000}
             />
+            <DevTools />
           </TRPCProvider>
         </body>
       </html>

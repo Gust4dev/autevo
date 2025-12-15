@@ -5,13 +5,11 @@ import {
   ClipboardList,
   Calendar,
   Users,
-  TrendingUp,
-  Plus,
-  Clock,
-  ArrowRight,
   Loader2,
-  Wallet,
-  Receipt,
+  Plus,
+  ArrowRight,
+  TrendingUp,
+  Clock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -36,15 +34,13 @@ export default function DashboardPage() {
 
   // Queries
   const quickStatsQuery = trpc.dashboard.getQuickStats.useQuery(undefined, {
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
-  const financialStatsQuery = trpc.dashboard.getFinancialStats.useQuery(undefined, {
-    refetchInterval: 10000,
-  });
+
   
   const recentOrdersQuery = trpc.order.getRecent.useQuery({ limit: 5 }, {
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
   
   const todayScheduleQuery = trpc.order.list.useQuery({
@@ -54,7 +50,7 @@ export default function DashboardPage() {
     dateFrom: todayStart,
     dateTo: todayEnd,
   }, {
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   // We use customer list just to get the total count
@@ -76,7 +72,6 @@ export default function DashboardPage() {
 
   const isLoading = 
     quickStatsQuery.isLoading || 
-    financialStatsQuery.isLoading ||
     recentOrdersQuery.isLoading || 
     todayScheduleQuery.isLoading || 
     customerCountQuery.isLoading ||
@@ -143,26 +138,6 @@ export default function DashboardPage() {
           value={customerCountQuery.data?.pagination.total.toString() || '0'}
           description="Cadastrados"
           icon={Users}
-        />
-        <StatCard
-          title="Faturamento Mês"
-          value={formatCurrency(financialStatsQuery.data?.revenue || 0)}
-          description="Recebido em pagamentos"
-          icon={TrendingUp}
-          highlight
-        />
-        <StatCard
-          title="Ticket Médio"
-          value={formatCurrency(financialStatsQuery.data?.avgTicket || 0)}
-          description="Por OS concluída"
-          icon={Receipt}
-        />
-        <StatCard
-          title="A Receber"
-          value={formatCurrency(financialStatsQuery.data?.receivables || 0)}
-          description="Saldo em aberto"
-          icon={Wallet}
-          variant="warning"
         />
       </div>
 

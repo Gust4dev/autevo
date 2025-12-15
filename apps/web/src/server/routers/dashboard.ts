@@ -1,8 +1,8 @@
-import { router, protectedProcedure, ownerProcedure } from '../trpc';
+import { router, protectedProcedure, ownerProcedure, managerProcedure } from '../trpc';
 
 export const dashboardRouter = router({
     // Get financial statistics for the dashboard
-    getFinancialStats: protectedProcedure.query(async ({ ctx }) => {
+    getFinancialStats: managerProcedure.query(async ({ ctx }) => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);

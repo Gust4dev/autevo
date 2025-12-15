@@ -3,7 +3,7 @@ import { router, protectedProcedure, ownerProcedure, managerProcedure } from '..
 import { TRPCError } from '@trpc/server';
 import { clerkClient } from '@clerk/nextjs/server';
 
-const userRoles = ['ESTRATEGISTA', 'ORQUESTRADOR', 'OPERACIONAL'] as const;
+const userRoles = ['OWNER', 'MANAGER', 'MEMBER'] as const;
 
 const inviteUserSchema = z.object({
     email: z.string().email('Email inválido'),
@@ -246,4 +246,40 @@ export const userRouter = router({
     me: protectedProcedure.query(async ({ ctx }) => {
         return ctx.user;
     }),
+
+    // DevTools: Switch User Role
+    switchRole: protectedProcedure
+        .input(z.object({
+            targetRole: z.enum(['OWNER', 'MANAGER', 'MEMBER', 'ADMIN_SAAS']),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // Safety Check: Only allow in development or if user is ADMIN_SAAS
+            const isDev = process.env.NODE_ENV === 'development';
+            const isAdmin = ctx.user?.role === 'ADMIN_SAAS';
+
+            if (!isDev && !isAdmin) {
+                throw new TRPCError({
+                    code: 'FORBIDDEN',
+                    message: 'DevTools only',
+                });
+            }
+
+            const clerk = await clerkClient();
+
+            // 1. Update Database
+            await ctx.db.user.update({
+                where: { id: ctx.user!.id },
+                data: { role: input.targetRole as any }, // Cast to avoid TS issues if enum mismatch temporarily
+            });
+
+            // 2. Update Clerk Metadata
+            await clerk.users.updateUser(ctx.user!.clerkId, {
+                publicMetadata: {
+                    ...ctx.user!.publicMetadata,
+                    role: input.targetRole,
+                },
+            });
+
+            return { success: true, newRole: input.targetRole };
+        }),
 });

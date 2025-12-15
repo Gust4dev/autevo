@@ -18,9 +18,9 @@ enum TenantStatus {
 
 enum UserRole {
   ADMIN_SAAS
-  ESTRATEGISTA
-  ORQUESTRADOR
-  OPERACIONAL
+  OWNER
+  MANAGER
+  MEMBER
 }
 
 enum MovementType {
@@ -95,7 +95,7 @@ model User {
   clerkId                  String     @unique
   email                    String
   name                     String
-  role                     UserRole   @default(OPERACIONAL)
+  role                     UserRole   @default(MEMBER)
   avatarUrl                String?
   phone                    String?
   defaultCommissionPercent Decimal?   @default(0) @db.Decimal(5, 2)

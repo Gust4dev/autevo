@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 const inviteFormSchema = z.object({
   email: z.string().email('Email inválido'),
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  role: z.enum(['ESTRATEGISTA', 'ORQUESTRADOR', 'OPERACIONAL']),
+  role: z.enum(['OWNER', 'MANAGER', 'MEMBER']),
   defaultCommissionPercent: z.string().optional(),
 });
 
@@ -31,19 +31,19 @@ type InviteFormData = z.infer<typeof inviteFormSchema>;
 
 const roleOptions = [
   { 
-    value: 'ESTRATEGISTA', 
-    label: 'Estrategista', 
-    description: 'Acesso total ao sistema, incluindo configurações',
+    value: 'OWNER', 
+    label: 'Dono / Estrategista', 
+    description: 'Acesso total: Financeiro, Configurações e Equipe.',
   },
   { 
-    value: 'ORQUESTRADOR', 
-    label: 'Orquestrador', 
-    description: 'Gerencia OS, clientes e equipe',
+    value: 'MANAGER', 
+    label: 'Gerente', 
+    description: 'Gerencia OS, Clientes e Equipe. Sem acesso a configurações sensíveis.',
   },
   { 
-    value: 'OPERACIONAL', 
-    label: 'Operacional', 
-    description: 'Executa serviços e atualiza OS',
+    value: 'MEMBER', 
+    label: 'Funcionário', 
+    description: 'Executa serviços e atualiza status de OS.',
   },
 ];
 
@@ -59,7 +59,7 @@ export default function InviteUserPage() {
   } = useForm<InviteFormData>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
-      role: 'OPERACIONAL',
+      role: 'MEMBER',
       defaultCommissionPercent: '',
     },
   });
@@ -145,7 +145,7 @@ export default function InviteUserPage() {
                   <button
                     key={role.value}
                     type="button"
-                    onClick={() => setValue('role', role.value as 'ESTRATEGISTA' | 'ORQUESTRADOR' | 'OPERACIONAL')}
+                    onClick={() => setValue('role', role.value as 'OWNER' | 'MANAGER' | 'MEMBER')}
                     className={`rounded-lg border p-4 text-left transition-colors ${
                       selectedRole === role.value
                         ? 'border-primary bg-primary/5'
