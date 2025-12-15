@@ -38,6 +38,14 @@ import {
 import { StatusBadge, OrderTimeline, PaymentDialog } from '@/components/orders';
 import { trpc } from '@/lib/trpc/provider';
 import { toast } from 'sonner';
+// Dynamic import for PDF button to avoid strict SSR issues with react-pdf
+import dynamic from 'next/dynamic';
+
+const PDFDownloadButton = dynamic(
+    () => import('@/components/pdfs/PDFDownloadButton').then(mod => mod.PDFDownloadButton),
+    { ssr: false, loading: () => <Button variant="outline" size="sm" disabled>Carregando PDF...</Button> }
+);
+
 
 // Valid status transitions (matching backend)
 const validNextStatuses: Record<string, { value: string; label: string }[]> = {
@@ -68,8 +76,8 @@ const paymentMethodLabels: Record<string, string> = {
 
 const INSPECTION_TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
   entrada: { label: 'Entrada', emoji: '📥' },
-  pos_limpeza: { label: 'Pós-Limpeza', emoji: '🧽' },
-  final: { label: 'Final', emoji: '✅' },
+  intermediaria: { label: 'Intermediária', emoji: '🔄' },
+  final: { label: 'Saída', emoji: '✅' },
 };
 
 function InspectionsSection({ orderId }: { orderId: string }) {
@@ -79,7 +87,7 @@ function InspectionsSection({ orderId }: { orderId: string }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Vistorias 3D</CardTitle>
+          <CardTitle className="text-lg">Vistorias</CardTitle>
         </CardHeader>
         <CardContent className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -88,73 +96,76 @@ function InspectionsSection({ orderId }: { orderId: string }) {
     );
   }
 
+  // Get status for each type
+  const entradaInspection = inspections?.find(i => i.type === 'entrada');
+  const saidaInspection = inspections?.find(i => i.type === 'final');
+  
+  const entradaStatus = entradaInspection?.status === 'concluida' ? 'ok' : entradaInspection ? 'andamento' : 'pendente';
+  const saidaStatus = saidaInspection?.status === 'concluida' ? 'ok' : saidaInspection ? 'andamento' : 'pendente';
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-lg">Vistorias 3D</CardTitle>
+          <CardTitle className="text-lg">Vistorias</CardTitle>
           <CardDescription>
-            {inspections?.length || 0} vistoria{inspections?.length !== 1 ? 's' : ''} realizada{inspections?.length !== 1 ? 's' : ''}
+            {entradaStatus === 'ok' && saidaStatus === 'ok' 
+              ? 'Todas as vistorias obrigatórias concluídas' 
+              : 'Complete as vistorias obrigatórias'
+            }
           </CardDescription>
         </div>
         <Button size="sm" asChild>
           <Link href={`/dashboard/orders/${orderId}/inspection`}>
             <ClipboardCheck className="mr-2 h-4 w-4" />
-            Nova Vistoria
+            Gerenciar
           </Link>
         </Button>
       </CardHeader>
-      <CardContent>
-        {!inspections || inspections.length === 0 ? (
-          <div className="text-center py-8">
-            <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Nenhuma vistoria realizada ainda
-            </p>
-            <Button variant="link" size="sm" asChild className="mt-2">
-              <Link href={`/dashboard/orders/${orderId}/inspection`}>
-                Realizar primeira vistoria
-              </Link>
-            </Button>
+      <CardContent className="space-y-3">
+        {/* Entrada */}
+        <Link
+          href={`/dashboard/orders/${orderId}/inspection/entrada`}
+          className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📥</span>
+            <div>
+              <p className="font-medium group-hover:text-primary transition-colors">
+                Entrada
+              </p>
+              <p className="text-xs text-muted-foreground">Obrigatória</p>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {inspections.map((inspection) => {
-              const typeInfo = INSPECTION_TYPE_LABELS[inspection.type] || { label: inspection.type, emoji: '📋' };
-              return (
-                <Link
-                  key={inspection.id}
-                  href={`/dashboard/orders/${orderId}/inspection/${inspection.id}/report`}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{typeInfo.emoji}</span>
-                    <div>
-                      <p className="font-medium group-hover:text-primary transition-colors">
-                        {typeInfo.label}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(inspection.createdAt).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">
-                      {inspection._count.damages} dano{inspection._count.damages !== 1 ? 's' : ''}
-                    </Badge>
-                    <Eye className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
-                </Link>
-              );
-            })}
+          <Badge 
+            variant={entradaStatus === 'ok' ? 'default' : entradaStatus === 'andamento' ? 'secondary' : 'outline'}
+            className={entradaStatus === 'ok' ? 'bg-green-500' : ''}
+          >
+            {entradaStatus === 'ok' ? '✓ Concluída' : entradaStatus === 'andamento' ? `${entradaInspection?.progress || 0}%` : 'Pendente'}
+          </Badge>
+        </Link>
+
+        {/* Saída */}
+        <Link
+          href={`/dashboard/orders/${orderId}/inspection/final`}
+          className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">✅</span>
+            <div>
+              <p className="font-medium group-hover:text-primary transition-colors">
+                Saída
+              </p>
+              <p className="text-xs text-muted-foreground">Obrigatória para concluir OS</p>
+            </div>
           </div>
-        )}
+          <Badge 
+            variant={saidaStatus === 'ok' ? 'default' : saidaStatus === 'andamento' ? 'secondary' : 'outline'}
+            className={saidaStatus === 'ok' ? 'bg-green-500' : ''}
+          >
+            {saidaStatus === 'ok' ? '✓ Concluída' : saidaStatus === 'andamento' ? `${saidaInspection?.progress || 0}%` : 'Pendente'}
+          </Badge>
+        </Link>
       </CardContent>
     </Card>
   );
@@ -293,11 +304,15 @@ export default function OrderDetailPage({ params }: PageProps) {
           </div>
         </div>
         <div className="flex gap-2 pl-12 sm:pl-0">
+
           {/* Status Actions */}
+          <PDFDownloadButton orderId={id} />
+            
           {nextStatuses.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button disabled={updateStatus.isPending}>
+
                   {updateStatus.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
@@ -323,7 +338,7 @@ export default function OrderDetailPage({ params }: PageProps) {
             <Button variant="secondary" asChild>
               <Link href={`/dashboard/orders/${id}/inspection`}>
                 <ClipboardCheck className="mr-2 h-4 w-4" />
-                Vistoria 3D
+                Vistoria
               </Link>
             </Button>
           )}
@@ -337,8 +352,8 @@ export default function OrderDetailPage({ params }: PageProps) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
                 <Link href={`/dashboard/orders/${id}/inspection`}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Abrir Vistoria 3D
+                  <ClipboardCheck className="mr-2 h-4 w-4" />
+                  Vistorias
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

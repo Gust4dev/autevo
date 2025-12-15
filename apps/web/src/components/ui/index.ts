@@ -59,4 +59,6 @@ export {
     SelectScrollUpButton,
     SelectScrollDownButton,
 } from './select';
+export { Progress } from './progress';
+export { Textarea } from './textarea';
 

@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
     '/sign-in(.*)',
     '/sign-up(.*)',
     '/public/(.*)',
+    '/tracking(.*)',
     '/api/cron/(.*)',
     '/api/trpc/(.*)', // Allow all tRPC routes (auth is handled inside)
 ]);

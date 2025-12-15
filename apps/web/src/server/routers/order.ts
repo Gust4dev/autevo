@@ -295,6 +295,26 @@ export const orderRouter = router({
                 });
             }
 
+            // 🔒 BLOQUEIO: Verificar vistoria de saída antes de concluir
+            if (input.status === 'CONCLUIDO') {
+                const exitInspection = await ctx.db.inspection.findUnique({
+                    where: {
+                        orderId_type: {
+                            orderId: input.id,
+                            type: 'final',
+                        },
+                    },
+                    select: { id: true, status: true },
+                });
+
+                if (!exitInspection || exitInspection.status !== 'concluida') {
+                    throw new TRPCError({
+                        code: 'BAD_REQUEST',
+                        message: 'A OS só pode ser concluída após finalizar a Vistoria de Saída. Complete todos os itens obrigatórios da vistoria antes de concluir.',
+                    });
+                }
+            }
+
             // Set timestamps based on status
             const timestamps: Record<string, Date> = {};
             if (input.status === 'EM_EXECUCAO' && !existing.startedAt) {
@@ -314,6 +334,7 @@ export const orderRouter = router({
 
             return order;
         }),
+
 
     // Add payment with auto-completion logic
     addPayment: protectedProcedure
@@ -365,14 +386,27 @@ export const orderRouter = router({
             const remaining = orderTotal - newTotalPaid;
 
             if (remaining < EPSILON) {
-                // Auto-complete the order
-                await ctx.db.serviceOrder.update({
-                    where: { id: input.orderId },
-                    data: {
-                        status: 'CONCLUIDO',
-                        completedAt: new Date(),
+                // Verificar vistoria de saída antes de auto-complete
+                const exitInspection = await ctx.db.inspection.findUnique({
+                    where: {
+                        orderId_type: {
+                            orderId: input.orderId,
+                            type: 'final',
+                        },
                     },
+                    select: { status: true },
                 });
+
+                // Só auto-complete se tiver vistoria de saída concluída
+                if (exitInspection?.status === 'concluida') {
+                    await ctx.db.serviceOrder.update({
+                        where: { id: input.orderId },
+                        data: {
+                            status: 'CONCLUIDO',
+                            completedAt: new Date(),
+                        },
+                    });
+                }
             }
 
             return payment;

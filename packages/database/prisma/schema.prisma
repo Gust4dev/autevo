@@ -311,7 +311,8 @@ model OrderProduct {
 model Inspection {
   id            String       @id @default(cuid())
   orderId       String
-  type          String       @default("entrada") // entrada, pos_limpeza, final
+  type          String       @default("entrada") // entrada, intermediaria, final
+  status        String       @default("em_andamento") // em_andamento, concluida
   order         ServiceOrder @relation(fields: [orderId], references: [id])
   version       Int          @default(0)
   checklistData Json         @default("{}")
@@ -323,24 +324,37 @@ model Inspection {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  items   InspectionItem[]
   damages InspectionDamage[]
 
   @@unique([orderId, type])
   @@index([orderId])
 }
 
+model InspectionItem {
+  id           String     @id @default(cuid())
+  inspectionId String
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  category     String     // "exterior", "rodas", "detalhes"
+  itemKey      String     // "frente", "roda_de", "roda_dd", etc.
+  label        String     // "Frente Completa", "Roda Dianteira Esquerda"
+  isRequired   Boolean    @default(true)
+  isCritical   Boolean    @default(false) // Warning vermelho
+  photoUrl     String?
+  notes        String?
+  status       String     @default("pendente") // pendente, ok, com_avaria
+  completedAt  DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@unique([inspectionId, itemKey])
+  @@index([inspectionId])
+}
+
 model InspectionDamage {
   id           String     @id @default(cuid())
   inspectionId String
   inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  position     String
-  x            Float
-  y            Float
-  z            Float      @default(0)
-  normalX      Float      @default(0)
-  normalY      Float      @default(1)
-  normalZ      Float      @default(0)
-  is3D         Boolean    @default(false)
+  position     String     // Parte do carro onde está o dano
   damageType   String
   photoUrl     String?
   notes        String?
@@ -348,6 +362,7 @@ model InspectionDamage {
 
   @@index([inspectionId])
 }
+
 
 
 // Payments
