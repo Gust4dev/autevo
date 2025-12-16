@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
     '/public/(.*)',
     '/tracking(.*)',
     '/api/cron/(.*)',
+    '/api/webhooks/clerk', // Allow Clerk webhooks
     '/api/trpc/(.*)', // Allow all tRPC routes (auth is handled inside)
 ]);
 

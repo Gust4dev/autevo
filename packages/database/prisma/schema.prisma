@@ -90,18 +90,32 @@ model Tenant {
   notifications NotificationLog[]
 }
 
+enum UserStatus {
+  ACTIVE
+  INVITED
+  INACTIVE
+}
+
 model User {
   id                       String     @id @default(cuid())
-  clerkId                  String     @unique
+  clerkId                  String?    @unique
   email                    String
   name                     String
   role                     UserRole   @default(MEMBER)
+  status                   UserStatus @default(ACTIVE)
   avatarUrl                String?
   phone                    String?
+  
+  // HR Details
+  jobTitle                 String?
+  salary                   Decimal?   @db.Decimal(10, 2)
+  admissionDate            DateTime?
+  pixKey                   String? 
   defaultCommissionPercent Decimal?   @default(0) @db.Decimal(5, 2)
+  
   tenantId                 String
   tenant                   Tenant     @relation(fields: [tenantId], references: [id])
-  isActive                 Boolean    @default(true)
+  isActive                 Boolean    @default(true) // Deprecated in favor of status? Keep for backward compat for now.
   createdAt                DateTime   @default(now())
 
   assignedOrders ServiceOrder[]          @relation("AssignedTo")

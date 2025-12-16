@@ -62,4 +62,14 @@ export {
 export { Progress } from './progress';
 export { Textarea } from './textarea';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
+export {
+    Table,
+    TableHeader,
+    TableBody,
+    TableFooter,
+    TableHead,
+    TableRow,
+    TableCell,
+    TableCaption,
+} from './table';
 

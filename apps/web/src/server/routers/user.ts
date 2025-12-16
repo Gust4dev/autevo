@@ -10,6 +10,11 @@ const inviteUserSchema = z.object({
     name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
     role: z.enum(userRoles),
     defaultCommissionPercent: z.number().min(0).max(100).optional(),
+    // HR Details
+    jobTitle: z.string().optional(),
+    salary: z.number().min(0).optional(),
+    pixKey: z.string().optional(),
+    admissionDate: z.date().optional(),
 });
 
 const updateUserSchema = z.object({
@@ -17,6 +22,10 @@ const updateUserSchema = z.object({
     role: z.enum(userRoles).optional(),
     phone: z.string().optional(),
     defaultCommissionPercent: z.number().min(0).max(100).optional(),
+    jobTitle: z.string().optional(),
+    salary: z.number().min(0).optional(),
+    pixKey: z.string().optional(),
+    admissionDate: z.date().optional(),
 });
 
 export const userRouter = router({
@@ -30,10 +39,14 @@ export const userRouter = router({
                 name: true,
                 email: true,
                 role: true,
+                status: true,
                 avatarUrl: true,
                 phone: true,
+                jobTitle: true,
+                salary: true,
+                admissionDate: true,
                 defaultCommissionPercent: true,
-                isActive: true,
+                isActive: true, // Keep for backward compat
                 createdAt: true,
             },
         });
@@ -120,30 +133,89 @@ export const userRouter = router({
                 });
             }
 
+            // Check Environment Variables
+            if (!process.env.CLERK_SECRET_KEY) {
+                console.error('CRITICAL: CLERK_SECRET_KEY is missing');
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'CONFIG_ERROR: CLERK_SECRET_KEY não encontrada no servidor.',
+                });
+            }
+            let appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+            // Fallback for development
+            if (!appUrl && process.env.NODE_ENV === 'development') {
+                appUrl = 'http://localhost:3000';
+            }
+
+            if (!appUrl) {
+                console.error('CRITICAL: NEXT_PUBLIC_APP_URL is missing');
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'CONFIG_ERROR: NEXT_PUBLIC_APP_URL não encontrada no servidor.',
+                });
+            }
+
+            const clerk = await clerkClient();
+
+            // Check if user already exists in Clerk
+            // We can't easily check by email without trying to create or search, 
+            // but createInvitation handles duplicates gracefully usually.
+
+            // Create PENDING user in Database first
+            // Note: clerkId is optional, so we leave it null for now.
+            // We set status to INVITED.
+            const dbUser = await ctx.db.user.create({
+                data: {
+                    tenantId: ctx.tenantId!,
+                    email: input.email,
+                    name: input.name,
+                    role: input.role,
+                    status: 'INVITED',
+                    jobTitle: input.jobTitle,
+                    salary: input.salary,
+                    pixKey: input.pixKey,
+                    admissionDate: input.admissionDate,
+                    defaultCommissionPercent: input.defaultCommissionPercent,
+                },
+            });
+
             try {
                 // Create Clerk invitation
-                const clerk = await clerkClient();
                 const invitation = await clerk.invitations.createInvitation({
                     emailAddress: input.email,
                     publicMetadata: {
                         tenantId: ctx.tenantId,
                         role: input.role,
-                        name: input.name,
-                        defaultCommissionPercent: input.defaultCommissionPercent || 0,
+                        dbUserId: dbUser.id, // Store DB ID to link later in webhook
                     },
-                    redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`,
+                    redirectUrl: `${appUrl}/sign-up`,
                 });
 
                 return {
                     success: true,
                     invitationId: invitation.id,
                     email: input.email,
+                    dbUserId: dbUser.id,
                 };
-            } catch (error) {
-                console.error('Clerk invitation error:', error);
+            } catch (error: any) {
+                // If Clerk fails, we should delete the pending user to avoid orphans?
+                // Or keep it and let them retry? Let's delete to keep clean state on error.
+                await ctx.db.user.delete({ where: { id: dbUser.id } }).catch(console.error);
+
+                console.error('Clerk invitation error details:', JSON.stringify(error, null, 2));
+
+                let errorMessage = 'Unknown error';
+                if (error instanceof Error) {
+                    errorMessage = error.message;
+                } else if (error.errors && Array.isArray(error.errors)) {
+                    // Handle Clerk Error Array
+                    errorMessage = error.errors.map((e: any) => e.longMessage || e.message).join(', ');
+                }
+
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: 'Erro ao enviar convite. Tente novamente.',
+                    message: `Clerk: ${errorMessage}`,
                 });
             }
         }),
@@ -266,16 +338,22 @@ export const userRouter = router({
 
             const clerk = await clerkClient();
 
+            if (!ctx.user?.clerkId) {
+                throw new TRPCError({
+                    code: 'PRECONDITION_FAILED',
+                    message: 'Usuário não vinculado ao Clerk',
+                });
+            }
+
             // 1. Update Database
             await ctx.db.user.update({
-                where: { id: ctx.user!.id },
+                where: { id: ctx.user.id },
                 data: { role: input.targetRole as any }, // Cast to avoid TS issues if enum mismatch temporarily
             });
 
             // 2. Update Clerk Metadata
-            await clerk.users.updateUser(ctx.user!.clerkId, {
+            await clerk.users.updateUser(ctx.user.clerkId, {
                 publicMetadata: {
-                    ...ctx.user!.publicMetadata,
                     role: input.targetRole,
                 },
             });

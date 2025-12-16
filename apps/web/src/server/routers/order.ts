@@ -143,7 +143,9 @@ export const orderRouter = router({
             dateTo: z.date().optional(),
         }))
         .query(async ({ ctx, input }) => {
-            const where = {
+            const isMember = ctx.user?.role === 'MEMBER';
+
+            const where: any = {
                 tenantId: ctx.tenantId!,
                 status: input.status && input.status.length > 0 ? { in: input.status } : undefined,
                 scheduledAt: (input.dateFrom || input.dateTo) ? {
@@ -151,6 +153,11 @@ export const orderRouter = router({
                     lte: input.dateTo,
                 } : undefined,
             };
+
+            // RBAC: Members only see their assigned orders
+            if (isMember) {
+                where.assignedToId = ctx.user!.id;
+            }
 
             const [orders, count] = await Promise.all([
                 ctx.db.serviceOrder.findMany({
@@ -191,8 +198,16 @@ export const orderRouter = router({
     update: protectedProcedure
         .input(z.object({ id: z.string(), data: orderUpdateSchema }))
         .mutation(async ({ ctx, input }) => {
+            const isMember = ctx.user?.role === 'MEMBER';
+            const where: any = { id: input.id, tenantId: ctx.tenantId! };
+
+            // RBAC: Members can only update their own orders
+            if (isMember) {
+                where.assignedToId = ctx.user!.id;
+            }
+
             const existing = await ctx.db.serviceOrder.findFirst({
-                where: { id: input.id, tenantId: ctx.tenantId! },
+                where,
                 include: { items: true },
             });
 
@@ -275,8 +290,16 @@ export const orderRouter = router({
             status: z.nativeEnum(PrismaOrderStatus),
         }))
         .mutation(async ({ ctx, input }) => {
+            const isMember = ctx.user?.role === 'MEMBER';
+            const where: any = { id: input.id, tenantId: ctx.tenantId! };
+
+            // RBAC: Members can only update status of their own orders
+            if (isMember) {
+                where.assignedToId = ctx.user!.id;
+            }
+
             const existing = await ctx.db.serviceOrder.findFirst({
-                where: { id: input.id, tenantId: ctx.tenantId! },
+                where,
             });
 
             if (!existing) {
@@ -340,8 +363,16 @@ export const orderRouter = router({
     addPayment: protectedProcedure
         .input(paymentSchema)
         .mutation(async ({ ctx, input }) => {
+            const isMember = ctx.user?.role === 'MEMBER';
+            const where: any = { id: input.orderId, tenantId: ctx.tenantId! };
+
+            // RBAC: Members can only add payment to their own orders
+            if (isMember) {
+                where.assignedToId = ctx.user!.id;
+            }
+
             const order = await ctx.db.serviceOrder.findFirst({
-                where: { id: input.orderId, tenantId: ctx.tenantId! },
+                where,
                 include: { payments: true },
             });
 
@@ -415,6 +446,15 @@ export const orderRouter = router({
     // Get dashboard stats
     getStats: protectedProcedure
         .query(async ({ ctx }) => {
+            const isMember = ctx.user?.role === 'MEMBER';
+            const baseWhere: any = {
+                tenantId: ctx.tenantId!,
+            };
+
+            if (isMember) {
+                baseWhere.assignedToId = ctx.user!.id;
+            }
+
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const tomorrow = new Date(today);
@@ -423,19 +463,19 @@ export const orderRouter = router({
             const [todayOrders, inProgress, monthRevenue] = await Promise.all([
                 ctx.db.serviceOrder.count({
                     where: {
-                        tenantId: ctx.tenantId!,
+                        ...baseWhere,
                         scheduledAt: { gte: today, lt: tomorrow },
                     },
                 }),
                 ctx.db.serviceOrder.count({
                     where: {
-                        tenantId: ctx.tenantId!,
+                        ...baseWhere,
                         status: { in: ['EM_VISTORIA', 'EM_EXECUCAO'] },
                     },
                 }),
                 ctx.db.serviceOrder.aggregate({
                     where: {
-                        tenantId: ctx.tenantId!,
+                        ...baseWhere,
                         status: 'CONCLUIDO',
                         completedAt: {
                             gte: new Date(today.getFullYear(), today.getMonth(), 1),
@@ -456,8 +496,14 @@ export const orderRouter = router({
     getRecent: protectedProcedure
         .input(z.object({ limit: z.number().default(5) }))
         .query(async ({ ctx, input }) => {
+            const isMember = ctx.user?.role === 'MEMBER';
+            const where: any = { tenantId: ctx.tenantId! };
+            if (isMember) {
+                where.assignedToId = ctx.user!.id;
+            }
+
             const orders = await ctx.db.serviceOrder.findMany({
-                where: { tenantId: ctx.tenantId! },
+                where,
                 take: input.limit,
                 orderBy: { createdAt: 'desc' },
                 include: {

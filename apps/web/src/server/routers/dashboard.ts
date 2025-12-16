@@ -125,4 +125,124 @@ export const dashboardRouter = router({
             pendingPayments,
         };
     }),
+
+    // Get Chart Data (Daily Revenue)
+    getFinancialChartData: managerProcedure.query(async ({ ctx }) => {
+        const now = new Date();
+        // Last 30 days or current month? Let's do current month for now.
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        // Fetch payments grouped by day
+        // Prisma doesn't support "groupBy" date easily with SQLite/Postgres seamlessly without raw query
+        // But for portability, we can fetch all payments and aggregate in JS (assuming volume isn't massive yet)
+        const payments = await ctx.db.payment.findMany({
+            where: {
+                order: { tenantId: ctx.tenantId! },
+                paidAt: { gte: startOfMonth, lte: endOfMonth },
+            },
+            select: {
+                paidAt: true,
+                amount: true,
+            },
+            orderBy: { paidAt: 'asc' },
+        });
+
+        // Group by day
+        const dailyRevenue = new Map<string, number>();
+        // Initialize all days in month
+        for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
+            const dayStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            dailyRevenue.set(dayStr, 0);
+        }
+
+        for (const p of payments) {
+            const dayStr = p.paidAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            dailyRevenue.set(dayStr, (dailyRevenue.get(dayStr) || 0) + Number(p.amount));
+        }
+
+        const chartData = Array.from(dailyRevenue.entries()).map(([date, revenue]) => ({
+            date,
+            revenue,
+        }));
+
+        return chartData;
+    }),
+
+    // Get Team Financials
+    getTeamFinancials: managerProcedure.query(async ({ ctx }) => {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Fetch all active users/employees
+        const users = await ctx.db.user.findMany({
+            where: {
+                tenantId: ctx.tenantId!,
+                // status: { not: 'INACTIVE' }, // Show all active/invited
+                isActive: true, // Legacy fallback
+            },
+            select: {
+                id: true,
+                name: true,
+                role: true,
+                jobTitle: true,
+                salary: true,
+                avatarUrl: true,
+                // Get commissions for this month
+                commissions: {
+                    where: {
+                        calculatedAt: { gte: startOfMonth },
+                    },
+                    select: {
+                        commissionValue: true,
+                    },
+                },
+                // Get orders assigned and completed this month (Revenue Generated)
+                assignedOrders: {
+                    where: {
+                        status: 'CONCLUIDO',
+                        completedAt: { gte: startOfMonth },
+                    },
+                    select: {
+                        total: true,
+                    },
+                },
+            },
+        });
+
+        const teamStats = users.map(user => {
+            const fixedSalary = Number(user.salary) || 0;
+            const commissions = user.commissions.reduce((sum, c) => sum + Number(c.commissionValue), 0);
+            const totalPayout = fixedSalary + commissions;
+
+            const revenueGenerated = user.assignedOrders.reduce((sum, o) => sum + Number(o.total), 0);
+            const ordersCount = user.assignedOrders.length;
+
+            return {
+                id: user.id,
+                name: user.name,
+                role: user.role,
+                jobTitle: user.jobTitle || 'N/A',
+                avatarUrl: user.avatarUrl,
+                fixedSalary,
+                commissions,
+                totalPayout,
+                revenueGenerated,
+                ordersCount,
+                roi: totalPayout > 0 ? (revenueGenerated / totalPayout) : 0, // Return on Investment
+            };
+        });
+
+        // Calculate Totals
+        const totalPayroll = teamStats.reduce((sum, u) => sum + u.totalPayout, 0);
+        const totalFixed = teamStats.reduce((sum, u) => sum + u.fixedSalary, 0);
+        const totalCommissions = teamStats.reduce((sum, u) => sum + u.commissions, 0);
+
+        return {
+            users: teamStats,
+            totalPayroll,
+            totalFixed,
+            totalCommissions,
+        };
+    }),
 });

@@ -48,6 +48,7 @@ const catalogNavItems: NavItem[] = [
 
 const settingsNavItems: NavItem[] = [
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings, roles: ['OWNER'] },
+  { href: '/dashboard/settings/team', label: 'Equipe', icon: Users, roles: ['OWNER', 'MANAGER'] },
 ];
 
 interface SidebarProps {
