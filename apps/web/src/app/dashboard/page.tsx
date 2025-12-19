@@ -119,8 +119,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Grid - 6 columns on xl */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Stats Grid - 3 columns on lg/xl */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Agendamentos Hoje"
           value={quickStatsQuery.data?.todayOrders.toString() || '0'}

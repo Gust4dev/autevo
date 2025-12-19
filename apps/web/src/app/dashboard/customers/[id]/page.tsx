@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui';
+import { RoleGuard } from '@/components/auth/RoleGuard';
 import { trpc } from '@/lib/trpc/provider';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -219,6 +220,16 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 </div>
               </>
             )}
+
+            <RoleGuard allowed={['OWNER', 'MANAGER']}>
+              <Separator />
+              <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <p className="text-2xl font-bold">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(customer.totalSpent || 0)}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Gasto</p>
+              </div>
+            </RoleGuard>
           </CardContent>
         </Card>
 

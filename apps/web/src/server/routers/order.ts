@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure } from '../trpc';
+import { router, protectedProcedure, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { OrderStatus as PrismaOrderStatus, PaymentMethod } from '@prisma/client';
 
@@ -63,10 +63,24 @@ export const orderRouter = router({
                 input.discountValue
             );
 
+            // Fetch vehicle to get current owner
+            const vehicle = await ctx.db.vehicle.findUnique({
+                where: { id: input.vehicleId },
+                select: { customerId: true }
+            });
+
+            if (!vehicle) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Veículo não encontrado'
+                });
+            }
+
             const order = await ctx.db.serviceOrder.create({
                 data: {
                     tenantId: ctx.tenantId!,
                     vehicleId: input.vehicleId,
+                    customerId: vehicle.customerId, // Capture current owner
                     assignedToId: input.assignedToId,
                     createdById: ctx.user!.id,
                     scheduledAt: input.scheduledAt,
@@ -75,7 +89,7 @@ export const orderRouter = router({
                     discountType: input.discountType,
                     discountValue: input.discountValue,
                     total,
-                    code: `OS-${Date.now()}`, // Simple code generation, improved logic might be needed
+                    code: `OS-${Date.now()}`,
                     items: {
                         create: input.items.map((item) => ({
                             serviceId: item.serviceId,
@@ -519,6 +533,125 @@ export const orderRouter = router({
             });
 
             return orders;
+        }),
+
+    // Public status for customer tracking
+    getPublicStatus: publicProcedure
+        .input(z.object({ orderId: z.string() }))
+        .query(async ({ ctx, input }) => {
+            try {
+                const order = await ctx.db.serviceOrder.findUnique({
+                    where: { id: input.orderId },
+                    include: {
+                        vehicle: {
+                            select: {
+                                plate: true,
+                                model: true,
+                                brand: true,
+                                color: true,
+                                customer: {
+                                    select: { name: true }
+                                }
+                            }
+                        },
+                        tenant: {
+                            select: {
+                                name: true,
+                                phone: true,
+                                logo: true,
+                                primaryColor: true,
+                                secondaryColor: true,
+                            }
+                        },
+                        items: {
+                            select: {
+                                id: true,
+                                service: { select: { name: true } },
+                                customName: true,
+                                price: true,
+                                quantity: true,
+                            }
+                        }
+                    }
+                });
+
+                if (!order) {
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Ordem de serviço não encontrada',
+                    });
+                }
+
+                // Get all inspections with items
+                const inspections = await ctx.db.inspection.findMany({
+                    where: { orderId: input.orderId },
+                    include: {
+                        items: {
+                            orderBy: [
+                                { category: 'asc' },
+                                { createdAt: 'asc' },
+                            ],
+                        },
+                        damages: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                });
+
+                return {
+                    id: order.id,
+                    status: order.status,
+                    customerName: order.vehicle.customer?.name?.split(' ')[0] || 'Cliente',
+                    vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
+                    vehicleColor: order.vehicle.color || 'N/A',
+                    vehiclePlate: order.vehicle.plate
+                        ? order.vehicle.plate.substring(0, 3) + '****'
+                        : null,
+                    tenantContact: {
+                        name: order.tenant.name,
+                        whatsapp: order.tenant.phone,
+                        phone: order.tenant.phone,
+                        logo: order.tenant.logo,
+                        primaryColor: order.tenant.primaryColor || '#DC2626',
+                        secondaryColor: order.tenant.secondaryColor || '#1F2937',
+                    },
+                    services: order.items.map(item => ({
+                        name: item.customName || item.service?.name || 'Serviço',
+                        total: Number(item.price) * item.quantity,
+                    })),
+                    total: Number(order.total),
+                    inspections: inspections.map(inspection => ({
+                        id: inspection.id,
+                        type: inspection.type,
+                        status: inspection.status,
+                        createdAt: inspection.createdAt,
+                        items: inspection.items.map(item => ({
+                            id: item.id,
+                            category: item.category,
+                            label: item.label,
+                            status: item.status,
+                            photoUrl: item.photoUrl,
+                            notes: item.notes,
+                            isCritical: item.isCritical,
+                            damageType: item.damageType,
+                            severity: item.severity,
+                        })),
+                        damages: inspection.damages.map(d => ({
+                            id: d.id,
+                            position: d.position,
+                            damageType: d.damageType,
+                            notes: d.notes,
+                            photoUrl: d.photoUrl,
+                        })),
+                    })),
+                };
+            } catch (error) {
+                console.error('Error in getPublicStatus:', error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'Erro ao buscar status público',
+                    cause: error
+                });
+            }
         }),
 });
 

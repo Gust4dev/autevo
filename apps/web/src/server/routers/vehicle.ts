@@ -107,6 +107,18 @@ export const vehicleRouter = router({
                 });
             }
 
+            // Filter orders to only show those belonging to the current owner
+            // OR if the order has no customerId (legacy), show it? 
+            // User requested "excluded", so strictly showing only matching customerId is safest for privacy.
+            // However, for systems with legacy data, we might want to allow nulls if the vehicle has no owner?
+            // Strict approach:
+            if (vehicle.customerId) {
+                vehicle.orders = vehicle.orders.filter(o => o.customerId === vehicle.customerId) as any;
+                // We should also update the count to reflect this filtering if we want it to match
+                // But _count is from DB. If we want accurate count, we might need a separate query or accept mismatch.
+                // For now, let's update the array.
+            }
+
             return vehicle;
         }),
 

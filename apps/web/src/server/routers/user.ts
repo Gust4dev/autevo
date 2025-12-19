@@ -199,6 +199,19 @@ export const userRouter = router({
                     dbUserId: dbUser.id,
                 };
             } catch (error: any) {
+                // Check for duplicate invitation specific error
+                const isDuplicate = error?.errors?.some((e: any) => e.code === 'duplicate_record');
+
+                if (isDuplicate) {
+                    // Start cleanup but don't fail the whole request based on it
+                    await ctx.db.user.delete({ where: { id: dbUser.id } }).catch(console.error);
+
+                    throw new TRPCError({
+                        code: 'CONFLICT',
+                        message: 'Este e-mail já possui um convite pendente enviando pelo Clerk. Verifique no painel do Clerk ou peça para o usuário checar o e-mail.',
+                    });
+                }
+
                 // If Clerk fails, we should delete the pending user to avoid orphans?
                 // Or keep it and let them retry? Let's delete to keep clean state on error.
                 await ctx.db.user.delete({ where: { id: dbUser.id } }).catch(console.error);

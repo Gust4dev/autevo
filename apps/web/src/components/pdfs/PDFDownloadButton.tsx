@@ -29,7 +29,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
   const [isClient, setIsClient] = useState(false);
   const [isPreparingAssets, setIsPreparingAssets] = useState(true);
   
-  const { data: publicStatus, isLoading } = trpc.inspection.getPublicStatus.useQuery({ orderId });
+  const { data: publicStatus, isLoading } = trpc.order.getPublicStatus.useQuery({ orderId });
 
   useEffect(() => {
     setIsClient(true);

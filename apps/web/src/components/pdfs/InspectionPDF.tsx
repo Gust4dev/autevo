@@ -7,7 +7,7 @@ import type { inferRouterOutputs } from '@trpc/server';
 
 // Type for the public status
 type RouterOutputs = inferRouterOutputs<AppRouter>;
-type PublicStatus = RouterOutputs['inspection']['getPublicStatus'] & {
+type PublicStatus = RouterOutputs['order']['getPublicStatus'] & {
   vehiclePlate?: string | null;
 };
 

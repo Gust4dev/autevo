@@ -103,7 +103,20 @@ export const customerRouter = router({
                 });
             }
 
-            return customer;
+            // Calculate total spent by customer across all their orders (even if car was sold)
+            const totalSpentAgg = await ctx.db.serviceOrder.aggregate({
+                where: {
+                    customerId: input.id,
+                    tenantId: ctx.tenantId!,
+                    status: { not: 'CANCELADO' } // Don't count cancelled orders
+                },
+                _sum: { total: true }
+            });
+
+            return {
+                ...customer,
+                totalSpent: Number(totalSpentAgg._sum.total) || 0
+            };
         }),
 
     // Create new customer

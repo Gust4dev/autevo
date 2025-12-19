@@ -35,7 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui';
-import { StatusBadge, OrderTimeline, PaymentDialog } from '@/components/orders';
+import { StatusBadge, OrderTimeline, PaymentDialog, ShareOrderButton } from '@/components/orders';
 import { trpc } from '@/lib/trpc/provider';
 import { toast } from 'sonner';
 // Dynamic import for PDF button to avoid strict SSR issues with react-pdf
@@ -307,6 +307,14 @@ export default function OrderDetailPage({ params }: PageProps) {
 
           {/* Status Actions */}
           <PDFDownloadButton orderId={id} />
+          
+          {order.vehicle.customer && (
+              <ShareOrderButton 
+                orderId={id} 
+                customerName={order.vehicle.customer.name.split(' ')[0]} 
+                vehicleName={`${order.vehicle.brand} ${order.vehicle.model}`}
+              />
+          )}
             
           {nextStatuses.length > 0 && (
             <DropdownMenu>
