@@ -48,7 +48,7 @@ export default function OrdersPage() {
   });
 
   const orders = data?.orders || [];
-  const pagination = data?.pagination;
+  // const pagination = data?.pagination; // Backend uses root total/pages
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -224,8 +224,8 @@ export default function OrdersPage() {
         data={orders}
         isLoading={isLoading}
         page={page}
-        totalPages={pagination?.totalPages || 1}
-        total={pagination?.total || 0}
+        totalPages={data?.pages || 1}
+        total={data?.total || 0}
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}
