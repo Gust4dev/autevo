@@ -1,6 +1,17 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "DATABASE_URL",
+    "CLERK_SECRET_KEY",
+    "CLERK_WEBHOOK_SECRET",
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_REGION",
+    "AWS_BUCKET_NAME",
+    "AWS_ENDPOINT"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
