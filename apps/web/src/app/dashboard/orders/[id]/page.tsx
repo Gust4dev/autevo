@@ -46,6 +46,11 @@ const PDFDownloadButton = dynamic(
     { ssr: false, loading: () => <Button variant="outline" size="sm" disabled>Carregando PDF...</Button> }
 );
 
+const ContractDownloadButton = dynamic(
+    () => import('@/components/pdfs/ContractDownloadButton').then(mod => mod.ContractDownloadButton),
+    { ssr: false, loading: () => <Button variant="outline" size="sm" disabled>Carregando Contrato...</Button> }
+);
+
 
 // Valid status transitions (matching backend)
 const validNextStatuses: Record<string, { value: string; label: string }[]> = {
@@ -306,7 +311,11 @@ export default function OrderDetailPage({ params }: PageProps) {
         <div className="flex gap-2 pl-12 sm:pl-0">
 
           {/* Status Actions */}
-          <PDFDownloadButton orderId={id} />
+          {order.status === 'CONCLUIDO' ? (
+            <ContractDownloadButton orderId={id} />
+          ) : (
+            <PDFDownloadButton orderId={id} />
+          )}
           
           {order.vehicle.customer && (
               <ShareOrderButton 

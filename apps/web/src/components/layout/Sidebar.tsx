@@ -84,10 +84,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               <img
                 src={theme.logo}
                 alt={theme.name || 'Logo'}
-                className="h-9 w-9 shrink-0 rounded-lg object-contain"
+                className="h-9 w-9 shrink-0 object-contain"
               />
             ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary">
                 <span className="text-lg font-bold text-primary-foreground">
                   {theme?.name?.[0] || 'F'}
                 </span>

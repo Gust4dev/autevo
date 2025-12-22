@@ -1,13 +1,13 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc/provider';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
   Badge,
   Separator,
   Button
@@ -19,100 +19,115 @@ import {
   Wrench, 
   Sparkles, 
   Check, 
-  ChevronDown, 
-  ChevronRight, 
   Phone,
   MessageCircle,
-  AlertTriangle 
+  AlertTriangle,
+  MapPin,
+  Calendar,
+  Car,
+  Image as ImageIcon,
+  ChevronRight,
+  ShieldCheck,
+  FileText,
+  Share2
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface PageProps {
   params: Promise<{ orderId: string }>;
 }
 
-const statusSteps = [
-  { status: 'AGENDADO', label: 'Agendado', icon: Clock },
-  { status: 'EM_VISTORIA', label: 'Vistoria', icon: CheckCircle2 },
-  { status: 'EM_EXECUCAO', label: 'Serviço', icon: Wrench },
-  { status: 'AGUARDANDO_PAGAMENTO', label: 'Lavagem', icon: Sparkles },
-  { status: 'CONCLUIDO', label: 'Pronto', icon: Check },
-];
+// Client-only date formatter component to prevent hydration mismatch
+const FormattedDate = ({ date }: { date: string | Date | null }) => {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
 
-function getStepStatus(currentStatus: string, stepStatus: string) {
-  const statusOrder = ['AGENDADO', 'EM_VISTORIA', 'EM_EXECUCAO', 'AGUARDANDO_PAGAMENTO', 'CONCLUIDO'];
-  const currentIndex = statusOrder.indexOf(currentStatus);
-  const stepIndex = statusOrder.indexOf(stepStatus);
-
-  if (stepIndex < currentIndex) return 'completed';
-  if (stepIndex === currentIndex) return 'current';
-  return 'upcoming';
-}
-
-function StatusStepper({ currentStatus, primaryColor }: { currentStatus: string, primaryColor: string }) {
-  // Simple check for cancelled, although ideally we'd show a red state
-  if (currentStatus === 'CANCELADO') {
-     return (
-        <div className="flex items-center justify-center p-4 bg-red-50 text-red-600 rounded-lg border border-red-100">
-           <AlertTriangle className="mr-2 h-5 w-5" />
-           <span className="font-semibold">Serviço Cancelado</span>
-        </div>
-     )
-  }
-
-  return (
-    <div className="relative">
-        <div className="absolute top-4 left-0 right-0 h-0.5 bg-muted -z-10" />
-        <div className="flex justify-between">
-        {statusSteps.map((step) => {
-            const state = getStepStatus(currentStatus, step.status);
-            const Icon = step.icon;
-            
-            let circleClass = "bg-background border-muted text-muted-foreground"; // upcoming
-            
-            if (state === 'completed') {
-                circleClass = "bg-primary border-primary text-primary-foreground";
-            } else if (state === 'current') {
-                circleClass = "bg-background border-primary text-primary animate-pulse";
-            }
-
-            return (
-            <div key={step.status} className="flex flex-col items-center gap-2 bg-background/50 backdrop-blur-sm px-1 z-10">
-                <div 
-                    className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-500 ${circleClass}`}
-                    style={state === 'completed' ? { backgroundColor: primaryColor, borderColor: primaryColor } : state === 'current' ? { borderColor: primaryColor, color: primaryColor } : {}}
-                >
-                <Icon className="h-4 w-4" />
-                </div>
-                <span className={`text-[10px] md:text-xs font-medium text-center ${state === 'upcoming' ? 'text-muted-foreground' : 'text-foreground'}`}>
-                {step.label}
-                </span>
-            </div>
-            );
-        })}
-        </div>
-    </div>
-  );
-}
-
-const INSPECTION_TYPE_LABELS: Record<string, string> = {
-  entrada: 'Vistoria de Entrada',
-  intermediaria: 'Vistoria Intermediária',
-  final: 'Vistoria Final',
+    if (!mounted || !date) return <span className="opacity-0">...</span>;
+    return (
+        <span>{format(new Date(date), "d 'de' MMMM 'às' HH:mm", { locale: ptBR })}</span>
+    );
 };
+
+// Status definitions with colors and icons
+const statusConfig: Record<string, { label: string; icon: any; color: string; description: string }> = {
+  AGENDADO: { 
+    label: 'Agendado', 
+    icon: Calendar, 
+    color: '#3b82f6', // blue-500
+    description: 'Sua visita está confirmada. Aguardamos sua chegada.' 
+  },
+  EM_VISTORIA: { 
+    label: 'Em Vistoria', 
+    icon: ShieldCheck, 
+    color: '#8b5cf6', // violet-500
+    description: 'Estamos analisando todos os detalhes do seu veículo.' 
+  },
+  EM_EXECUCAO: { 
+    label: 'Em Execução', 
+    icon: Wrench, 
+    color: '#f59e0b', // amber-500
+    description: 'Nossa equipe está trabalhando no seu carro agora.' 
+  },
+  AGUARDANDO_PAGAMENTO: { 
+    label: 'Lavagem/Finalização', 
+    icon: Sparkles, 
+    color: '#06b6d4', // cyan-500
+    description: 'Serviços concluídos! Dando aquele brilho final.' 
+  },
+  CONCLUIDO: { 
+    label: 'Pronto para Retirada', 
+    icon: CheckCircle2, 
+    color: '#10b981', // emerald-500
+    description: 'Tudo pronto! Seu veículo está aguardando você.' 
+  },
+  CANCELADO: { 
+    label: 'Cancelado', 
+    icon: AlertTriangle, 
+    color: '#ef4444', // red-500
+    description: 'Este serviço foi cancelado.' 
+  }
+};
+
+const statusOrder = ['AGENDADO', 'EM_VISTORIA', 'EM_EXECUCAO', 'AGUARDANDO_PAGAMENTO', 'CONCLUIDO'];
 
 export default function TrackingPage({ params }: PageProps) {
   const { orderId } = use(params);
-  const [expandedInspection, setExpandedInspection] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  
+  // Real-time polling every 5 seconds
+  const { data, isLoading, error } = trpc.order.getPublicStatus.useQuery(
+    { orderId },
+    { refetchInterval: 5000 }
+  );
 
-  // Use the NEW order.getPublicStatus procedure
-  const { data, isLoading, error } = trpc.order.getPublicStatus.useQuery({ orderId });
+  useEffect(() => setMounted(true), []);
 
-  if (isLoading) {
+  // Lock body scroll when lightbox is open
+  useEffect(() => {
+    if (lightboxImage) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    }
+  }, [lightboxImage]);
+
+  if (!mounted || isLoading) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center space-y-4 bg-muted/5">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Localizando seu veículo...</p>
+      <div className="flex h-screen flex-col items-center justify-center space-y-6 bg-gradient-to-b from-background to-muted/20">
+        <div className="relative">
+             <div className="h-16 w-16 rounded-full border-4 border-primary/20 animate-spin border-t-primary"></div>
+             <div className="absolute inset-0 flex items-center justify-center">
+                <Car className="h-6 w-6 text-primary animate-pulse" />
+             </div>
+        </div>
+        <p className="text-muted-foreground animate-pulse font-medium tracking-wide">
+            Carregando status do veículo...
+        </p>
       </div>
     );
   }
@@ -120,223 +135,335 @@ export default function TrackingPage({ params }: PageProps) {
   if (error || !data) {
     return (
       <div className="flex h-screen flex-col items-center justify-center p-6 text-center bg-muted/5">
-        <div className="p-4 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
-            <AlertTriangle className="h-8 w-8 text-destructive" />
+        <div className="p-6 rounded-full bg-red-100 dark:bg-red-900/20 mb-6 animate-in zoom-in duration-300">
+            <AlertTriangle className="h-10 w-10 text-destructive" />
         </div>
-        <h1 className="text-xl font-bold mb-2">Ops! Algo deu errado.</h1>
-        <p className="text-muted-foreground mb-6 max-w-xs mx-auto">
-          Não conseguimos encontrar esta ordem de serviço. Verifique o link ou entre em contato com a oficina.
+        <h1 className="text-2xl font-bold mb-3 tracking-tight">Ops! Pedido não encontrado.</h1>
+        <p className="text-muted-foreground mb-8 max-w-xs mx-auto leading-relaxed">
+          Não conseguimos localizar esta ordem de serviço. O link pode estar incorreto ou expirado.
         </p>
-        <Button onClick={() => window.location.reload()}>
+        <Button onClick={() => window.location.reload()} variant="outline" className="rounded-full px-8">
           Tentar novamente
         </Button>
       </div>
     );
   }
 
-  const { customerName, vehicleName, status, inspections, services, total, tenantContact } = data;
+  const { customerName, vehicleName, vehiclePlate, status, inspections, services, total, tenantContact } = data;
   const primaryColor = tenantContact.primaryColor || '#000000';
-
-  // Group inspections to prioritize Entry and Final
-  const entryInspection = inspections.find(i => i.type === 'entrada');
-  const finalInspection = inspections.find(i => i.type === 'final');
-  // Other inspections if needed (for now focusing on the main 2)
-  const otherInspections = inspections.filter(i => i.type !== 'entrada' && i.type !== 'final');
-
-  const hasPhotos = inspections.some(i => i.items.some(item => item.photoUrl) || i.damages.some(d => d.photoUrl));
+  
+  // Derived state
+  const currentStatusConfig = statusConfig[status] || statusConfig['AGENDADO'];
+  const currentStepIndex = statusOrder.indexOf(status);
+  const progressPercent = Math.max(5, ((currentStepIndex + 1) / statusOrder.length) * 100);
 
   const handleWhatsappClick = () => {
     if (!tenantContact.whatsapp) return;
-    const message = `Olá, gostaria de falar sobre o serviço do veículo ${vehicleName} (OS #${data.id.slice(-6).toUpperCase()})`;
+    const message = `Olá, gostaria de falar sobre o serviço do veículo ${vehicleName} (${vehiclePlate || ''})`;
     window.open(`https://wa.me/${tenantContact.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
-    <div className="min-h-screen bg-muted/5 pb-24 font-sans">
-      {/* Header with Tenant Branding */}
-      <div className="bg-background border-b sticky top-0 z-40 shadow-sm/50 backdrop-blur-md bg-background/95">
-        <div className="container max-w-md mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                {tenantContact.logo ? (
-                    <img src={tenantContact.logo} alt={tenantContact.name} className="h-10 w-10 object-contain rounded-md bg-muted/10 p-1" />
-                ) : (
-                    <div className="h-10 w-10 flex items-center justify-center bg-primary/10 rounded-md font-bold text-primary" style={{ color: primaryColor, backgroundColor: `${primaryColor}1A` }}>
-                        {tenantContact.name.substring(0, 1)}
+    <div className="min-h-screen bg-muted/5 font-sans pb-32 animate-in fade-in duration-500">
+      
+      {/* Immersive Header */}
+      <div className="relative overflow-hidden bg-background border-b border-border/50">
+         {/* Background accent */}
+         <div 
+            className="absolute top-0 left-0 right-0 h-1" 
+            style={{ 
+                background: `linear-gradient(90deg, ${primaryColor}, ${tenantContact.secondaryColor || primaryColor})`
+            }} 
+         />
+         
+         <div className="container max-w-md mx-auto px-6 py-6 pb-8">
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                    {tenantContact.logo ? (
+                        <img src={tenantContact.logo} alt={tenantContact.name} className="h-12 w-12 object-contain bg-white dark:bg-black/10 rounded-xl p-1 shadow-sm border border-border/50" />
+                    ) : (
+                        <div className="h-12 w-12 flex items-center justify-center rounded-xl font-bold text-lg shadow-sm" style={{ color: primaryColor, backgroundColor: `${primaryColor}15` }}>
+                            {tenantContact.name.substring(0, 1)}
+                        </div>
+                    )}
+                    <div>
+                        <h2 className="font-bold text-base leading-tight tracking-tight">{tenantContact.name}</h2>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            <span>Oficina Verificada</span>
+                        </div>
                     </div>
-                )}
-                <div className="leading-tight">
-                    <h2 className="font-semibold text-sm">{tenantContact.name}</h2>
-                    <p className="text-xs text-muted-foreground">Status do Serviço</p>
                 </div>
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => {
+                        if (navigator.share) {
+                            navigator.share({
+                                title: `Acompanhamento - ${vehicleName}`,
+                                text: `Acompanhe o status do serviço do ${vehicleName}`,
+                                url: window.location.href,
+                            }).catch(() => {});
+                        }
+                    }}>
+                    <Share2 className="h-5 w-5 text-muted-foreground" />
+                </Button>
             </div>
-            
-            <a 
-                href={`tel:${tenantContact.phone}`}
-                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
-            >
-                <Phone className="h-4 w-4" />
-            </a>
-        </div>
+
+            <div className="space-y-1">
+                <h1 className="text-3xl font-bold tracking-tight">
+                    Olá, <span style={{ color: primaryColor }}>{customerName}</span>
+                </h1>
+                <p className="text-muted-foreground text-sm flex items-center gap-2">
+                    Acompanhando <span className="font-semibold text-foreground bg-muted px-2 py-0.5 rounded-md text-xs">{vehiclePlate || vehicleName}</span>
+                </p>
+            </div>
+         </div>
       </div>
 
-      <div className="container max-w-md mx-auto p-4 space-y-6">
-        {/* Welcome & Vehicle Card */}
-        <div className="text-center py-4">
-            <h1 className="text-2xl font-bold tracking-tight mb-1">
-                Olá, <span style={{ color: primaryColor }}>{customerName}</span>!
-            </h1>
-            <p className="text-muted-foreground">
-                Aqui está o progresso do seu <span className="font-medium text-foreground">{vehicleName}</span>
-            </p>
-        </div>
-
-        {/* Status Stepper */}
-        <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden">
-          <CardContent className="pt-8 pb-6">
-            <StatusStepper currentStatus={status} primaryColor={primaryColor} />
-            <div className="mt-6 text-center">
-                 <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Status Atual</p>
-                 <p className="text-lg font-bold mt-1" style={{ color: primaryColor }}>
-                    {status === 'AGUARDANDO_PAGAMENTO' ? 'Aguardando Pagamento/Retirada' : 
-                     status === 'EM_VISTORIA' ? 'Em Vistoria' : 
-                     status === 'EM_EXECUCAO' ? 'Em Execução' : 
-                     status === 'CONCLUIDO' ? 'Concluído' : status}
-                 </p>
+      <div className="container max-w-md mx-auto px-4 -mt-6">
+        {/* Status Card - Hero */}
+        <Card className="border-0 shadow-xl overflow-hidden ring-1 ring-black/5 dark:ring-white/10 relative bg-background/80 backdrop-blur-md">
+            {/* Animated Status Bar */}
+            <div className="absolute top-0 left-0 h-1 bg-muted w-full">
+                <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercent}%` }}
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    className="h-full"
+                    style={{ backgroundColor: currentStatusConfig.color }}
+                />
             </div>
-          </CardContent>
+
+            <CardContent className="pt-8 pb-8 px-6 text-center space-y-5">
+                <div 
+                    className="inline-flex items-center justify-center p-4 rounded-full shadow-lg ring-4 ring-background mb-2 transform transition-transform hover:scale-105 duration-300"
+                    style={{ 
+                        backgroundColor: currentStatusConfig.color, 
+                        color: 'white',
+                        boxShadow: `0 10px 25px -5px ${currentStatusConfig.color}66`
+                    }}
+                >
+                    <currentStatusConfig.icon className="h-8 w-8" />
+                </div>
+                
+                <div className="space-y-2">
+                    <Badge variant="outline" className="px-3 py-1 text-sm border-0 bg-muted/50 backdrop-blur-sm">
+                        Status Atual
+                    </Badge>
+                    <h2 className="text-2xl font-bold tracking-tight" style={{ color: currentStatusConfig.color }}>
+                        {currentStatusConfig.label}
+                    </h2>
+                    <p className="text-muted-foreground text-sm leading-relaxed max-w-[280px] mx-auto">
+                        {currentStatusConfig.description}
+                    </p>
+                </div>
+            </CardContent>
         </Card>
 
-        {/* Gallery / Inspections */}
-        {hasPhotos && (
-           <div className="space-y-4">
-              <h3 className="font-semibold text-lg px-2 flex items-center gap-2">
-                 <ImageIcon className="h-4 w-4 text-primary" style={{ color: primaryColor }} /> 
-                 Galeria de Fotos
-              </h3>
-              
-              {/* Entry Inspection (Problems) */}
-              {entryInspection && (entryInspection.items.some(i => i.photoUrl) || entryInspection.damages.some(d => d.photoUrl)) && (
-                   <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: primaryColor }}>
-                      <CardHeader className="bg-muted/30 pb-3">
-                          <CardTitle className="text-base flex items-center justify-between">
-                             <span>Vistoria de Entrada</span>
-                             <Badge variant="outline" className="bg-background">Chegada</Badge>
-                          </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-4 grid grid-cols-3 gap-2">
-                          {entryInspection.damages.filter(d => d.photoUrl).map(d => (
-                              <button key={d.id} onClick={() => setLightboxImage(d.photoUrl)} className="aspect-square relative rounded-md overflow-hidden group">
-                                  <img src={d.photoUrl!} alt="Dano" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                                  <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] truncate p-1">Avaria</div>
-                              </button>
-                          ))}
-                          {entryInspection.items.filter(i => i.photoUrl).map(i => (
-                              <button key={i.id} onClick={() => setLightboxImage(i.photoUrl)} className="aspect-square relative rounded-md overflow-hidden group">
-                                  <img src={i.photoUrl!} alt={i.label} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                                  <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] truncate p-1">{i.label}</div>
-                              </button>
-                          ))}
-                      </CardContent>
-                   </Card>
-              )}
+        {/* Dynamic Inspections (Gallery) */}
+        {inspections && inspections.length > 0 && (
+            <div className="mt-8 space-y-6">
+                <div className="flex items-center justify-between px-2">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <ImageIcon className="h-5 w-5 text-primary" style={{ color: primaryColor }} />
+                        Galeria de Vistorias
+                    </h3>
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                        {inspections.filter(i => i.items.some(k => k.photoUrl) || i.damages.some(d => d.photoUrl)).length} disponíveis
+                    </span>
+                </div>
 
-              {/* Final Inspection (Results) */}
-              {finalInspection && (finalInspection.items.some(i => i.photoUrl)) && (
-                   <Card className="overflow-hidden border-l-4 border-green-500 shadow-md">
-                      <CardHeader className="bg-green-500/10 pb-3">
-                          <CardTitle className="text-base flex items-center justify-between text-green-700 dark:text-green-400">
-                             <span>Resultado Final</span>
-                             <Sparkles className="h-4 w-4" />
-                          </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-4 grid grid-cols-2 gap-3">
-                          {finalInspection.items.filter(i => i.photoUrl).map(i => (
-                              <button key={i.id} onClick={() => setLightboxImage(i.photoUrl)} className="aspect-video relative rounded-md overflow-hidden group shadow-sm">
-                                  <img src={i.photoUrl!} alt={i.label} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                                  <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">PRONTO</div>
-                              </button>
-                          ))}
-                      </CardContent>
-                   </Card>
-              )}
-           </div>
+                <div className="space-y-4">
+                    {inspections.map((inspection, i) => {
+                        // Check if it has photos OR if it is finalized (for exit inspection we might want to show it even without photos if user insists, but typically gallery needs photos)
+                        // User said: "o cliente consiga ver todas as imagens ... porem nao deve aparecer se nao for feita"
+                        // User also said: "de saida nao aparece" (exit does not appear)
+                        
+                        const hasPhotos = inspection.items.some(k => k.photoUrl) || inspection.damages.some(d => d.photoUrl);
+                        
+                        // If inspection is 'final' (exit) and is 'concluida' (done), we might want to show it? 
+                        // But if it has no photos, what do we show in a gallery?
+                        // If user complains it doesn't appear, likely they EXPECT photos to be there.
+                        
+                        if (!hasPhotos) return null;
+
+                        const isFinal = inspection.type === 'final';
+
+                        return (
+                            <motion.div 
+                                key={inspection.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                            >
+                                <Card className={`overflow-hidden border-0 shadow-md ${isFinal ? 'ring-2 ring-green-500/20' : ''}`}>
+                                    <div className="px-4 py-3 bg-muted/30 border-b flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            {isFinal ? (
+                                                <Sparkles className="h-4 w-4 text-green-500" />
+                                            ) : (
+                                                <div className="h-2 w-2 rounded-full bg-primary" style={{ backgroundColor: primaryColor }} />
+                                            )}
+                                            <span className="font-medium text-sm capitalize">
+                                                {inspection.type === 'entrada' ? 'Vistoria Inicial' : 
+                                                 inspection.type === 'final' ? 'Resultado Final' : 
+                                                 inspection.type.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                                            <FormattedDate date={inspection.createdAt} />
+                                        </span>
+                                    </div>
+                                    
+                                    <CardContent className="p-3">
+                                        {!hasPhotos ? (
+                                            <div className="flex flex-col items-center justify-center py-6 text-muted-foreground bg-muted/20 rounded-lg">
+                                                <ImageIcon className="h-8 w-8 opacity-20 mb-2" />
+                                                <p className="text-xs font-medium">Sem registros fotográficos</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {/* Damages first */}
+                                                {inspection.damages.filter(d => d.photoUrl).map((d) => (
+                                                    <motion.button 
+                                                        key={d.id} 
+                                                        whileHover={{ scale: 1.02 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => setLightboxImage(d.photoUrl!)}
+                                                        className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
+                                                    >
+                                                        <img src={d.photoUrl!} alt="Dano" className="w-full h-full object-cover" loading="lazy" />
+                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                                                        <Badge variant="destructive" className="absolute top-1 right-1 text-[8px] h-4 px-1 rounded-sm">
+                                                            Avaria
+                                                        </Badge>
+                                                    </motion.button>
+                                                ))}
+
+                                                {/* Items */}
+                                                {inspection.items.filter(i => i.photoUrl).map((item) => (
+                                                    <motion.button 
+                                                        key={item.id}
+                                                        whileHover={{ scale: 1.02 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => setLightboxImage(item.photoUrl!)}
+                                                        className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
+                                                    >
+                                                        <img src={item.photoUrl!} alt={item.label} className="w-full h-full object-cover" loading="lazy" />
+                                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <p className="text-[10px] text-white font-medium truncate">{item.label}</p>
+                                                        </div>
+                                                    </motion.button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </motion.div>
+                        );
+                    })}
+                </div>
+            </div>
         )}
 
-        {/* Financial Summary */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Resumo do Serviço</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              {services.map((service, index) => (
-                <div key={index} className="flex justify-between text-sm items-center border-b border-dashed border-muted pb-2 last:border-0 last:pb-0">
-                  <span className="text-muted-foreground">{service.name}</span>
-                  <span className="font-medium">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(service.total)}
-                  </span>
+        {/* Services & Values */}
+        <div className="mt-8 space-y-4">
+             <div className="px-2">
+                 <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" style={{ color: primaryColor }} />
+                    Resumo do Pedido
+                 </h3>
+             </div>
+             
+             <Card className="border-0 shadow-md overflow-hidden">
+                <div className="p-1 bg-muted/50 border-b border-dashed" />
+                <CardContent className="p-0">
+                    <div className="divide-y divide-muted/50">
+                        {services.map((service, index) => (
+                            <div key={index} className="flex justify-between items-center p-4 hover:bg-muted/5 transition-colors">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                                    <span className="text-sm font-medium text-foreground/80">{service.name}</span>
+                                </div>
+                                <span className="text-sm font-semibold whitespace-nowrap ml-4">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(service.total)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+                <div className="bg-muted/30 p-4 flex justify-between items-center border-t">
+                    <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Final</span>
+                    <span className="text-xl font-bold" style={{ color: primaryColor }}>
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}
+                    </span>
                 </div>
-              ))}
+             </Card>
+        </div>
+
+        {/* Store Info */}
+        <div className="mt-10 mb-6 text-center">
+            <div className="inline-flex items-center gap-2 text-sm text-col-muted-foreground bg-background/50 px-4 py-2 rounded-full shadow-sm border border-border/50">
+                <MapPin className="h-3 w-3" />
+                <span className="font-medium text-muted-foreground">{tenantContact.name}</span>
             </div>
-            
-            <Separator />
-            
-            <div className="flex justify-between items-center bg-muted/30 p-3 rounded-lg">
-              <span className="text-sm font-medium text-muted-foreground">Total Aprovado</span>
-              <span className="text-xl font-bold" style={{ color: primaryColor }}>
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      
-        {/* Actions Spacing */}
-        <div className="h-12" />
+        </div>
       </div>
 
-      {/* Floating Action Button */}
-      {tenantContact.whatsapp && (
-        <div className="fixed bottom-6 left-0 right-0 p-4 z-50 flex justify-center">
-             <Button 
-                size="lg" 
-                className="w-full max-w-md shadow-xl text-white font-bold h-14 rounded-2xl animate-in slide-in-from-bottom-10 fade-in duration-500"
-                style={{ backgroundColor: '#25D366' }} // WhatsApp Green always
-                onClick={handleWhatsappClick}
-             >
-                <div className="flex items-center gap-2">
-                    <MessageCircle className="h-5 w-5 fill-current" />
-                    <span>Falar no WhatsApp da Oficina</span>
-                </div>
-             </Button>
-        </div>
-      )}
+      {/* Floating Action Button (WhatsApp) */}
+      <AnimatePresence>
+        {tenantContact.whatsapp && (
+            <motion.div 
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="fixed bottom-6 left-4 right-4 z-40 max-w-md mx-auto"
+            >
+                <Button 
+                    size="lg" 
+                    className="w-full shadow-2xl text-white font-bold h-14 rounded-2xl relative overflow-hidden group"
+                    style={{ backgroundColor: '#25D366' }} // WhatsApp color
+                    onClick={handleWhatsappClick}
+                >
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none" />
+                    <div className="flex items-center gap-3">
+                        <MessageCircle className="h-6 w-6 fill-current" />
+                        <span className="text-base">Falar com a Oficina</span>
+                    </div>
+                </Button>
+            </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Lightbox */}
-      {lightboxImage && (
-        <div 
-          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-2 animate-in fade-in duration-200"
-          onClick={() => setLightboxImage(null)}
-        >
-          <img 
-            src={lightboxImage} 
-            alt="Foto ampliada"
-            className="max-w-full max-h-[85vh] object-contain rounded-sm"
-          />
-          <button 
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2"
-            onClick={() => setLightboxImage(null)}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {/* Modern Lightbox */}
+      <AnimatePresence>
+        {lightboxImage && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-4"
+                onClick={() => setLightboxImage(null)}
+            >
+                <motion.img 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    src={lightboxImage} 
+                    alt="Foto ampliada"
+                    className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                    onClick={(e) => e.stopPropagation()} // Prevent closing when clicking image
+                />
+                <button 
+                    className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full bg-white/10 backdrop-blur-md transition-colors"
+                    onClick={() => setLightboxImage(null)}
+                >
+                    <span className="sr-only">Fechar</span>
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-}
-
-// Icon helper
-function ImageIcon({ className, style }: { className?: string, style?: any }) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-    )
 }
