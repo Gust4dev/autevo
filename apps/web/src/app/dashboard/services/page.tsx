@@ -1,12 +1,22 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Plus, MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, Clock, DollarSign } from 'lucide-react';
-import { 
-  Button, 
-  DataTable, 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Plus,
+  MoreHorizontal,
+  Eye,
+  Pencil,
+  Trash2,
+  Power,
+  PowerOff,
+  Clock,
+  DollarSign,
+} from "lucide-react";
+import {
+  Button,
+  DataTable,
   Badge,
   DropdownMenu,
   DropdownMenuContent,
@@ -20,15 +30,15 @@ import {
   DialogHeader,
   DialogTitle,
   Skeleton,
-} from '@/components/ui';
-import type { Column } from '@/components/ui';
-import { trpc } from '@/lib/trpc/provider';
-import { toast } from 'sonner';
+} from "@/components/ui";
+import type { Column } from "@/components/ui";
+import { trpc } from "@/lib/trpc/provider";
+import { toast } from "sonner";
 
 export default function ServicesPage() {
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState<{
@@ -46,7 +56,7 @@ export default function ServicesPage() {
 
   const toggleActiveMutation = trpc.service.toggleActive.useMutation({
     onSuccess: () => {
-      toast.success('Status atualizado');
+      toast.success("Status atualizado");
       refetch();
     },
     onError: (error) => {
@@ -56,7 +66,7 @@ export default function ServicesPage() {
 
   const deleteMutation = trpc.service.delete.useMutation({
     onSuccess: () => {
-      toast.success('Serviço excluído com sucesso');
+      toast.success("Serviço excluído com sucesso");
       refetch();
       setDeleteDialogOpen(false);
       setServiceToDelete(null);
@@ -85,9 +95,9 @@ export default function ServicesPage() {
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
   };
 
@@ -100,15 +110,17 @@ export default function ServicesPage() {
 
   const columns: Column<(typeof services)[number]>[] = [
     {
-      key: 'name',
-      header: 'Serviço',
+      key: "name",
+      header: "Serviço",
       sortable: true,
       render: (service) => (
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="font-medium">{service.name}</span>
             {!service.isActive && (
-              <Badge variant="secondary" className="text-xs">Inativo</Badge>
+              <Badge variant="secondary" className="text-xs">
+                Inativo
+              </Badge>
             )}
           </div>
           {service.description && (
@@ -120,19 +132,21 @@ export default function ServicesPage() {
       ),
     },
     {
-      key: 'basePrice',
-      header: 'Preço Base',
+      key: "basePrice",
+      header: "Preço Base",
       render: (service) => (
         <div className="flex items-center gap-1.5">
           <DollarSign className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{formatCurrency(Number(service.basePrice))}</span>
+          <span className="font-medium">
+            {formatCurrency(Number(service.basePrice))}
+          </span>
         </div>
       ),
     },
     {
-      key: 'estimatedTime',
-      header: 'Tempo Est.',
-      render: (service) => (
+      key: "estimatedTime",
+      header: "Tempo Est.",
+      render: (service) =>
         service.estimatedTime ? (
           <div className="flex items-center gap-1.5">
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -140,30 +154,29 @@ export default function ServicesPage() {
           </div>
         ) : (
           <span className="text-muted-foreground">-</span>
-        )
-      ),
+        ),
     },
     {
-      key: 'returnDays',
-      header: 'Retorno',
-      render: (service) => (
+      key: "returnDays",
+      header: "Retorno",
+      render: (service) =>
         service.returnDays ? (
           <span>{service.returnDays} dias</span>
         ) : (
           <span className="text-muted-foreground">-</span>
-        )
-      ),
+        ),
     },
     {
-      key: 'commission',
-      header: 'Comissão',
-      render: (service) => (
+      key: "commission",
+      header: "Comissão",
+      render: (service) =>
         service.defaultCommissionPercent ? (
-          <Badge variant="outline">{Number(service.defaultCommissionPercent)}%</Badge>
+          <Badge variant="outline">
+            {Number(service.defaultCommissionPercent)}%
+          </Badge>
         ) : (
           <span className="text-muted-foreground">-</span>
-        )
-      ),
+        ),
     },
   ];
 
@@ -182,7 +195,10 @@ export default function ServicesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        id="page-title"
+        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Serviços</h1>
           <p className="text-muted-foreground">
@@ -191,12 +207,12 @@ export default function ServicesPage() {
         </div>
         <div className="flex gap-2">
           <Button
-            variant={showInactive ? 'secondary' : 'outline'}
+            variant={showInactive ? "secondary" : "outline"}
             onClick={() => setShowInactive(!showInactive)}
           >
-            {showInactive ? 'Ocultar Inativos' : 'Mostrar Inativos'}
+            {showInactive ? "Ocultar Inativos" : "Mostrar Inativos"}
           </Button>
-          <Button asChild>
+          <Button id="btn-new-service" asChild>
             <Link href="/dashboard/services/new">
               <Plus className="mr-2 h-4 w-4" />
               Novo Serviço
@@ -217,7 +233,9 @@ export default function ServicesPage() {
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Buscar por nome ou descrição..."
-        onRowClick={(service) => router.push(`/dashboard/services/${service.id}`)}
+        onRowClick={(service) =>
+          router.push(`/dashboard/services/${service.id}`)
+        }
         getRowKey={(service) => service.id}
         emptyTitle="Nenhum serviço encontrado"
         emptyDescription="Comece cadastrando seu primeiro serviço."
@@ -281,21 +299,24 @@ export default function ServicesPage() {
           <DialogHeader>
             <DialogTitle>Excluir Serviço</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir o serviço{' '}
+              Tem certeza que deseja excluir o serviço{" "}
               <strong>{serviceToDelete?.name}</strong>? Esta ação não pode ser
               desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+            >
               Cancelar
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={confirmDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
             </Button>
           </DialogFooter>
         </DialogContent>

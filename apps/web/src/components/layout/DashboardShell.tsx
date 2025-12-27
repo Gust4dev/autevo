@@ -1,19 +1,20 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { Header } from '@/components/layout/Header';
-import { MobileNav } from '@/components/layout/MobileNav';
-import { TenantThemeProvider } from '@/components/providers/TenantThemeProvider';
-import { cn } from '@/lib/cn';
+import { useState, useEffect } from "react";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { Header } from "@/components/layout/Header";
+import { MobileNav } from "@/components/layout/MobileNav";
+import { TenantThemeProvider } from "@/components/providers/TenantThemeProvider";
+import { cn } from "@/lib/cn";
 
 interface DashboardShellProps {
   children: React.ReactNode;
+  userRole?: string; // We can use string to avoid strict type coupling or import specific type
 }
 
-const SIDEBAR_COLLAPSED_KEY = 'filmtech-sidebar-collapsed';
+const SIDEBAR_COLLAPSED_KEY = "filmtech-sidebar-collapsed";
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, userRole }: DashboardShellProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -23,7 +24,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     setMounted(true);
     const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
     if (stored !== null) {
-      setIsSidebarCollapsed(stored === 'true');
+      setIsSidebarCollapsed(stored === "true");
     }
   }, []);
 
@@ -55,6 +56,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           <Sidebar
             isCollapsed={isSidebarCollapsed}
             onToggle={handleSidebarToggle}
+            userRole={userRole as any} // Cast to match expected type
           />
         </div>
 
@@ -67,8 +69,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
         {/* Main Content Area */}
         <div
           className={cn(
-            'flex flex-1 flex-col transition-all duration-300',
-            isSidebarCollapsed ? 'lg:ml-[68px]' : 'lg:ml-[240px]'
+            "flex flex-1 flex-col transition-all duration-300",
+            isSidebarCollapsed ? "lg:ml-[68px]" : "lg:ml-[240px]"
           )}
         >
           {/* Header */}
@@ -86,4 +88,3 @@ export function DashboardShell({ children }: DashboardShellProps) {
     </TenantThemeProvider>
   );
 }
-

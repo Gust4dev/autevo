@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -15,14 +15,19 @@ import {
   ChevronLeft,
   type LucideIcon,
   TrendingUp,
-} from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { Separator } from '@/components/ui/separator';
-import { useTenantTheme } from '@/components/providers/TenantThemeProvider';
+} from "lucide-react";
+import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import { useTenantTheme } from "@/components/providers/TenantThemeProvider";
 
-type UserRole = 'ADMIN_SAAS' | 'OWNER' | 'MANAGER' | 'MEMBER';
+type UserRole = "ADMIN_SAAS" | "OWNER" | "MANAGER" | "MEMBER";
 
 interface NavItem {
   href: string;
@@ -30,37 +35,66 @@ interface NavItem {
   icon: LucideIcon;
   badge?: number;
   roles?: UserRole[];
+  id?: string;
 }
 
 const mainNavItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/financial', label: 'Financeiro', icon: TrendingUp, roles: ['ADMIN_SAAS', 'OWNER', 'MANAGER'] },
-  { href: '/dashboard/orders', label: 'Ordens de Serviço', icon: ClipboardList },
-  { href: '/dashboard/scheduling', label: 'Agendamentos', icon: Calendar },
-  { href: '/dashboard/customers', label: 'Clientes', icon: Users },
-  { href: '/dashboard/vehicles', label: 'Veículos', icon: Car },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  {
+    href: "/dashboard/financial",
+    label: "Financeiro",
+    icon: TrendingUp,
+    roles: ["ADMIN_SAAS", "OWNER", "MANAGER"],
+  },
+  {
+    href: "/dashboard/orders",
+    label: "Ordens de Serviço",
+    icon: ClipboardList,
+  },
+  { href: "/dashboard/scheduling", label: "Agendamentos", icon: Calendar },
+  { href: "/dashboard/customers", label: "Clientes", icon: Users },
+  { href: "/dashboard/vehicles", label: "Veículos", icon: Car },
 ];
 
 const catalogNavItems: NavItem[] = [
-  { href: '/dashboard/services', label: 'Serviços', icon: Wrench },
-  { href: '/dashboard/products', label: 'Produtos', icon: Package },
+  {
+    href: "/dashboard/services",
+    label: "Serviços",
+    icon: Wrench,
+    id: "nav-services",
+  },
+  { href: "/dashboard/products", label: "Produtos", icon: Package },
 ];
 
 const settingsNavItems: NavItem[] = [
-  { href: '/dashboard/settings', label: 'Configurações', icon: Settings, roles: ['ADMIN_SAAS', 'OWNER', 'MANAGER'] },
-  { href: '/dashboard/settings/team', label: 'Equipe', icon: Users, roles: ['ADMIN_SAAS', 'OWNER', 'MANAGER'] },
+  {
+    href: "/dashboard/settings",
+    label: "Configurações",
+    icon: Settings,
+    roles: ["ADMIN_SAAS", "OWNER", "MANAGER"],
+  },
+  {
+    href: "/dashboard/settings/team",
+    label: "Equipe",
+    icon: Users,
+    roles: ["ADMIN_SAAS", "OWNER", "MANAGER"],
+  },
 ];
 
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
+  userRole?: UserRole;
 }
 
-export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, userRole }: SidebarProps) {
   const pathname = usePathname();
   const theme = useTenantTheme();
-  const { user, isLoaded } = useUser();
-  const userRole = user?.publicMetadata?.role as UserRole | undefined;
+
+  // Use passed role (from DB) or fallback to Clerk metadata (if available)
+  const { user } = useUser();
+  const effectiveRole =
+    userRole || (user?.publicMetadata?.role as UserRole | undefined);
 
   // Don't render nav until we know the role to avoid flash of content
   // OR render operational items by default? Better to wait slightly or default to safe subset.
@@ -72,8 +106,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/40 bg-card/80 backdrop-blur-xl transition-all duration-500 ease-out shadow-2xl',
-          isCollapsed ? 'w-[68px]' : 'w-[260px]'
+          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/40 bg-card/80 backdrop-blur-xl transition-all duration-500 ease-out shadow-2xl",
+          isCollapsed ? "w-[68px]" : "w-[260px]"
         )}
       >
         {/* Logo */}
@@ -83,19 +117,19 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={theme.logo}
-                alt={theme.name || 'Logo'}
+                alt={theme.name || "Logo"}
                 className="h-9 w-9 shrink-0 object-contain"
               />
             ) : (
               <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary">
                 <span className="text-lg font-bold text-primary-foreground">
-                  {theme?.name?.[0] || 'F'}
+                  {theme?.name?.[0] || "F"}
                 </span>
               </div>
             )}
             {!isCollapsed && (
               <span className="text-lg font-semibold text-foreground truncate">
-                {theme?.name || 'Filmtech OS'}
+                {theme?.name || "Filmtech OS"}
               </span>
             )}
           </Link>
@@ -107,7 +141,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             items={mainNavItems}
             isCollapsed={isCollapsed}
             pathname={pathname}
-            userRole={userRole}
+            userRole={effectiveRole}
           />
 
           <Separator className="my-3" />
@@ -117,7 +151,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             items={catalogNavItems}
             isCollapsed={isCollapsed}
             pathname={pathname}
-            userRole={userRole}
+            userRole={effectiveRole}
           />
 
           <Separator className="my-3" />
@@ -127,7 +161,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             items={settingsNavItems}
             isCollapsed={isCollapsed}
             pathname={pathname}
-            userRole={userRole}
+            userRole={effectiveRole}
           />
         </nav>
 
@@ -141,12 +175,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           >
             <ChevronLeft
               className={cn(
-                'h-4 w-4 transition-transform duration-300',
-                isCollapsed && 'rotate-180'
+                "h-4 w-4 transition-transform duration-300",
+                isCollapsed && "rotate-180"
               )}
             />
             <span className="sr-only">
-              {isCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              {isCollapsed ? "Expandir menu" : "Recolher menu"}
             </span>
           </Button>
         </div>
@@ -166,7 +200,7 @@ function NavSection({
   pathname: string;
   userRole?: UserRole;
 }) {
-  const filteredItems = items.filter(item => {
+  const filteredItems = items.filter((item) => {
     if (!item.roles) return true; // Accessible by everyone
     if (!userRole) return false; // Protected but no role loaded yet
     return item.roles.includes(userRole);
@@ -177,8 +211,9 @@ function NavSection({
   return (
     <div className="space-y-1">
       {filteredItems.map((item) => {
-        const isActive = pathname === item.href || 
-          (item.href !== '/dashboard' && pathname.startsWith(item.href));
+        const isActive =
+          pathname === item.href ||
+          (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
         return (
           <NavItem
@@ -207,13 +242,14 @@ function NavItem({
   const linkContent = (
     <Link
       href={item.href}
+      id={item.id}
       className={cn(
-        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ease-out relative overflow-hidden group',
-        'hover:bg-primary/10 hover:text-primary hover:shadow-sm hover:translate-x-1',
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ease-out relative overflow-hidden group",
+        "hover:bg-primary/10 hover:text-primary hover:shadow-sm hover:translate-x-1",
         isActive
-          ? 'bg-primary/15 text-primary shadow-sm font-semibold after:absolute after:left-0 after:top-1/2 after:-translate-y-1/2 after:h-8 after:w-1 after:bg-primary after:rounded-r-full after:animate-fade-in'
-          : 'text-muted-foreground',
-        isCollapsed && 'justify-center px-2 hover:translate-x-0'
+          ? "bg-primary/15 text-primary shadow-sm font-semibold after:absolute after:left-0 after:top-1/2 after:-translate-y-1/2 after:h-8 after:w-1 after:bg-primary after:rounded-r-full after:animate-fade-in"
+          : "text-muted-foreground",
+        isCollapsed && "justify-center px-2 hover:translate-x-0"
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
@@ -222,7 +258,7 @@ function NavItem({
           <span className="flex-1">{item.label}</span>
           {item.badge !== undefined && item.badge > 0 && (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
-              {item.badge > 99 ? '99+' : item.badge}
+              {item.badge > 99 ? "99+" : item.badge}
             </span>
           )}
         </>

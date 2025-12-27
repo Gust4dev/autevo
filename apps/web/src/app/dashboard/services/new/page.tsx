@@ -1,29 +1,29 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { 
-  Button, 
-  Card, 
-  CardContent, 
-  CardHeader, 
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
   CardTitle,
   CardDescription,
   Input,
   Label,
-} from '@/components/ui';
-import { trpc } from '@/lib/trpc/provider';
-import { toast } from 'sonner';
+} from "@/components/ui";
+import { trpc } from "@/lib/trpc/provider";
+import { toast } from "sonner";
 
 // Form validation schema
 const serviceFormSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   description: z.string().optional(),
-  basePrice: z.string().min(1, 'Preço obrigatório'),
+  basePrice: z.string().min(1, "Preço obrigatório"),
   estimatedTime: z.string().optional(),
   returnDays: z.string().optional(),
   defaultCommissionPercent: z.string().optional(),
@@ -37,8 +37,8 @@ export default function NewServicePage() {
 
   const createMutation = trpc.service.create.useMutation({
     onSuccess: () => {
-      toast.success('Serviço cadastrado com sucesso');
-      router.push('/dashboard/services');
+      toast.success("Serviço cadastrado com sucesso");
+      router.push("/dashboard/services");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -54,27 +54,31 @@ export default function NewServicePage() {
   } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceFormSchema),
     defaultValues: {
-      name: '',
-      description: '',
-      basePrice: '',
-      estimatedTime: '',
-      returnDays: '',
-      defaultCommissionPercent: '',
+      name: "",
+      description: "",
+      basePrice: "",
+      estimatedTime: "",
+      returnDays: "",
+      defaultCommissionPercent: "",
       isActive: true,
     },
   });
 
-  const isActive = watch('isActive');
+  const isActive = watch("isActive");
 
   const onSubmit = (data: ServiceFormData) => {
     createMutation.mutate({
       name: data.name,
       description: data.description || undefined,
-      basePrice: parseFloat(data.basePrice.replace(/[^\d,]/g, '').replace(',', '.')),
-      estimatedTime: data.estimatedTime ? parseInt(data.estimatedTime) : undefined,
+      basePrice: parseFloat(
+        data.basePrice.replace(/[^\d,]/g, "").replace(",", ".")
+      ),
+      estimatedTime: data.estimatedTime
+        ? parseInt(data.estimatedTime)
+        : undefined,
       returnDays: data.returnDays ? parseInt(data.returnDays) : undefined,
-      defaultCommissionPercent: data.defaultCommissionPercent 
-        ? parseFloat(data.defaultCommissionPercent) 
+      defaultCommissionPercent: data.defaultCommissionPercent
+        ? parseFloat(data.defaultCommissionPercent)
         : undefined,
       isActive: data.isActive,
     });
@@ -82,12 +86,12 @@ export default function NewServicePage() {
 
   // Format currency as user types
   const formatCurrency = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (!numbers) return '';
+    const numbers = value.replace(/\D/g, "");
+    if (!numbers) return "";
     const amount = parseInt(numbers) / 100;
-    return amount.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
+    return amount.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     });
   };
 
@@ -120,11 +124,14 @@ export default function NewServicePage() {
           <CardContent className="space-y-6">
             {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="name" required>Nome do Serviço</Label>
+              <Label htmlFor="name" required>
+                Nome do Serviço
+              </Label>
               <Input
                 id="name"
+                data-tutorial-id="service-name-input"
                 placeholder="Ex: PPF Frontal"
-                {...register('name')}
+                {...register("name")}
                 error={errors.name?.message}
               />
             </div>
@@ -136,18 +143,21 @@ export default function NewServicePage() {
                 id="description"
                 rows={3}
                 placeholder="Descrição detalhada do serviço..."
-                {...register('description')}
+                {...register("description")}
                 className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
 
             {/* Price */}
             <div className="space-y-2">
-              <Label htmlFor="basePrice" required>Preço Base</Label>
+              <Label htmlFor="basePrice" required>
+                Preço Base
+              </Label>
               <Input
                 id="basePrice"
+                data-tutorial-id="service-price-input"
                 placeholder="R$ 0,00"
-                {...register('basePrice', {
+                {...register("basePrice", {
                   onChange: (e) => {
                     e.target.value = formatCurrency(e.target.value);
                   },
@@ -162,10 +172,11 @@ export default function NewServicePage() {
                 <Label htmlFor="estimatedTime">Tempo Estimado (minutos)</Label>
                 <Input
                   id="estimatedTime"
+                  data-tutorial-id="service-time-input"
                   type="number"
                   placeholder="Ex: 480"
                   min="0"
-                  {...register('estimatedTime')}
+                  {...register("estimatedTime")}
                   error={errors.estimatedTime?.message}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -179,7 +190,7 @@ export default function NewServicePage() {
                   type="number"
                   placeholder="Ex: 365"
                   min="0"
-                  {...register('returnDays')}
+                  {...register("returnDays")}
                   error={errors.returnDays?.message}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -190,7 +201,9 @@ export default function NewServicePage() {
 
             {/* Commission */}
             <div className="space-y-2">
-              <Label htmlFor="defaultCommissionPercent">Comissão Padrão (%)</Label>
+              <Label htmlFor="defaultCommissionPercent">
+                Comissão Padrão (%)
+              </Label>
               <Input
                 id="defaultCommissionPercent"
                 type="number"
@@ -198,7 +211,7 @@ export default function NewServicePage() {
                 min="0"
                 max="100"
                 step="0.1"
-                {...register('defaultCommissionPercent')}
+                {...register("defaultCommissionPercent")}
                 error={errors.defaultCommissionPercent?.message}
               />
             </div>
@@ -209,7 +222,7 @@ export default function NewServicePage() {
                 type="checkbox"
                 id="isActive"
                 checked={isActive}
-                onChange={(e) => setValue('isActive', e.target.checked)}
+                onChange={(e) => setValue("isActive", e.target.checked)}
                 className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
               />
               <Label htmlFor="isActive" className="cursor-pointer">
@@ -222,7 +235,11 @@ export default function NewServicePage() {
               <Button type="button" variant="outline" asChild>
                 <Link href="/dashboard/services">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+                id="service-save-button"
+              >
                 {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
