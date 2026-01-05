@@ -1,6 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
-// Routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
     '/',
     '/sign-in(.*)',
@@ -8,20 +8,31 @@ const isPublicRoute = createRouteMatcher([
     '/public/(.*)',
     '/tracking(.*)',
     '/api/cron/(.*)',
-    '/api/webhooks/clerk', // Allow Clerk webhooks
-    '/api/trpc/(.*)', // Allow all tRPC routes (auth is handled inside)
+    '/api/webhooks/clerk',
+    '/api/trpc/(.*)',
+]);
+
+const isOnboardingRoute = createRouteMatcher([
+    '/welcome(.*)',
+    '/awaiting-invite(.*)',
+    '/setup(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-    // Only protect non-public routes
     if (!isPublicRoute(request)) {
         await auth.protect();
+
+        const session = await auth();
+        const metadata = session.sessionClaims?.public_metadata as { needsOnboarding?: boolean } | undefined;
+
+        if (metadata?.needsOnboarding && !isOnboardingRoute(request)) {
+            return NextResponse.redirect(new URL('/welcome', request.url));
+        }
     }
 });
 
 export const config = {
     matcher: [
-        // Skip Next.js internals and static files
         '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     ],
 };

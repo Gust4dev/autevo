@@ -4,14 +4,7 @@ import { appRouter } from '@/server/routers/_app';
 import { prisma, type User } from '@filmtech/database';
 import type { Context } from '@/server/trpc';
 import { clerkClient } from '@clerk/nextjs/server';
-
-interface CachedUser {
-    user: User & { tenant: { id: string; status: string } | null };
-    timestamp: number;
-}
-
-const userCache = new Map<string, CachedUser>();
-const USER_CACHE_TTL = 30 * 1000; // 30 seconds
+import { getCachedUser, setCachedUser, isCacheValid } from '@/lib/user-cache';
 
 async function createContext(): Promise<Context> {
     const { userId, sessionClaims } = await auth();
@@ -20,15 +13,11 @@ async function createContext(): Promise<Context> {
         return { db: prisma, user: null, tenantId: null };
     }
 
-    const now = Date.now();
-    const cached = userCache.get(userId);
-
-    if (cached && (now - cached.timestamp < USER_CACHE_TTL)) {
-        return {
-            db: prisma,
-            user: cached.user,
-            tenantId: cached.user.tenantId,
-        };
+    if (isCacheValid(userId)) {
+        const cached = getCachedUser(userId);
+        if (cached) {
+            return { db: prisma, user: cached.user, tenantId: cached.user.tenantId };
+        }
     }
 
     let user = await prisma.user.findUnique({
@@ -36,10 +25,10 @@ async function createContext(): Promise<Context> {
         include: { tenant: true },
     });
 
+    // Sync Clerk metadata if out of date
     if (user && sessionClaims) {
         const metadata = sessionClaims.public_metadata as { role?: string; tenantId?: string } | undefined;
         if (metadata?.role !== user.role || metadata?.tenantId !== user.tenantId) {
-            console.log('[AuthSync] Metadata mismatch. Syncing...');
             clerkClient().then(client =>
                 client.users.updateUser(userId, {
                     publicMetadata: { tenantId: user!.tenantId, role: user!.role, dbUserId: user!.id }
@@ -48,6 +37,7 @@ async function createContext(): Promise<Context> {
         }
     }
 
+    // Auto-create user if not in DB
     if (!user) {
         try {
             const client = await clerkClient();
@@ -55,26 +45,62 @@ async function createContext(): Promise<Context> {
             const email = clerkUser.emailAddresses[0]?.emailAddress;
 
             if (email) {
-                user = await prisma.user.create({
-                    data: {
-                        clerkId: userId,
-                        email: email,
-                        name: `${clerkUser.firstName} ${clerkUser.lastName}`.trim() || email,
-                        role: 'ADMIN_SAAS',
-                        tenant: {
-                            create: {
-                                name: "Minha Empresa",
-                                slug: `${email.split('@')[0].replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}`,
-                                status: 'ACTIVE'
-                            }
-                        }
-                    },
-                    include: { tenant: true }
-                });
+                const userCount = await prisma.user.count();
+                const isFirstUser = userCount === 0;
 
-                client.users.updateUser(userId, {
-                    publicMetadata: { tenantId: user.tenantId, role: user.role, dbUserId: user.id }
-                }).catch(() => { });
+                if (isFirstUser) {
+                    // First user becomes OWNER with new tenant
+                    user = await prisma.user.create({
+                        data: {
+                            clerkId: userId,
+                            email,
+                            name: `${clerkUser.firstName} ${clerkUser.lastName}`.trim() || email,
+                            role: 'OWNER',
+                            status: 'ACTIVE',
+                            tenant: {
+                                create: {
+                                    name: "Minha Empresa",
+                                    slug: `${email.split('@')[0].replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}`,
+                                    status: 'ACTIVE'
+                                }
+                            }
+                        },
+                        include: { tenant: true }
+                    });
+
+                    client.users.updateUser(userId, {
+                        publicMetadata: { tenantId: user.tenantId, role: user.role, dbUserId: user.id }
+                    }).catch(() => { });
+                } else {
+                    // New user - placeholder tenant, redirect to /welcome
+                    const placeholderTenant = await prisma.tenant.findFirst({
+                        where: { status: 'ACTIVE' },
+                        orderBy: { createdAt: 'asc' }
+                    });
+
+                    if (placeholderTenant) {
+                        user = await prisma.user.create({
+                            data: {
+                                clerkId: userId,
+                                email,
+                                name: `${clerkUser.firstName} ${clerkUser.lastName}`.trim() || email,
+                                role: 'MEMBER',
+                                status: 'ACTIVE',
+                                tenantId: placeholderTenant.id
+                            },
+                            include: { tenant: true }
+                        });
+
+                        client.users.updateUser(userId, {
+                            publicMetadata: {
+                                tenantId: user.tenantId,
+                                role: user.role,
+                                dbUserId: user.id,
+                                needsOnboarding: true
+                            }
+                        }).catch(() => { });
+                    }
+                }
             }
         } catch (error) {
             console.error("[AuthSync] Sync failed:", error);
@@ -82,14 +108,10 @@ async function createContext(): Promise<Context> {
     }
 
     if (user) {
-        userCache.set(userId, { user: user as CachedUser['user'], timestamp: now });
+        setCachedUser(userId, user as any);
     }
 
-    return {
-        db: prisma,
-        user,
-        tenantId: user?.tenantId ?? null,
-    };
+    return { db: prisma, user, tenantId: user?.tenantId ?? null };
 }
 
 const handler = async (req: Request) => {
@@ -98,12 +120,9 @@ const handler = async (req: Request) => {
         req,
         router: appRouter,
         createContext,
-        onError:
-            process.env.NODE_ENV === 'development'
-                ? ({ path, error }) => {
-                    console.error(`tRPC error on ${path ?? '<no-path>'}:`, error.message);
-                }
-                : undefined,
+        onError: process.env.NODE_ENV === 'development'
+            ? ({ path, error }) => console.error(`tRPC error on ${path ?? '<no-path>'}:`, error.message)
+            : undefined,
     });
 };
 
