@@ -14,7 +14,7 @@ import {
   CreditCard,
   Upload,
   Link as LinkIcon,
-  Image as ImageIcon,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -47,6 +47,7 @@ const settingsSchema = z.object({
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   address: z.string().optional(),
   cnpj: z.string().optional(),
+  contractTemplate: z.string().optional(),
 });
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
@@ -138,6 +139,7 @@ export default function SettingsPage() {
       email: "",
       address: "",
       cnpj: "",
+      contractTemplate: "",
     },
   });
 
@@ -154,6 +156,7 @@ export default function SettingsPage() {
         email: settings.email || "",
         address: settings.address || "",
         cnpj: settings.cnpj || "",
+        contractTemplate: settings.contractTemplate || "",
       });
 
       // Check if logo is a local upload to set initial mode
@@ -221,6 +224,7 @@ export default function SettingsPage() {
       email: data.email || null,
       address: data.address || null,
       cnpj: data.cnpj || null,
+      contractTemplate: data.contractTemplate || null,
     });
   };
 
@@ -516,6 +520,73 @@ export default function SettingsPage() {
                   {...register("address")}
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Modelo de Contrato */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Modelo de Contrato
+            </CardTitle>
+            <CardDescription>
+              Template HTML que será usado na impressão do contrato. Use as
+              variáveis abaixo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-4">
+              <p className="text-sm font-medium mb-2">Variáveis disponíveis:</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "{{cliente}}",
+                  "{{telefone}}",
+                  "{{veiculo}}",
+                  "{{placa}}",
+                  "{{cor}}",
+                  "{{servicos}}",
+                  "{{total}}",
+                  "{{data}}",
+                  "{{empresa}}",
+                  "{{cnpj}}",
+                ].map((variable) => (
+                  <code
+                    key={variable}
+                    className="rounded bg-background px-2 py-1 text-xs font-mono border"
+                  >
+                    {variable}
+                  </code>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contractTemplate">Template do Contrato</Label>
+              <textarea
+                id="contractTemplate"
+                className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                placeholder="<h1>CONTRATO DE PRESTAÇÃO DE SERVIÇOS</h1>
+
+<p>Contratante: {{cliente}}</p>
+<p>Telefone: {{telefone}}</p>
+
+<p>Veículo: {{veiculo}} - {{placa}} - {{cor}}</p>
+
+<p>Serviços contratados:</p>
+{{servicos}}
+
+<p>Valor total: {{total}}</p>
+
+<p>Data: {{data}}</p>
+
+<p>{{empresa}} - CNPJ: {{cnpj}}</p>"
+                {...register("contractTemplate")}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use HTML básico para formatar. As variáveis serão substituídas
+                pelos dados da OS.
+              </p>
             </div>
           </CardContent>
         </Card>

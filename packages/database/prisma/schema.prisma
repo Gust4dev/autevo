@@ -80,6 +80,7 @@ model Tenant {
   cnpj             String?
   pixKey           String?
   paymentTerms     String?      @db.Text
+  contractTemplate String?      @db.Text
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 

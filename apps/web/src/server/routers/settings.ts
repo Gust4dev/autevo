@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure, managerProcedure } from '../trpc';
+import { router, protectedProcedure, managerProcedure, ownerProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { encrypt, decrypt } from '@/lib/encryption';
 
@@ -42,6 +42,7 @@ const updateSettingsSchema = z.object({
     email: z.string().email().optional().nullable(),
     address: z.string().optional().nullable(),
     cnpj: z.string().optional().nullable(),
+    contractTemplate: z.string().optional().nullable(),
 });
 
 export const settingsRouter = router({
@@ -57,6 +58,7 @@ export const settingsRouter = router({
                 secondaryColor: true,
                 pixKey: true,
                 paymentTerms: true,
+                contractTemplate: true,
                 phone: true,
                 email: true,
                 address: true,
@@ -96,6 +98,7 @@ export const settingsRouter = router({
                     secondaryColor: input.secondaryColor,
                     pixKey: input.pixKey ? encrypt(input.pixKey) : null,
                     paymentTerms: input.paymentTerms,
+                    contractTemplate: input.contractTemplate,
                     phone: input.phone,
                     email: input.email,
                     address: input.address,

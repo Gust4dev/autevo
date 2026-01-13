@@ -13,7 +13,7 @@ import {
   Calendar,
   Clock,
   MoreHorizontal,
-  Printer,
+  FileText,
   Loader2,
   AlertTriangle,
   Eye,
@@ -39,6 +39,7 @@ import {
   OrderTimeline,
   PaymentDialog,
   ShareOrderButton,
+  ContractPreviewModal,
 } from "@/components/orders";
 import { WhatsAppButton } from "@/components/whatsapp";
 import { trpc } from "@/lib/trpc/provider";
@@ -245,9 +246,11 @@ export default function OrderDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
 
   // Queries
   const orderQuery = trpc.order.getById.useQuery({ id });
+  const settingsQuery = trpc.settings.get.useQuery();
   const utils = trpc.useUtils();
 
   // Mutations
@@ -473,9 +476,19 @@ export default function OrderDetailPage({ params }: PageProps) {
                   Editar OS
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.print()}>
-                <Printer className="mr-2 h-4 w-4" />
-                Imprimir
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!settingsQuery.data?.contractTemplate) {
+                    toast.error(
+                      "O proprietário precisa configurar o modelo de contrato nas configurações."
+                    );
+                    return;
+                  }
+                  setContractModalOpen(true);
+                }}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Contrato
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
@@ -801,6 +814,30 @@ export default function OrderDetailPage({ params }: PageProps) {
         }))}
         onSubmit={handleAddPayment}
       />
+
+      {/* Contract Preview Modal */}
+      {order.vehicle.customer && settingsQuery.data?.contractTemplate && (
+        <ContractPreviewModal
+          open={contractModalOpen}
+          onOpenChange={setContractModalOpen}
+          template={settingsQuery.data.contractTemplate}
+          orderData={{
+            customerName: order.vehicle.customer.name,
+            customerPhone: order.vehicle.customer.phone,
+            vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
+            vehiclePlate: order.vehicle.plate,
+            vehicleColor: order.vehicle.color,
+            services: order.items.map((item) => ({
+              name: item.customName || item.service?.name || "Serviço",
+              price: Number(item.price),
+              quantity: item.quantity,
+            })),
+            total: Number(order.total),
+            tenantName: settingsQuery.data.name,
+            tenantCnpj: settingsQuery.data.cnpj,
+          }}
+        />
+      )}
     </div>
   );
 }
