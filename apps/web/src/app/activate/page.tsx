@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Star,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -101,6 +102,7 @@ export default function ActivatePage() {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const tenantStatus = user?.publicMetadata?.tenantStatus as
     | TenantStatus
@@ -121,6 +123,34 @@ export default function ActivatePage() {
 
     setIsCheckingStatus(false);
   }, [isLoaded, tenantStatus, router]);
+
+  const handleVerifyPayment = async () => {
+    setIsVerifying(true);
+    try {
+      // Reload the user data from Clerk to get updated metadata
+      await user?.reload();
+
+      // Small delay to allow state to update
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check the new status
+      const newStatus = user?.publicMetadata?.tenantStatus as
+        | TenantStatus
+        | undefined;
+
+      if (newStatus === "TRIAL" || newStatus === "ACTIVE") {
+        router.replace("/dashboard");
+      } else if (newStatus === "SUSPENDED") {
+        router.replace("/suspended");
+      } else {
+        // Still pending - will show message via UI update
+        setIsVerifying(false);
+      }
+    } catch (err) {
+      console.error("Failed to verify payment:", err);
+      setIsVerifying(false);
+    }
+  };
 
   const handleCopyPix = async () => {
     try {
@@ -360,6 +390,22 @@ export default function ActivatePage() {
                 <MessageCircle className="h-5 w-5" />
                 Já paguei! Liberar meu acesso
               </a>
+
+              {/* Verify Payment Button */}
+              <button
+                onClick={handleVerifyPayment}
+                disabled={isVerifying}
+                className="flex items-center justify-center gap-2 w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium px-6 py-3 rounded-xl transition-all border border-zinc-700 mt-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isVerifying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {isVerifying
+                  ? "Verificando..."
+                  : "Já fui liberado? Verificar meu acesso"}
+              </button>
             </div>
 
             {/* Trust Badges */}

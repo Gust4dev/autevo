@@ -193,6 +193,30 @@ export const adminRouter = router({
                 },
             });
 
+            // Update Clerk metadata for all users in this tenant
+            const users = await ctx.db.user.findMany({
+                where: { tenantId },
+                select: { id: true, clerkId: true, role: true },
+            });
+
+            if (users.length > 0) {
+                const clerk = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+                await Promise.all(
+                    users
+                        .filter(u => u.clerkId)
+                        .map(u =>
+                            clerk.users.updateUser(u.clerkId!, {
+                                publicMetadata: {
+                                    tenantId,
+                                    role: u.role,
+                                    dbUserId: u.id,
+                                    tenantStatus: 'TRIAL',
+                                },
+                            })
+                        )
+                );
+            }
+
             const { createAuditLog } = await import('@/lib/audit');
             await createAuditLog({
                 tenantId,
@@ -293,6 +317,30 @@ export const adminRouter = router({
                 data: { status: 'SUSPENDED' },
             });
 
+            // Update Clerk metadata for all users in this tenant
+            const users = await ctx.db.user.findMany({
+                where: { tenantId },
+                select: { id: true, clerkId: true, role: true },
+            });
+
+            if (users.length > 0) {
+                const clerk = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+                await Promise.all(
+                    users
+                        .filter(u => u.clerkId)
+                        .map(u =>
+                            clerk.users.updateUser(u.clerkId!, {
+                                publicMetadata: {
+                                    tenantId,
+                                    role: u.role,
+                                    dbUserId: u.id,
+                                    tenantStatus: 'SUSPENDED',
+                                },
+                            })
+                        )
+                );
+            }
+
             const { createAuditLog } = await import('@/lib/audit');
             await createAuditLog({
                 tenantId,
@@ -356,6 +404,30 @@ export const adminRouter = router({
                 where: { id: tenantId },
                 data,
             });
+
+            // Update Clerk metadata for all users in this tenant
+            const users = await ctx.db.user.findMany({
+                where: { tenantId },
+                select: { id: true, clerkId: true, role: true },
+            });
+
+            if (users.length > 0) {
+                const clerk = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+                await Promise.all(
+                    users
+                        .filter(u => u.clerkId)
+                        .map(u =>
+                            clerk.users.updateUser(u.clerkId!, {
+                                publicMetadata: {
+                                    tenantId,
+                                    role: u.role,
+                                    dbUserId: u.id,
+                                    tenantStatus: asStatus,
+                                },
+                            })
+                        )
+                );
+            }
 
             const { createAuditLog } = await import('@/lib/audit');
             await createAuditLog({
