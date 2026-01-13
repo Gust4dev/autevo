@@ -141,7 +141,7 @@ export default function TenantDetailsPage() {
   if (!tenant) {
     return (
       <div className="p-8">
-        <p className="text-zinc-400">Tenant não encontrado</p>
+        <p className="text-zinc-300">Tenant não encontrado</p>
       </div>
     );
   }
@@ -153,16 +153,21 @@ export default function TenantDetailsPage() {
     <div className="p-8">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.back()}
+          className="text-zinc-300 hover:text-white hover:bg-zinc-800"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{tenant.name}</h1>
-          <p className="text-zinc-400">{tenant.slug}</p>
+          <p className="text-zinc-300">{tenant.slug}</p>
         </div>
         <Badge
           variant="outline"
-          className={`${status.color} text-sm px-3 py-1`}
+          className={`${status.color} text-sm px-3 py-1 font-medium`}
         >
           <StatusIcon className="h-4 w-4 mr-1" />
           {status.label}
@@ -173,9 +178,11 @@ export default function TenantDetailsPage() {
         {/* Main Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* General Info */}
-          <Card className="bg-zinc-900/50 border-zinc-800">
+          <Card className="bg-zinc-900 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-lg">Informações Gerais</CardTitle>
+              <CardTitle className="text-lg text-zinc-100">
+                Informações Gerais
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <InfoRow label="ID" value={tenant.id} mono />
@@ -212,9 +219,9 @@ export default function TenantDetailsPage() {
           </Card>
 
           {/* Users */}
-          <Card className="bg-zinc-900/50 border-zinc-800">
+          <Card className="bg-zinc-900 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-lg">
+              <CardTitle className="text-lg text-zinc-100">
                 Usuários ({tenant.users.length})
               </CardTitle>
             </CardHeader>
@@ -223,13 +230,16 @@ export default function TenantDetailsPage() {
                 {tenant.users.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
+                    className="flex items-center justify-between p-4 bg-zinc-800/80 rounded-lg border border-zinc-700/50"
                   >
                     <div>
-                      <p className="font-medium text-white">{user.name}</p>
-                      <p className="text-sm text-zinc-400">{user.email}</p>
+                      <p className="font-medium text-zinc-100">{user.name}</p>
+                      <p className="text-sm text-zinc-300">{user.email}</p>
                     </div>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge
+                      variant="outline"
+                      className="text-xs bg-zinc-950 text-zinc-300 border-zinc-700"
+                    >
                       {user.role}
                     </Badge>
                   </div>
@@ -239,9 +249,11 @@ export default function TenantDetailsPage() {
           </Card>
 
           {/* Usage Stats */}
-          <Card className="bg-zinc-900/50 border-zinc-800">
+          <Card className="bg-zinc-900 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-lg">Métricas de Uso</CardTitle>
+              <CardTitle className="text-lg text-zinc-100">
+                Métricas de Uso
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -282,14 +294,14 @@ export default function TenantDetailsPage() {
 
         {/* Actions Sidebar */}
         <div className="space-y-6">
-          <Card className="bg-zinc-900/50 border-zinc-800">
+          <Card className="bg-zinc-900 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-lg">Ações</CardTitle>
+              <CardTitle className="text-lg text-zinc-100">Ações</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {tenant.status === "PENDING_ACTIVATION" && (
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={() => setShowActivateDialog(true)}
                 >
                   <Play className="h-4 w-4 mr-2" />
@@ -306,7 +318,7 @@ export default function TenantDetailsPage() {
                       max={365}
                       value={extendDays}
                       onChange={(e) => setExtendDays(Number(e.target.value))}
-                      className="bg-zinc-800 border-zinc-700"
+                      className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
                     />
                     <Button
                       variant="outline"
@@ -317,12 +329,13 @@ export default function TenantDetailsPage() {
                         })
                       }
                       disabled={extendMutation.isPending}
+                      className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Estender
                     </Button>
                   </div>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-zinc-400">
                     Adicionar dias ao trial
                   </p>
                 </div>
@@ -331,7 +344,7 @@ export default function TenantDetailsPage() {
               {["TRIAL", "ACTIVE", "PAST_DUE"].includes(tenant.status) && (
                 <Button
                   variant="outline"
-                  className="w-full border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                  className="w-full border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300"
                   onClick={() => setShowSuspendDialog(true)}
                 >
                   <Pause className="h-4 w-4 mr-2" />
@@ -341,7 +354,7 @@ export default function TenantDetailsPage() {
 
               {tenant.status === "SUSPENDED" && (
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   onClick={() => setShowReactivateDialog(true)}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
@@ -360,20 +373,25 @@ export default function TenantDetailsPage() {
       >
         <AlertDialogContent className="bg-zinc-900 border-zinc-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Ativar Trial</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso ativará o trial de 60 dias para {tenant.name}. O cliente
-              poderá acessar o sistema imediatamente.
+            <AlertDialogTitle className="text-white">
+              Ativar Trial
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              Isso ativará o trial de 60 dias para{" "}
+              <span className="text-white font-medium">{tenant.name}</span>. O
+              cliente poderá acessar o sistema imediatamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700 hover:text-white">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() =>
                 activateMutation.mutate({ tenantId, trialDays: 60 })
               }
               disabled={activateMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {activateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -389,19 +407,24 @@ export default function TenantDetailsPage() {
       <AlertDialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
         <AlertDialogContent className="bg-zinc-900 border-zinc-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Suspender Conta</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso suspenderá imediatamente o acesso de {tenant.name} ao
+            <AlertDialogTitle className="text-white">
+              Suspender Conta
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              Isso suspenderá imediatamente o acesso de{" "}
+              <span className="text-white font-medium">{tenant.name}</span> ao
               sistema. Os dados serão mantidos e a conta pode ser reativada
               depois.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700 hover:text-white">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => suspendMutation.mutate({ tenantId })}
               disabled={suspendMutation.isPending}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               {suspendMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -420,13 +443,18 @@ export default function TenantDetailsPage() {
       >
         <AlertDialogContent className="bg-zinc-900 border-zinc-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Reativar Conta</AlertDialogTitle>
-            <AlertDialogDescription>
-              Escolha como reativar a conta de {tenant.name}:
+            <AlertDialogTitle className="text-white">
+              Reativar Conta
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              Escolha como reativar a conta de{" "}
+              <span className="text-white font-medium">{tenant.name}</span>:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700 hover:text-white">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() =>
                 reactivateMutation.mutate({
@@ -436,7 +464,7 @@ export default function TenantDetailsPage() {
                 })
               }
               disabled={reactivateMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Como Trial (60 dias)
             </AlertDialogAction>
@@ -445,7 +473,7 @@ export default function TenantDetailsPage() {
                 reactivateMutation.mutate({ tenantId, asStatus: "ACTIVE" })
               }
               disabled={reactivateMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               Como Ativo
             </AlertDialogAction>
@@ -466,9 +494,13 @@ function InfoRow({
   mono?: boolean;
 }) {
   return (
-    <div className="flex justify-between items-center">
-      <span className="text-sm text-zinc-400">{label}</span>
-      <span className={`text-sm text-white ${mono ? "font-mono" : ""}`}>
+    <div className="flex justify-between items-center py-2 border-b border-zinc-800/50 last:border-0">
+      <span className="text-sm text-zinc-400 font-medium">{label}</span>
+      <span
+        className={`text-sm text-zinc-100 ${
+          mono ? "font-mono bg-zinc-800 px-2 py-0.5 rounded text-xs" : ""
+        }`}
+      >
         {value}
       </span>
     </div>
@@ -485,11 +517,17 @@ function UsageStat({
   value: number;
 }) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg">
-      <Icon className="h-5 w-5 text-zinc-400" />
+    <div className="flex items-center gap-3 p-4 bg-zinc-800/50 rounded-lg border border-zinc-800 hover:bg-zinc-800 transition-colors">
+      <div className="p-2 bg-zinc-900 rounded-md">
+        <Icon className="h-5 w-5 text-zinc-300" />
+      </div>
       <div>
-        <p className="text-xl font-bold text-white">{value}</p>
-        <p className="text-xs text-zinc-400">{label}</p>
+        <p className="text-xl font-bold text-white leading-none mb-1">
+          {value}
+        </p>
+        <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
+          {label}
+        </p>
       </div>
     </div>
   );

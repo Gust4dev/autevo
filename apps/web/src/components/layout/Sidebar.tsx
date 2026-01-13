@@ -121,11 +121,11 @@ export function Sidebar({ isCollapsed, onToggle, userRole }: SidebarProps) {
                 className="h-9 w-9 shrink-0 object-contain"
               />
             ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary">
-                <span className="text-lg font-bold text-primary-foreground">
-                  {theme?.name?.[0] || "F"}
-                </span>
-              </div>
+              <img
+                src="/icon.svg"
+                alt="Autevo"
+                className="h-9 w-9 shrink-0 object-contain"
+              />
             )}
             {!isCollapsed && (
               <span className="text-lg font-semibold text-foreground truncate">

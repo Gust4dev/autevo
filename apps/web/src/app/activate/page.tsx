@@ -112,7 +112,7 @@ export default function ActivatePage() {
     if (!isLoaded) return;
 
     if (tenantStatus === "TRIAL" || tenantStatus === "ACTIVE") {
-      router.replace("/dashboard");
+      router.replace("/setup");
       return;
     }
 
@@ -139,7 +139,7 @@ export default function ActivatePage() {
         | undefined;
 
       if (newStatus === "TRIAL" || newStatus === "ACTIVE") {
-        router.replace("/dashboard");
+        router.replace("/setup");
       } else if (newStatus === "SUSPENDED") {
         router.replace("/suspended");
       } else {

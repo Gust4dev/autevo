@@ -1,6 +1,11 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryCache,
+  MutationCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import { useState } from "react";
@@ -29,6 +34,28 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
             retry: 1,
           },
         },
+        queryCache: new QueryCache({
+          onError: (error) => {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            if (message.includes("Account suspended")) {
+              window.location.href = "/suspended";
+            } else if (message.includes("pending activation")) {
+              window.location.href = "/activate";
+            }
+          },
+        }),
+        mutationCache: new MutationCache({
+          onError: (error) => {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            if (message.includes("Account suspended")) {
+              window.location.href = "/suspended";
+            } else if (message.includes("pending activation")) {
+              window.location.href = "/activate";
+            }
+          },
+        }),
       })
   );
 

@@ -16,9 +16,6 @@ export const metadata: Metadata = {
     template: "%s | Autevo",
   },
   description: "Sistema de Ordem de Serviço para Estéticas Automotivas",
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export const viewport: Viewport = {

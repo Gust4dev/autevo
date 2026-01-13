@@ -29,10 +29,6 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 export const middleware = t.middleware;
 
-// Simple in-memory cache for tenant status: { [tenantId: string]: { status: string, timestamp: number } }
-const tenantCache: Record<string, { status: string; timestamp: number }> = {};
-const CACHE_TTL = 60 * 1000; // 1 minute
-
 // Middleware: requires auth + valid tenant
 const tenantMiddleware = middleware(async ({ ctx, next }) => {
     if (!ctx.user) {
@@ -47,29 +43,17 @@ const tenantMiddleware = middleware(async ({ ctx, next }) => {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'No tenant assigned' });
     }
 
-    const now = Date.now();
-    const cached = tenantCache[ctx.user.tenantId];
-    let status: string | undefined;
+    // Always fetch latest status from DB to ensure immediate suspension/activation
+    const tenant = await ctx.db.tenant.findUnique({
+        where: { id: ctx.user.tenantId },
+        select: { status: true },
+    });
 
-    // Check cache
-    if (cached && (now - cached.timestamp < CACHE_TTL)) {
-        status = cached.status;
-    } else {
-        // Cache miss or stale, fetch from DB
-        const tenant = await ctx.db.tenant.findUnique({
-            where: { id: ctx.user.tenantId },
-            select: { status: true },
-        });
-
-        if (!tenant) {
-            throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant not found' });
-        }
-
-        status = tenant.status;
-
-        // Update cache
-        tenantCache[ctx.user.tenantId] = { status, timestamp: now };
+    if (!tenant) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant not found' });
     }
+
+    const status = tenant.status;
 
     if (status === 'PENDING_ACTIVATION') {
         throw new TRPCError({
