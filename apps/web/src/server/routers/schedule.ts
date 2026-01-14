@@ -3,6 +3,7 @@ import { router, protectedProcedure, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { addDays, startOfDay, endOfDay } from 'date-fns';
 import { sanitizeInput } from '@/lib/sanitize';
+import { OrderStatus } from '@autevo/database';
 
 export const scheduleRouter = router({
     /**
@@ -247,12 +248,42 @@ export const scheduleRouter = router({
 
             if (!service) throw new TRPCError({ code: 'NOT_FOUND', message: 'Serviço não encontrado' });
 
-            // 5. Criar Ordem de Serviço (Assign to the first OWNER/MANAGER of the tenant as default)
-            const staff = await ctx.db.user.findFirst({
-                where: { tenantId: input.tenantId, role: { in: ['OWNER', 'MANAGER'] } },
+            // 5. Criar Ordem de Serviço - Atribui ao funcionário com menos OS ativas
+            const allStaff = await ctx.db.user.findMany({
+                where: {
+                    tenantId: input.tenantId,
+                    role: { in: ['OWNER', 'MANAGER', 'MEMBER'] },
+                    status: 'ACTIVE',
+                },
+                select: {
+                    id: true,
+                },
             });
 
-            if (!staff) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Nenhum responsável encontrado para a oficina' });
+            if (allStaff.length === 0) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Nenhum responsável encontrado para a oficina' });
+            }
+
+            // Conta ordens ativas por funcionário
+            const orderCounts = await ctx.db.serviceOrder.groupBy({
+                by: ['assignedToId'],
+                where: {
+                    tenantId: input.tenantId,
+                    assignedToId: { in: allStaff.map(s => s.id) },
+                    status: { notIn: [OrderStatus.CONCLUIDO, OrderStatus.CANCELADO] },
+                },
+                _count: true,
+            });
+
+            // Mapeia contagens
+            const countMap = new Map(orderCounts.map(c => [c.assignedToId, c._count]));
+
+            // Seleciona o funcionário com menos ordens (ou 0 se não tiver nenhuma)
+            const staff = allStaff.reduce((min, current) => {
+                const minCount = countMap.get(min.id) || 0;
+                const currentCount = countMap.get(current.id) || 0;
+                return currentCount < minCount ? current : min;
+            });
 
             const order = await ctx.db.serviceOrder.create({
                 data: {
