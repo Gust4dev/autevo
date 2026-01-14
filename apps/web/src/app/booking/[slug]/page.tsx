@@ -308,23 +308,22 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                       className={`p-4 rounded-xl border-2 text-center transition-all flex flex-col items-center gap-1 ${
                         !item.available
                           ? "opacity-40 cursor-not-allowed bg-muted"
-                          : isSameDay(selectedDate!, new Date(item.date))
+                          : selectedDate &&
+                            isSameDay(selectedDate, new Date(item.date))
                           ? "border-primary bg-primary/5"
                           : "hover:border-primary/50"
                       }`}
                       style={{
-                        borderColor: isSameDay(
-                          selectedDate!,
-                          new Date(item.date)
-                        )
-                          ? primaryColor
-                          : undefined,
-                        backgroundColor: isSameDay(
-                          selectedDate!,
-                          new Date(item.date)
-                        )
-                          ? `${primaryColor}10`
-                          : undefined,
+                        borderColor:
+                          selectedDate &&
+                          isSameDay(selectedDate, new Date(item.date))
+                            ? primaryColor
+                            : undefined,
+                        backgroundColor:
+                          selectedDate &&
+                          isSameDay(selectedDate, new Date(item.date))
+                            ? `${primaryColor}10`
+                            : undefined,
                       }}
                     >
                       <span className="text-xs font-bold uppercase text-muted-foreground">

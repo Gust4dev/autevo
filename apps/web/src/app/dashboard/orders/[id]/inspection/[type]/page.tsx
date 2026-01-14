@@ -130,6 +130,14 @@ export default function InspectionChecklistPage({ params }: PageProps) {
   const handleFileUpload = async (itemId: string, file: File) => {
     setUploadingItemId(itemId);
 
+    // Debug logging for mobile photo issues
+    console.log("[Inspection Upload] File info:", {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+    });
+
     try {
       // CONVERT TO WEBP BASE64 ON CLIENT SIDE
       const base64 = await convertFileToWebPBase64(file);
@@ -140,8 +148,8 @@ export default function InspectionChecklistPage({ params }: PageProps) {
         photoUrl: base64,
       });
       setUploadingItemId(null);
-      setUploadingItemId(null);
     } catch (error) {
+      console.error("[Inspection Upload] Failed:", error);
       if (error instanceof Error) {
         toast.error(`Erro: ${error.message}`);
       } else {
@@ -605,7 +613,7 @@ function ChecklistItemCard({
                 <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.heic,.heif"
                     capture="environment"
                     className="hidden"
                     onChange={handleFileChange}
@@ -637,7 +645,7 @@ function ChecklistItemCard({
             >
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,.heic,.heif"
                 // capture="environment" // Removido para permitir galeria também
                 className="hidden"
                 onChange={handleFileChange}
