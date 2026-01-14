@@ -132,26 +132,26 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
     <div className="min-h-screen bg-muted/5 font-sans">
       {/* Header */}
       <div className="bg-background border-b sticky top-0 z-10">
-        <div className="container max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="container max-w-2xl mx-auto px-4 py-4">
+          <div className="flex flex-col items-center gap-3">
             {tenant.logo ? (
               <img
                 src={tenant.logo}
                 alt={tenant.name}
-                className="h-10 w-10 object-contain"
+                className="h-14 w-14 object-contain rounded-xl shadow-sm"
               />
             ) : (
               <div
-                className="h-10 w-10 flex items-center justify-center rounded-lg font-bold text-white shadow-sm"
+                className="h-14 w-14 flex items-center justify-center rounded-xl font-bold text-2xl text-white shadow-md"
                 style={{ backgroundColor: primaryColor }}
               >
                 {tenant.name.substring(0, 1)}
               </div>
             )}
-            <h1 className="font-bold text-lg hidden sm:block">{tenant.name}</h1>
+            <h1 className="font-bold text-xl text-center">{tenant.name}</h1>
           </div>
           {step !== "success" && (
-            <div className="flex gap-1">
+            <div className="flex justify-center gap-1 mt-4">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
@@ -219,9 +219,17 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                     }
                     onClick={() => setSelectedService(service)}
                   >
-                    <CardContent className="p-6 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <h3 className="font-bold text-lg">{service.name}</h3>
+                    <CardContent className="p-5 flex items-center justify-between">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-bold text-lg">{service.name}</h3>
+                          {selectedService?.id === service.id && (
+                            <CheckCircle2
+                              className="h-5 w-5"
+                              style={{ color: primaryColor }}
+                            />
+                          )}
+                        </div>
                         {service.description && (
                           <p className="text-sm text-muted-foreground">
                             {service.description}
@@ -235,23 +243,6 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                               : "Tempo sob consulta"}
                           </span>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className="font-bold text-lg"
-                          style={{ color: primaryColor }}
-                        >
-                          {new Intl.NumberFormat("pt-BR", {
-                            style: "currency",
-                            currency: "BRL",
-                          }).format(Number(service.basePrice))}
-                        </p>
-                        {selectedService?.id === service.id && (
-                          <CheckCircle2
-                            className="h-5 w-5 text-primary float-right mt-1"
-                            style={{ color: primaryColor }}
-                          />
-                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -299,53 +290,105 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {availableDates?.map((item) => (
-                    <button
-                      key={item.date.toString()}
-                      disabled={!item.available}
-                      onClick={() => setSelectedDate(new Date(item.date))}
-                      className={`p-4 rounded-xl border-2 text-center transition-all flex flex-col items-center gap-1 ${
-                        !item.available
-                          ? "opacity-40 cursor-not-allowed bg-muted"
-                          : selectedDate &&
-                            isSameDay(selectedDate, new Date(item.date))
-                          ? "border-primary bg-primary/5"
-                          : "hover:border-primary/50"
-                      }`}
-                      style={{
-                        borderColor:
-                          selectedDate &&
-                          isSameDay(selectedDate, new Date(item.date))
-                            ? primaryColor
-                            : undefined,
-                        backgroundColor:
-                          selectedDate &&
-                          isSameDay(selectedDate, new Date(item.date))
-                            ? `${primaryColor}10`
-                            : undefined,
-                      }}
+                <div className="space-y-4">
+                  {/* Horizontal scroll on mobile, grid on desktop */}
+                  <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible scrollbar-hide">
+                    {availableDates?.map((item) => {
+                      const isSelected =
+                        selectedDate &&
+                        isSameDay(selectedDate, new Date(item.date));
+                      const isToday = isSameDay(
+                        new Date(),
+                        new Date(item.date)
+                      );
+
+                      return (
+                        <button
+                          key={item.date.toString()}
+                          disabled={!item.available}
+                          onClick={() => setSelectedDate(new Date(item.date))}
+                          className={`
+                            flex-shrink-0 w-20 sm:w-auto
+                            p-4 rounded-2xl border-2 text-center transition-all 
+                            flex flex-col items-center gap-1
+                            backdrop-blur-sm
+                            ${
+                              !item.available
+                                ? "opacity-40 cursor-not-allowed bg-muted/50 border-transparent"
+                                : isSelected
+                                ? "border-primary bg-gradient-to-b from-primary/10 to-primary/5 shadow-lg scale-105"
+                                : "border-border/50 bg-background/80 hover:border-primary/50 hover:shadow-md hover:scale-[1.02]"
+                            }
+                          `}
+                          style={{
+                            borderColor: isSelected ? primaryColor : undefined,
+                            boxShadow: isSelected
+                              ? `0 8px 25px -5px ${primaryColor}40`
+                              : undefined,
+                          }}
+                        >
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider ${
+                              isToday ? "text-primary" : "text-muted-foreground"
+                            }`}
+                            style={{
+                              color: isToday ? primaryColor : undefined,
+                            }}
+                          >
+                            {format(new Date(item.date), "EEE", {
+                              locale: ptBR,
+                            })}
+                          </span>
+                          <span
+                            className={`text-3xl font-bold leading-none ${
+                              isSelected ? "" : "text-foreground"
+                            }`}
+                            style={{
+                              color: isSelected ? primaryColor : undefined,
+                            }}
+                          >
+                            {format(new Date(item.date), "dd")}
+                          </span>
+                          <span className="text-xs font-medium text-muted-foreground capitalize">
+                            {format(new Date(item.date), "MMM", {
+                              locale: ptBR,
+                            })}
+                          </span>
+                          {item.available ? (
+                            <span className="text-[9px] font-bold mt-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              Livre
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold mt-1 px-2 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                              Lotado
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected date confirmation */}
+                  {selectedDate && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center p-4 rounded-xl bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border border-primary/20"
+                      style={{ borderColor: `${primaryColor}30` }}
                     >
-                      <span className="text-xs font-bold uppercase text-muted-foreground">
-                        {format(new Date(item.date), "EEE", { locale: ptBR })}
-                      </span>
-                      <span className="text-2xl font-bold">
-                        {format(new Date(item.date), "dd")}
-                      </span>
-                      <span className="text-xs font-medium">
-                        {format(new Date(item.date), "MMM", { locale: ptBR })}
-                      </span>
-                      {item.available ? (
-                        <span className="text-[10px] text-green-600 font-bold mt-1">
-                          Disponível
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-destructive font-bold mt-1">
-                          Lotado
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                      <p className="text-sm text-muted-foreground">
+                        Você selecionou
+                      </p>
+                      <p
+                        className="text-lg font-bold"
+                        style={{ color: primaryColor }}
+                      >
+                        {format(selectedDate, "EEEE, dd 'de' MMMM", {
+                          locale: ptBR,
+                        })}
+                      </p>
+                    </motion.div>
+                  )}
                 </div>
               )}
 

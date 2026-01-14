@@ -669,32 +669,40 @@ export const orderRouter = router({
                         total: Number(item.price) * item.quantity,
                     })),
                     total: Number(order.total),
-                    inspections: inspections.map(inspection => ({
-                        id: inspection.id,
-                        type: inspection.type,
-                        status: inspection.status,
-                        signatureUrl: inspection.signatureUrl,
-                        signedAt: inspection.signedAt,
-                        createdAt: inspection.createdAt,
-                        items: inspection.items.map(item => ({
-                            id: item.id,
-                            category: item.category,
-                            label: item.label,
-                            status: item.status,
-                            photoUrl: item.photoUrl,
-                            notes: item.notes,
-                            isCritical: item.isCritical,
-                            damageType: item.damageType,
-                            severity: item.severity,
-                        })),
-                        damages: inspection.damages.map(d => ({
-                            id: d.id,
-                            position: d.position,
-                            damageType: d.damageType,
-                            notes: d.notes,
-                            photoUrl: d.photoUrl,
-                        })),
-                    })),
+                    inspections: inspections.map(inspection => {
+                        const requiredItems = inspection.items.filter(i => i.isRequired);
+                        const completedRequired = requiredItems.filter(i => i.status !== 'pendente').length;
+                        const allRequiredCompleted = requiredItems.length > 0 && completedRequired === requiredItems.length;
+                        const canSign = allRequiredCompleted && !inspection.signatureUrl;
+
+                        return {
+                            id: inspection.id,
+                            type: inspection.type,
+                            status: inspection.status,
+                            signatureUrl: inspection.signatureUrl,
+                            signedAt: inspection.signedAt,
+                            createdAt: inspection.createdAt,
+                            canSign,
+                            items: inspection.items.map(item => ({
+                                id: item.id,
+                                category: item.category,
+                                label: item.label,
+                                status: item.status,
+                                photoUrl: item.photoUrl,
+                                notes: item.notes,
+                                isCritical: item.isCritical,
+                                damageType: item.damageType,
+                                severity: item.severity,
+                            })),
+                            damages: inspection.damages.map(d => ({
+                                id: d.id,
+                                position: d.position,
+                                damageType: d.damageType,
+                                notes: d.notes,
+                                photoUrl: d.photoUrl,
+                            })),
+                        };
+                    }),
                 };
             } catch (error) {
                 throw new TRPCError({

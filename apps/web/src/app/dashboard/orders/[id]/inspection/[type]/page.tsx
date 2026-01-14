@@ -16,7 +16,6 @@ import {
   Video,
 } from "lucide-react";
 import { convertFileToWebPBase64 } from "@/lib/image-conversion";
-import { SignaturePad } from "@/components/ui/signature-pad";
 import {
   Button,
   Card,
@@ -100,20 +99,6 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     },
   });
 
-  const saveSignature = trpc.inspection.saveSignature.useMutation({
-    onSuccess: () => {
-      toast.success("Assinatura salva!");
-      utils.inspection.getByOrderIdAndType.invalidate({ orderId, type });
-      // Proceed to complete inspection
-      if (inspectionQuery.data?.id) {
-        completeInspection.mutate({ inspectionId: inspectionQuery.data.id });
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
   // Auto-create inspection if it doesn't exist
   const handleStartInspection = () => {
     createInspection.mutate({ orderId, type });
@@ -183,14 +168,6 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     updateItem.mutate({
       itemId,
       status: "ok",
-    });
-  };
-
-  const handleComplete = (signatureBase64: string) => {
-    if (!inspectionQuery.data?.id) return;
-    saveSignature.mutate({
-      inspectionId: inspectionQuery.data.id,
-      signatureBase64,
     });
   };
 
@@ -443,34 +420,6 @@ export default function InspectionChecklistPage({ params }: PageProps) {
         </Card>
       </div>
 
-      {/* Signature Section */}
-      {inspection.status !== "concluida" && canComplete && (
-        <div className="max-w-2xl mx-auto p-4 pt-0">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="text-lg">Assinatura Digital</CardTitle>
-              <CardDescription>
-                O cliente deve assinar abaixo para confirmar os dados da
-                vistoria.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SignaturePad
-                onSave={handleComplete}
-                placeholder="Assinatura do Cliente"
-              />
-
-              {saveSignature.isPending && (
-                <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Salvando assinatura e finalizando...
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Show existing signature if completed */}
       {inspection.status === "concluida" && inspection.signatureUrl && (
         <div className="max-w-2xl mx-auto p-4 pt-0">
@@ -503,10 +452,45 @@ export default function InspectionChecklistPage({ params }: PageProps) {
                   Faltam {totalRequired - completedRequired} itens obrigatórios
                 </Button>
               )}
-              {canComplete && (
-                <p className="text-center text-sm text-muted-foreground mb-2">
-                  Assine acima para concluir a vistoria
-                </p>
+              {canComplete && !inspection.signatureUrl && (
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    ✓ Checklist completo! O cliente pode assinar pelo link de
+                    acompanhamento.
+                  </p>
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={() =>
+                      completeInspection.mutate({ inspectionId: inspection.id })
+                    }
+                    disabled={completeInspection.isPending}
+                  >
+                    {completeInspection.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4 mr-2" />
+                    )}
+                    Concluir Vistoria
+                  </Button>
+                </div>
+              )}
+              {canComplete && inspection.signatureUrl && (
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={() =>
+                    completeInspection.mutate({ inspectionId: inspection.id })
+                  }
+                  disabled={completeInspection.isPending}
+                >
+                  {completeInspection.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  Concluir Vistoria
+                </Button>
               )}
             </div>
           </div>
@@ -628,7 +612,6 @@ function ChecklistItemCard({
                 <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                   <input
                     type="file"
-                    accept="image/*,.heic,.heif"
                     className="hidden"
                     onChange={handleFileChange}
                     disabled={disabled || isUploading}
@@ -659,8 +642,6 @@ function ChecklistItemCard({
             >
               <input
                 type="file"
-                accept="image/*,.heic,.heif"
-                // capture="environment" // Removido para permitir galeria também
                 className="hidden"
                 onChange={handleFileChange}
                 disabled={disabled || isUploading}

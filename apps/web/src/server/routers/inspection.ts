@@ -500,4 +500,102 @@ export const inspectionRouter = router({
 
             return updated;
         }),
+
+    savePublicSignature: publicProcedure
+        .input(z.object({
+            orderId: z.string(),
+            inspectionId: z.string(),
+            signatureBase64: z.string(),
+            phoneLastDigits: z.string().length(4),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const inspection = await ctx.db.inspection.findUnique({
+                where: { id: input.inspectionId },
+                include: {
+                    items: true,
+                    order: {
+                        select: {
+                            id: true,
+                            code: true,
+                            tenantId: true,
+                            vehicle: {
+                                select: {
+                                    customer: {
+                                        select: { phone: true }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+            });
+
+            if (!inspection) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Vistoria não encontrada',
+                });
+            }
+
+            if (inspection.order.id !== input.orderId) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: 'Vistoria não pertence a esta OS',
+                });
+            }
+
+            const customerPhone = inspection.order.vehicle.customer?.phone;
+            if (!customerPhone) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: 'Cliente não possui telefone cadastrado',
+                });
+            }
+
+            const phoneDigitsOnly = customerPhone.replace(/\D/g, '');
+            const lastFourDigits = phoneDigitsOnly.slice(-4);
+
+            if (input.phoneLastDigits !== lastFourDigits) {
+                throw new TRPCError({
+                    code: 'UNAUTHORIZED',
+                    message: 'Dígitos do telefone não conferem',
+                });
+            }
+
+            if (inspection.signatureUrl) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: 'Esta vistoria já foi assinada',
+                });
+            }
+
+            const pendingRequired = inspection.items.filter(
+                item => item.isRequired && item.status === 'pendente'
+            );
+
+            if (pendingRequired.length > 0) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: `Ainda faltam ${pendingRequired.length} itens obrigatórios para assinar`,
+                });
+            }
+
+            const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            const fileName = `signatures/${inspection.order.tenantId}/${inspection.order.code}-${inspection.type}-${Date.now()}.png`;
+
+            const signatureUrl = await uploadFile(buffer, fileName, 'image/png');
+
+            const updated = await ctx.db.inspection.update({
+                where: { id: input.inspectionId },
+                data: {
+                    signatureUrl,
+                    signedAt: new Date(),
+                    signedVia: 'public_tracking',
+                    status: 'concluida',
+                },
+            });
+
+            return updated;
+        }),
 });

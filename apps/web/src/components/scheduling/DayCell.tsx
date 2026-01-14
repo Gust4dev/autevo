@@ -1,17 +1,18 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { format, isBefore, startOfDay } from 'date-fns';
-import { ChevronDown, Car } from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { Button } from '@/components/ui/button';
+import React, { useState } from "react";
+import Link from "next/link";
+import { format, isBefore, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { ChevronDown, Car, Clock } from "lucide-react";
+import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface OrderInfo {
   id: string;
@@ -31,45 +32,61 @@ interface DayCellProps {
   isLoading?: boolean;
 }
 
-const MAX_VISIBLE = 3;
+const MAX_VISIBLE = 2;
 
-/**
- * Retorna a cor semântica baseada no status e data:
- * - Cinza: Agendado (Futuro)
- * - Amarelo: Em Andamento (Hoje)
- * - Verde: Concluído
- * - Vermelho: Atrasado
- */
-function getStatusColor(status: string, scheduledAt: Date): string {
+function getStatusColor(
+  status: string,
+  scheduledAt: Date
+): { bg: string; text: string; border: string; dot: string } {
   const today = startOfDay(new Date());
   const orderDate = startOfDay(new Date(scheduledAt));
 
-  // Concluído = Verde
-  if (status === 'CONCLUIDO') {
-    return 'bg-green-500/20 border-green-500/40 text-green-400';
+  if (status === "CONCLUIDO") {
+    return {
+      bg: "bg-green-500/10",
+      text: "text-green-600 dark:text-green-400",
+      border: "border-green-500/30",
+      dot: "bg-green-500",
+    };
   }
 
-  // Cancelado = Muted
-  if (status === 'CANCELADO') {
-    return 'bg-muted/30 border-muted/40 text-muted-foreground line-through';
+  if (status === "CANCELADO") {
+    return {
+      bg: "bg-muted/30",
+      text: "text-muted-foreground line-through",
+      border: "border-muted/40",
+      dot: "bg-muted",
+    };
   }
 
-  // Atrasado = Vermelho (data passou e não está concluído)
-  if (isBefore(orderDate, today) && status !== 'CONCLUIDO') {
-    return 'bg-red-500/20 border-red-500/40 text-red-400';
+  if (isBefore(orderDate, today) && status !== "CONCLUIDO") {
+    return {
+      bg: "bg-red-500/10",
+      text: "text-red-600 dark:text-red-400",
+      border: "border-red-500/30",
+      dot: "bg-red-500",
+    };
   }
 
-  // Em andamento (hoje ou status EM_VISTORIA/EM_EXECUCAO) = Amarelo
   if (
-    status === 'EM_VISTORIA' ||
-    status === 'EM_EXECUCAO' ||
-    status === 'AGUARDANDO_PAGAMENTO'
+    status === "EM_VISTORIA" ||
+    status === "EM_EXECUCAO" ||
+    status === "AGUARDANDO_PAGAMENTO"
   ) {
-    return 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400';
+    return {
+      bg: "bg-amber-500/10",
+      text: "text-amber-600 dark:text-amber-400",
+      border: "border-amber-500/30",
+      dot: "bg-amber-500",
+    };
   }
 
-  // Agendado (Futuro) = Cinza
-  return 'bg-muted/20 border-muted/40 text-muted-foreground';
+  return {
+    bg: "bg-slate-500/10",
+    text: "text-slate-600 dark:text-slate-400",
+    border: "border-slate-500/30",
+    dot: "bg-slate-400",
+  };
 }
 
 export function DayCell({
@@ -88,63 +105,77 @@ export function DayCell({
     <>
       <div
         className={cn(
-          'min-h-[120px] p-2 transition-colors relative group',
-          'bg-background hover:bg-muted/30',
-          !isCurrentMonth && 'bg-muted/10 text-muted-foreground',
-          isToday && 'bg-primary/5'
+          "min-h-[100px] lg:min-h-[120px] p-2 transition-all relative group",
+          "hover:bg-primary/5",
+          !isCurrentMonth && "bg-muted/20 opacity-50",
+          isToday && "bg-gradient-to-b from-primary/10 to-transparent"
         )}
       >
-        {/* Day Indicator */}
+        {/* Day Number */}
         <div className="flex items-center justify-between mb-2">
           <span
             className={cn(
-              'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold',
+              "flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition-all",
               isToday
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground group-hover:text-foreground'
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
             )}
           >
-            {format(date, 'd')}
+            {format(date, "d")}
           </span>
-          
+
           {orders.length > 0 && (
-             <span className="text-[10px] font-medium text-muted-foreground">
-               {orders.length} agend.
-             </span>
+            <span className="text-[10px] font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
+              {orders.length}
+            </span>
           )}
         </div>
 
         {/* Orders List */}
         <div className="space-y-1">
           {isLoading ? (
-            <div className="h-8 animate-pulse rounded bg-white/10" />
+            <div className="space-y-1">
+              <div className="h-6 animate-pulse rounded-md bg-muted/50" />
+              <div className="h-6 animate-pulse rounded-md bg-muted/30 w-3/4" />
+            </div>
           ) : (
             <>
-              {visibleOrders.map((order) => (
-                <Link
-                  key={order.id}
-                  href={`/dashboard/orders/${order.id}`}
-                  className={cn(
-                    'block rounded border px-1.5 py-0.5 text-[10px] truncate transition-all hover:scale-[1.02]',
-                    getStatusColor(order.status, order.scheduledAt)
-                  )}
-                  title={`${order.carModel} - ${order.service}`}
-                >
-                  <span className="font-medium">{order.carModel}</span>
-                  <span className="mx-1">•</span>
-                  <span className="opacity-80">{order.service}</span>
-                </Link>
-              ))}
+              {visibleOrders.map((order) => {
+                const colors = getStatusColor(order.status, order.scheduledAt);
+                return (
+                  <Link
+                    key={order.id}
+                    href={`/dashboard/orders/${order.id}`}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition-all hover:shadow-sm hover:scale-[1.02]",
+                      colors.bg,
+                      colors.text,
+                      "border",
+                      colors.border
+                    )}
+                    title={`${order.carModel} - ${order.service}`}
+                  >
+                    <div
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full flex-shrink-0",
+                        colors.dot
+                      )}
+                    />
+                    <span className="font-medium truncate">
+                      {order.carModel}
+                    </span>
+                  </Link>
+                );
+              })}
 
               {extraCount > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-5 w-full px-1 text-[10px] text-muted-foreground hover:text-foreground"
+                  className="h-6 w-full px-2 text-[10px] text-muted-foreground hover:text-foreground font-medium"
                   onClick={() => setModalOpen(true)}
                 >
-                  <ChevronDown className="h-3 w-3 mr-1" />
-                  +{extraCount} mais
+                  <ChevronDown className="h-3 w-3 mr-1" />+{extraCount} mais
                 </Button>
               )}
             </>
@@ -152,43 +183,58 @@ export function DayCell({
         </div>
       </div>
 
-      {/* Modal com lista completa do dia */}
+      {/* Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md bg-card/95 backdrop-blur-xl border-white/10">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-foreground">
               <Car className="h-5 w-5 text-primary" />
-              {format(date, "dd 'de' MMMM", { locale: undefined })} — {orders.length} OS
+              {format(date, "EEEE, dd 'de' MMMM", { locale: ptBR })}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {orders.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
+              <p className="text-sm text-muted-foreground text-center py-8">
                 Nenhum agendamento para este dia.
               </p>
             ) : (
-              orders.map((order) => (
-                <Link
-                  key={order.id}
-                  href={`/dashboard/orders/${order.id}`}
-                  className={cn(
-                    'block rounded-lg border p-3 transition-all hover:scale-[1.01] hover:shadow-md',
-                    getStatusColor(order.status, order.scheduledAt)
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-sm">{order.carModel}</p>
-                      <p className="text-xs opacity-80">{order.plate}</p>
+              orders.map((order) => {
+                const colors = getStatusColor(order.status, order.scheduledAt);
+                return (
+                  <Link
+                    key={order.id}
+                    href={`/dashboard/orders/${order.id}`}
+                    onClick={() => setModalOpen(false)}
+                    className={cn(
+                      "block rounded-xl border p-4 transition-all hover:shadow-md",
+                      colors.bg,
+                      colors.border
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={cn("font-semibold", colors.text)}>
+                          {order.carModel}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {order.plate}
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono text-muted-foreground bg-background/50 px-2 py-1 rounded-md">
+                        {order.code}
+                      </span>
                     </div>
-                    <span className="text-xs font-mono opacity-60">
-                      {order.code}
-                    </span>
-                  </div>
-                  <p className="text-xs mt-1 opacity-80">{order.service}</p>
-                </Link>
-              ))
+                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {format(new Date(order.scheduledAt), "HH:mm")}
+                      </span>
+                      <span>{order.service}</span>
+                    </div>
+                  </Link>
+                );
+              })
             )}
           </div>
         </DialogContent>
