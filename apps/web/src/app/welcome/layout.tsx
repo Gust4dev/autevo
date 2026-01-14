@@ -50,9 +50,7 @@ export default async function WelcomeLayout({
             needsOnboarding: false,
           },
         });
-      } catch (error) {
-        console.error("Failed to update Clerk metadata:", error);
-      }
+      } catch (error) {}
     }
 
     redirect("/dashboard");

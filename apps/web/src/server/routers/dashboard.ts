@@ -2,13 +2,11 @@ import { z } from 'zod';
 import { router, protectedProcedure, ownerProcedure, managerProcedure } from '../trpc';
 
 export const dashboardRouter = router({
-    // Get financial statistics for the dashboard
     getFinancialStats: managerProcedure.query(async ({ ctx }) => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-        // Get all payments in current month (actual revenue)
         const monthPayments = await ctx.db.payment.aggregate({
             where: {
                 order: {
@@ -23,7 +21,6 @@ export const dashboardRouter = router({
             _count: true,
         });
 
-        // Count orders completed this month (for average ticket calculation)
         const monthOrders = await ctx.db.serviceOrder.count({
             where: {
                 tenantId: ctx.tenantId!,
@@ -35,7 +32,6 @@ export const dashboardRouter = router({
             },
         });
 
-        // Calculate receivables (orders not fully paid, excluding CANCELADO)
         const ordersWithPayments = await ctx.db.serviceOrder.findMany({
             where: {
                 tenantId: ctx.tenantId!,
@@ -54,18 +50,16 @@ export const dashboardRouter = router({
             },
         });
 
-        // Calculate total receivables
         let receivables = 0;
         for (const order of ordersWithPayments) {
             const orderTotal = Number(order.total);
             const orderPaid = order.payments.reduce((sum, p) => sum + Number(p.amount), 0);
             const orderBalance = orderTotal - orderPaid;
-            if (orderBalance > 0.01) { // EPSILON
+            if (orderBalance > 0.01) {
                 receivables += orderBalance;
             }
         }
 
-        // Calculate metrics
         const revenue = Number(monthPayments._sum.amount) || 0;
         const avgTicket = monthOrders > 0 ? revenue / monthOrders : 0;
 
@@ -78,7 +72,6 @@ export const dashboardRouter = router({
         };
     }),
 
-    // Get quick stats for the main dashboard (existing stats + new ones)
     getQuickStats: protectedProcedure.query(async ({ ctx }) => {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -88,21 +81,18 @@ export const dashboardRouter = router({
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         const [todayOrders, inProgress, monthRevenue, pendingPayments] = await Promise.all([
-            // Orders scheduled for today
             ctx.db.serviceOrder.count({
                 where: {
                     tenantId: ctx.tenantId!,
                     scheduledAt: { gte: today, lt: tomorrow },
                 },
             }),
-            // Orders in progress
             ctx.db.serviceOrder.count({
                 where: {
                     tenantId: ctx.tenantId!,
                     status: { in: ['EM_VISTORIA', 'EM_EXECUCAO'] },
                 },
             }),
-            // Month revenue from payments
             ctx.db.payment.aggregate({
                 where: {
                     order: { tenantId: ctx.tenantId! },
@@ -110,7 +100,6 @@ export const dashboardRouter = router({
                 },
                 _sum: { amount: true },
             }),
-            // Orders awaiting payment
             ctx.db.serviceOrder.count({
                 where: {
                     tenantId: ctx.tenantId!,
@@ -127,7 +116,6 @@ export const dashboardRouter = router({
         };
     }),
 
-    // CONSOLIDATED: Get all dashboard overview data in a single call
     getDashboardOverview: protectedProcedure
         .input(z.object({
             from: z.date().optional(),
@@ -150,7 +138,6 @@ export const dashboardRouter = router({
                 baseWhere.assignedToId = ctx.user!.id;
             }
 
-            // Execute all queries in parallel
             const [
                 todayOrdersCount,
                 inProgressCount,
@@ -161,21 +148,18 @@ export const dashboardRouter = router({
                 todaySchedule,
                 tenant
             ] = await Promise.all([
-                // Quick Stats: Orders scheduled for today
                 ctx.db.serviceOrder.count({
                     where: {
                         ...baseWhere,
                         scheduledAt: { gte: today, lt: tomorrow },
                     },
                 }),
-                // Quick Stats: Orders in progress
                 ctx.db.serviceOrder.count({
                     where: {
                         ...baseWhere,
                         status: { in: ['EM_VISTORIA', 'EM_EXECUCAO'] },
                     },
                 }),
-                // Stats for selected period: Revenue from payments
                 ctx.db.payment.aggregate({
                     where: {
                         order: { tenantId: ctx.tenantId! },
@@ -183,18 +167,15 @@ export const dashboardRouter = router({
                     },
                     _sum: { amount: true },
                 }),
-                // Quick Stats: Orders awaiting payment
                 ctx.db.serviceOrder.count({
                     where: {
                         ...baseWhere,
                         status: 'AGUARDANDO_PAGAMENTO',
                     },
                 }),
-                // Customer count
                 ctx.db.customer.count({
                     where: { tenantId: ctx.tenantId! },
                 }),
-                // Recent orders (last 5)
                 ctx.db.serviceOrder.findMany({
                     where: baseWhere,
                     take: 5,
@@ -220,7 +201,6 @@ export const dashboardRouter = router({
                         },
                     },
                 }),
-                // Today's schedule (AGENDADO only)
                 ctx.db.serviceOrder.findMany({
                     where: {
                         ...baseWhere,
@@ -244,7 +224,6 @@ export const dashboardRouter = router({
                         },
                     },
                 }),
-                // Get tenant slug
                 ctx.db.tenant.findUnique({
                     where: { id: ctx.tenantId! },
                     select: { slug: true },
@@ -265,10 +244,8 @@ export const dashboardRouter = router({
             };
         }),
 
-    // Get Chart Data (Daily Revenue)
     getFinancialChartData: managerProcedure.query(async ({ ctx }) => {
         const now = new Date();
-        // Last 30 days or current month? Let's do current month for now.
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
@@ -287,9 +264,7 @@ export const dashboardRouter = router({
             orderBy: { paidAt: 'asc' },
         });
 
-        // Group by day
         const dailyRevenue = new Map<string, number>();
-        // Initialize all days in month
         for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
             const dayStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
             dailyRevenue.set(dayStr, 0);
@@ -308,12 +283,10 @@ export const dashboardRouter = router({
         return chartData;
     }),
 
-    // Get Team Financials
     getTeamFinancials: managerProcedure.query(async ({ ctx }) => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Fetch all active users/employees
         const users = await ctx.db.user.findMany({
             where: {
                 tenantId: ctx.tenantId!,
@@ -327,7 +300,6 @@ export const dashboardRouter = router({
                 jobTitle: true,
                 salary: true,
                 avatarUrl: true,
-                // Get commissions for this month
                 commissions: {
                     where: {
                         calculatedAt: { gte: startOfMonth },
@@ -336,7 +308,6 @@ export const dashboardRouter = router({
                         commissionValue: true,
                     },
                 },
-                // Get orders assigned and completed this month (Revenue Generated)
                 assignedOrders: {
                     where: {
                         status: 'CONCLUIDO',
@@ -368,11 +339,10 @@ export const dashboardRouter = router({
                 totalPayout,
                 revenueGenerated,
                 ordersCount,
-                roi: totalPayout > 0 ? (revenueGenerated / totalPayout) : 0, // Return on Investment
+                roi: totalPayout > 0 ? (revenueGenerated / totalPayout) : 0,
             };
         });
 
-        // Calculate Totals
         const totalPayroll = teamStats.reduce((sum, u) => sum + u.totalPayout, 0);
         const totalFixed = teamStats.reduce((sum, u) => sum + u.fixedSalary, 0);
         const totalCommissions = teamStats.reduce((sum, u) => sum + u.commissions, 0);

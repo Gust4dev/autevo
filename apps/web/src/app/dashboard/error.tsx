@@ -11,9 +11,7 @@ interface DashboardErrorProps {
 }
 
 export default function DashboardError({ error, reset }: DashboardErrorProps) {
-  useEffect(() => {
-    console.error("Dashboard Error:", error);
-  }, [error]);
+  useEffect(() => {}, [error]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">

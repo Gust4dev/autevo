@@ -4,14 +4,12 @@ import { TRPCError } from '@trpc/server';
 import { generateChecklistItems, REQUIRED_CHECKLIST_ITEMS } from '@/lib/ChecklistDefinition';
 import { uploadFile } from '@/lib/storage';
 
-// Enums
 const inspectionTypeEnum = z.enum(['entrada', 'intermediaria', 'final']);
 const inspectionStatusEnum = z.enum(['em_andamento', 'concluida']);
 const itemStatusEnum = z.enum(['pendente', 'ok', 'com_avaria']);
 const damageTypeEnum = z.enum(['arranhao', 'amassado', 'trinca', 'mancha', 'risco', 'pintura', 'outro']);
 const severityEnum = z.enum(['leve', 'moderado', 'grave']);
 
-// Schemas
 export const itemUpdateSchema = z.object({
     itemId: z.string(),
     status: itemStatusEnum,
@@ -22,14 +20,13 @@ export const itemUpdateSchema = z.object({
 });
 
 const damageCreateSchema = z.object({
-    position: z.string(), // Parte do carro
+    position: z.string(),
     damageType: damageTypeEnum,
     notes: z.string().optional(),
     photoUrl: z.string().optional(),
 });
 
 export const inspectionRouter = router({
-    // List all inspections for an order
     list: protectedProcedure
         .input(z.object({ orderId: z.string() }))
         .query(async ({ ctx, input }) => {
@@ -57,7 +54,6 @@ export const inspectionRouter = router({
                 orderBy: { createdAt: 'desc' },
             });
 
-            // Calculate progress for each inspection
             return inspections.map(inspection => {
                 const totalItems = inspection._count.items;
                 const completedItems = inspection.items.length;
@@ -80,7 +76,6 @@ export const inspectionRouter = router({
             });
         }),
 
-    // Get single inspection by ID with all details
     getById: protectedProcedure
         .input(z.object({ inspectionId: z.string() }))
         .query(async ({ ctx, input }) => {
@@ -113,7 +108,6 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Calculate progress
             const totalRequired = inspection.items.filter(i => i.isRequired).length;
             const completedRequired = inspection.items.filter(i => i.isRequired && i.status !== 'pendente').length;
             const progress = totalRequired > 0 ? Math.round((completedRequired / totalRequired) * 100) : 0;
@@ -127,7 +121,6 @@ export const inspectionRouter = router({
             };
         }),
 
-    // Get inspection by order ID and type
     getByOrderIdAndType: protectedProcedureNoRateLimit
         .input(z.object({
             orderId: z.string(),
@@ -166,7 +159,6 @@ export const inspectionRouter = router({
 
             if (!inspection) return null;
 
-            // Sync missing checklist items (if new items were added to definition)
             const definedItems = generateChecklistItems();
             const existingItemKeys = new Set(inspection.items.map(i => i.itemKey));
             const missingItems = definedItems.filter(i => !existingItemKeys.has(i.itemKey));
@@ -202,7 +194,6 @@ export const inspectionRouter = router({
             return inspection;
         }),
 
-    // Create new inspection with checklist items
     create: protectedProcedure
         .input(z.object({
             orderId: z.string(),
@@ -220,7 +211,6 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Check if inspection of this type already exists
             const existing = await ctx.db.inspection.findUnique({
                 where: {
                     orderId_type: {
@@ -237,7 +227,6 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Create inspection with all checklist items
             const checklistItems = generateChecklistItems();
 
             const inspection = await ctx.db.inspection.create({
@@ -264,7 +253,6 @@ export const inspectionRouter = router({
             return inspection;
         }),
 
-    // Update a checklist item (add photo, change status)
     updateItem: protectedProcedureNoRateLimit
         .input(itemUpdateSchema)
         .mutation(async ({ ctx, input }) => {
@@ -306,7 +294,6 @@ export const inspectionRouter = router({
             return updated;
         }),
 
-    // Update final video URL
     updateVideo: protectedProcedureNoRateLimit
         .input(z.object({
             inspectionId: z.string(),
@@ -335,7 +322,6 @@ export const inspectionRouter = router({
             return updated;
         }),
 
-    // Add a damage/detail entry
     addDamage: protectedProcedureNoRateLimit
         .input(z.object({
             inspectionId: z.string(),
@@ -364,7 +350,6 @@ export const inspectionRouter = router({
             return damage;
         }),
 
-    // Remove a damage entry
     removeDamage: protectedProcedureNoRateLimit
         .input(z.object({ damageId: z.string() }))
         .mutation(async ({ ctx, input }) => {
@@ -391,7 +376,6 @@ export const inspectionRouter = router({
             return { success: true };
         }),
 
-    // Complete an inspection (validates all required items are done)
     complete: protectedProcedure
         .input(z.object({ inspectionId: z.string() }))
         .mutation(async ({ ctx, input }) => {
@@ -410,7 +394,6 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Check if all required items are completed
             const pendingRequired = inspection.items.filter(
                 item => item.isRequired && item.status === 'pendente'
             );
@@ -433,7 +416,6 @@ export const inspectionRouter = router({
             return updated;
         }),
 
-    // Check if order can be completed (has completed exit inspection)
     canCompleteOrder: protectedProcedure
         .input(z.object({ orderId: z.string() }))
         .query(async ({ ctx, input }) => {
@@ -449,7 +431,6 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Check for completed exit inspection
             const exitInspection = await ctx.db.inspection.findUnique({
                 where: {
                     orderId_type: {
@@ -462,7 +443,6 @@ export const inspectionRouter = router({
 
             const hasCompletedExitInspection = exitInspection?.status === 'concluida';
 
-            // Check for completed entry inspection
             const entryInspection = await ctx.db.inspection.findUnique({
                 where: {
                     orderId_type: {
@@ -485,7 +465,6 @@ export const inspectionRouter = router({
             };
         }),
 
-    // Save digital signature
     saveSignature: protectedProcedure
         .input(z.object({
             inspectionId: z.string(),
@@ -504,7 +483,6 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Convert base64 to buffer
             const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
             const fileName = `signatures/${ctx.tenantId}/${inspection.order.code}-${inspection.type}-${Date.now()}.png`;

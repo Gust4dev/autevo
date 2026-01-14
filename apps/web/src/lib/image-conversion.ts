@@ -1,11 +1,3 @@
-/**
- * Image conversion utilities for WebP processing and PDF compatibility.
- */
-
-/**
- * Converts a File object to WebP format.
- * For PNGs, fills transparent areas with white background.
- */
 export async function convertFileToWebP(file: File, quality = 0.8): Promise<File> {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -61,9 +53,6 @@ export async function convertFileToWebP(file: File, quality = 0.8): Promise<File
     });
 }
 
-/**
- * Converts a File to WebP Base64 string for tRPC mutations.
- */
 export async function convertFileToWebPBase64(file: File, quality = 0.8): Promise<string> {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -89,9 +78,6 @@ export async function convertFileToWebPBase64(file: File, quality = 0.8): Promis
     });
 }
 
-/**
- * Converts an image URL to PNG Base64 for @react-pdf/renderer compatibility.
- */
 export async function convertUrlToPngBase64(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const img = new Image();

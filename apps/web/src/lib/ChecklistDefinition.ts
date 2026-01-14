@@ -1,10 +1,3 @@
-/**
- * Definição do Checklist de Vistoria
- * 
- * Este arquivo contém a definição estática de todos os itens que devem ser
- * verificados durante uma vistoria de veículo.
- */
-
 export interface ChecklistItem {
     key: string;
     label: string;
@@ -15,7 +8,7 @@ export interface ChecklistItem {
 export interface ChecklistCategory {
     key: string;
     label: string;
-    critical: boolean; // Se true, mostra warning vermelho
+    critical: boolean;
     description?: string;
     items: ChecklistItem[];
 }
@@ -53,7 +46,7 @@ export const INSPECTION_CHECKLIST: ChecklistCategory[] = [
         label: 'Detalhes e Danos',
         critical: false,
         description: 'Adicione fotos de danos pré-existentes ou detalhes importantes',
-        items: [], // Dinâmico - preenchido pelo usuário
+        items: [],
     },
     {
         key: 'items_pessoais',
@@ -67,21 +60,12 @@ export const INSPECTION_CHECKLIST: ChecklistCategory[] = [
     },
 ];
 
-/**
- * Lista plana de todos os itens obrigatórios do checklist
- */
 export const REQUIRED_CHECKLIST_ITEMS = INSPECTION_CHECKLIST
     .flatMap(category => category.items.filter(item => item.required))
     .map(item => item.key);
 
-/**
- * Total de itens obrigatórios
- */
 export const TOTAL_REQUIRED_ITEMS = REQUIRED_CHECKLIST_ITEMS.length;
 
-/**
- * Gera a lista de itens para criar no banco ao iniciar uma vistoria
- */
 export function generateChecklistItems(): Array<{
     category: string;
     itemKey: string;
@@ -100,9 +84,6 @@ export function generateChecklistItems(): Array<{
     );
 }
 
-/**
- * Labels dos tipos de vistoria
- */
 export const INSPECTION_TYPE_LABELS: Record<string, { label: string; emoji: string; description: string }> = {
     entrada: {
         label: 'Entrada',

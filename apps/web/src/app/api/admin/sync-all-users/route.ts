@@ -73,7 +73,6 @@ export async function POST(req: Request) {
             results,
         });
     } catch (error: any) {
-        console.error('[Admin Sync] Error:', error);
         return NextResponse.json(
             { error: error.message || 'Internal error' },
             { status: 500 }

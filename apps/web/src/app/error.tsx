@@ -10,10 +10,7 @@ interface ErrorPageProps {
 }
 
 export default function ErrorPage({ error, reset }: ErrorPageProps) {
-  useEffect(() => {
-    // Log error to console in development
-    console.error("Application Error:", error);
-  }, [error]);
+  useEffect(() => {}, [error]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col items-center justify-center p-6">

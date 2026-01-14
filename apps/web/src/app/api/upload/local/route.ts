@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, url: `/uploads/${filename}` });
     } catch (error) {
-        console.error('[Local Upload] Error:', error);
         return NextResponse.json({ success: false, error: 'Upload failed' }, { status: 500 });
     }
 }

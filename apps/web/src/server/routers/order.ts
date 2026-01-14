@@ -4,7 +4,6 @@ import { TRPCError } from '@trpc/server';
 import { sanitizeInput } from '@/lib/sanitize';
 import { OrderStatus as PrismaOrderStatus, PaymentMethod } from '@prisma/client';
 
-// Valid status transitions
 const validTransitions: Record<string, string[]> = {
     AGENDADO: ['EM_VISTORIA', 'CANCELADO'],
     EM_VISTORIA: ['EM_EXECUCAO', 'CANCELADO'],
@@ -14,8 +13,6 @@ const validTransitions: Record<string, string[]> = {
     CANCELADO: [],
 };
 
-// Input schemas
-// MAX_PRICE: Decimal(10,2) supports up to 99,999,999.99
 const MAX_PRICE = 99999999.99;
 const MAX_PRICE_ERROR = 'O valor informado excede o limite permitido. Verifique se inseriu o preço corretamente (ex: 150.00 e não 15000).';
 
@@ -42,7 +39,6 @@ const orderCreateSchema = z.object({
     discountValue: z.number().min(0).optional(),
 }).refine((data) => {
     if (data.discountType === 'FIXED' && data.discountValue) {
-        // Calculate estimated subtotal from items (ignoring products for now as they might be separate logic)
         const subtotal = data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
         return data.discountValue <= subtotal;
     }
@@ -64,7 +60,7 @@ const paymentSchema = z.object({
     orderId: z.string(),
     method: z.nativeEnum(PaymentMethod),
     amount: z.number().min(0).max(MAX_PRICE, MAX_PRICE_ERROR),
-    paidAt: z.date().optional(), // Backdating support
+    paidAt: z.date().optional(),
     notes: z.string().optional(),
 });
 
@@ -117,7 +113,6 @@ export const orderRouter = router({
                 },
             });
 
-            // Create notification for dashboard
             await ctx.db.notificationLog.create({
                 data: {
                     tenantId: ctx.tenantId!,
@@ -162,7 +157,6 @@ export const orderRouter = router({
                 });
             }
 
-            // Calculate paid amount and balance
             const paidAmount = order.payments.reduce(
                 (sum, p) => sum + Number(p.amount),
                 0
@@ -198,7 +192,6 @@ export const orderRouter = router({
                 ] : undefined,
             };
 
-            // RBAC: Members only see their assigned orders
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
             }
@@ -241,7 +234,6 @@ export const orderRouter = router({
             };
         }),
 
-    // List all orders for export
     listAll: protectedProcedure
         .input(z.object({
             search: z.string().optional(),
@@ -284,14 +276,12 @@ export const orderRouter = router({
             });
         }),
 
-    // Update order basic info
     update: protectedProcedure
         .input(z.object({ id: z.string(), data: orderUpdateSchema }))
         .mutation(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
             const where: any = { id: input.id, tenantId: ctx.tenantId! };
 
-            // RBAC: Members can only update their own orders
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
             }
@@ -308,7 +298,6 @@ export const orderRouter = router({
                 });
             }
 
-            // Verify assigned user if changing
             if (input.data.assignedToId) {
                 const assignedUser = await ctx.db.user.findFirst({
                     where: { id: input.data.assignedToId, tenantId: ctx.tenantId! },
@@ -321,7 +310,6 @@ export const orderRouter = router({
                 }
             }
 
-            // Handle items update
             if (input.data.items) {
                 // Delete existing items
                 await ctx.db.orderItem.deleteMany({
@@ -373,7 +361,6 @@ export const orderRouter = router({
             return order;
         }),
 
-    // Update order status
     updateStatus: protectedProcedure
         .input(z.object({
             id: z.string(),
@@ -383,7 +370,6 @@ export const orderRouter = router({
             const isMember = ctx.user?.role === 'MEMBER';
             const where: any = { id: input.id, tenantId: ctx.tenantId! };
 
-            // RBAC: Members can only update status of their own orders
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
             }
@@ -399,7 +385,6 @@ export const orderRouter = router({
                 });
             }
 
-            // Validate status transition
             const allowedNext = validTransitions[existing.status] || [];
             if (!allowedNext.includes(input.status)) {
                 throw new TRPCError({
@@ -449,14 +434,12 @@ export const orderRouter = router({
         }),
 
 
-    // Add payment with auto-completion logic
     addPayment: protectedProcedure
         .input(paymentSchema)
         .mutation(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
             const where: any = { id: input.orderId, tenantId: ctx.tenantId! };
 
-            // RBAC: Members can only add payment to their own orders
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
             }
@@ -480,7 +463,6 @@ export const orderRouter = router({
             );
             const balance = orderTotal - currentPaid;
 
-            // Margin of error for decimal comparison (1 centavo)
             const EPSILON = 0.01;
 
             if (input.amount - balance > EPSILON) {
@@ -490,7 +472,6 @@ export const orderRouter = router({
                 });
             }
 
-            // Create payment record
             const payment = await ctx.db.payment.create({
                 data: {
                     orderId: input.orderId,
@@ -502,12 +483,10 @@ export const orderRouter = router({
                 },
             });
 
-            // Check if order is fully paid
             const newTotalPaid = currentPaid + input.amount;
             const remaining = orderTotal - newTotalPaid;
 
             if (remaining < EPSILON) {
-                // Verificar vistoria de saída antes de auto-complete
                 const exitInspection = await ctx.db.inspection.findUnique({
                     where: {
                         orderId_type: {
@@ -518,7 +497,6 @@ export const orderRouter = router({
                     select: { status: true },
                 });
 
-                // Só auto-complete se tiver vistoria de saída concluída
                 if (exitInspection?.status === 'concluida') {
                     await ctx.db.serviceOrder.update({
                         where: { id: input.orderId },
@@ -533,7 +511,6 @@ export const orderRouter = router({
             return payment;
         }),
 
-    // Get dashboard stats
     getStats: protectedProcedure
         .query(async ({ ctx }) => {
             const isMember = ctx.user?.role === 'MEMBER';
@@ -582,7 +559,6 @@ export const orderRouter = router({
             };
         }),
 
-    // Get recent orders for dashboard
     getRecent: protectedProcedure
         .input(z.object({ limit: z.number().default(5) }))
         .query(async ({ ctx, input }) => {
@@ -611,7 +587,6 @@ export const orderRouter = router({
             return orders;
         }),
 
-    // Public status for customer tracking
     getPublicStatus: publicProcedure
         .input(z.object({ orderId: z.string() }))
         .query(async ({ ctx, input }) => {
@@ -658,7 +633,6 @@ export const orderRouter = router({
                     });
                 }
 
-                // Get all inspections with items
                 const inspections = await ctx.db.inspection.findMany({
                     where: { orderId: input.orderId },
                     include: {
@@ -723,7 +697,6 @@ export const orderRouter = router({
                     })),
                 };
             } catch (error) {
-                console.error('Error in getPublicStatus:', error);
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
                     message: 'Erro ao buscar status público',
@@ -733,7 +706,6 @@ export const orderRouter = router({
         }),
 });
 
-// Helper functions
 function calculateTotals(
     items: { price: number; quantity: number }[],
     discountType?: string | null,

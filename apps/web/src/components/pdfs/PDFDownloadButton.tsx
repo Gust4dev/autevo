@@ -41,9 +41,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
       try {
         const qr = await QRCode.toDataURL(url, { width: 300, margin: 2 });
         setQrCodeUrl(qr);
-      } catch (e) {
-        console.error("QR generation failed", e);
-      }
+      } catch (e) {}
 
       // Convert logo to base64
       const logoUrl = publicStatus.tenantContact.logo;
@@ -55,9 +53,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
         try {
           const base64 = await convertUrlToPngBase64(urlToFetch);
           setLogoBase64(base64);
-        } catch (e) {
-          console.error("Error converting logo for PDF:", e);
-        }
+        } catch (e) {}
       }
 
       // Convert logo.svg to base64 for footer
@@ -65,9 +61,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
         const iconUrl = `${window.location.origin}/branding/logo.svg`;
         const iconB64 = await convertUrlToPngBase64(iconUrl);
         setIconBase64(iconB64);
-      } catch (e) {
-        console.error("Error converting icon for PDF:", e);
-      }
+      } catch (e) {}
 
       // Convert all inspection images to base64
       if (publicStatus.inspections && publicStatus.inspections.length > 0) {
@@ -85,7 +79,6 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
                     const base64 = await convertUrlToPngBase64(photoUrlToFetch);
                     return { ...item, photoUrl: base64 };
                   } catch (e) {
-                    console.error("Error converting item photo:", e);
                     return item;
                   }
                 }
@@ -105,7 +98,6 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
                     const base64 = await convertUrlToPngBase64(photoUrlToFetch);
                     return { ...damage, photoUrl: base64 };
                   } catch (e) {
-                    console.error("Error converting damage photo:", e);
                     return damage;
                   }
                 }

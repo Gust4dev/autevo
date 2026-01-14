@@ -64,12 +64,6 @@ export function InviteMemberModal() {
       const msg = error.message || "Erro ao enviar convite";
       setErrorMessage(msg);
       toast.error(msg);
-      console.error("Invite Error Details:", {
-        message: error.message,
-        code: error.data?.code,
-        httpStatus: error.data?.httpStatus,
-        fullError: error,
-      });
     },
   });
 

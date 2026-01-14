@@ -147,7 +147,6 @@ export default function ActivatePage() {
         setIsVerifying(false);
       }
     } catch (err) {
-      console.error("Failed to verify payment:", err);
       setIsVerifying(false);
     }
   };
@@ -157,9 +156,7 @@ export default function ActivatePage() {
       await navigator.clipboard.writeText(PIX_KEY);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
+    } catch (err) {}
   };
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(

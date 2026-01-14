@@ -224,7 +224,6 @@ export default function SettingsPage() {
       setValue("logo", data.url, { shouldDirty: true, shouldValidate: true });
       toast.success("Upload realizado com sucesso!");
     } catch (error) {
-      console.error("Upload Error:", error);
       toast.error("Erro ao fazer upload da imagem");
     } finally {
       setIsUploading(false);

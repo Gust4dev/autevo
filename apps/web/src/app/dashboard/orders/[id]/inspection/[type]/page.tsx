@@ -142,7 +142,6 @@ export default function InspectionChecklistPage({ params }: PageProps) {
       setUploadingItemId(null);
       setUploadingItemId(null);
     } catch (error) {
-      console.error("Erro detalhado upload:", error);
       if (error instanceof Error) {
         toast.error(`Erro: ${error.message}`);
       } else {

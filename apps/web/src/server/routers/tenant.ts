@@ -94,7 +94,7 @@ export const tenantRouter = router({
                     dbUserId: ctx.user.id,
                     needsOnboarding: false,
                 },
-            }).catch(console.error);
+            }).catch(() => { });
 
             const { invalidateUserCache } = await import('@/lib/user-cache');
             invalidateUserCache(ctx.user.clerkId);

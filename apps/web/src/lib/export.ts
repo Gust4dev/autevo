@@ -1,11 +1,5 @@
 import * as XLSX from 'xlsx';
 
-/**
- * Exports JSON data to an Excel file with one or more sheets.
- * @param data Array of objects (for single sheet) or Object with { sheetName: data[] } for multiple sheets
- * @param fileName Name of the file (without extension)
- * @param defaultSheetName Name used if single sheet
- */
 export function exportToExcel(
     data: any[] | any[][] | Record<string, any[] | any[][]>,
     fileName: string,
@@ -45,7 +39,6 @@ export function exportToExcel(
         const worksheet = createSheet(data);
         XLSX.utils.book_append_sheet(workbook, worksheet, defaultSheetName);
     } else {
-        // Multi-sheet mode
         Object.entries(data).forEach(([sheetName, sheetData]) => {
             const worksheet = createSheet(sheetData);
             XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
@@ -55,9 +48,6 @@ export function exportToExcel(
     XLSX.writeFile(workbook, `${fileName}.xlsx`);
 }
 
-/**
- * Formats a date for use in filenames.
- */
 export function formatFilenameDate(date: Date = new Date()): string {
     return date.toISOString().split('T')[0];
 }

@@ -35,7 +35,6 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ dataUrl });
     } catch (error) {
-        console.error('Error proxying image:', error);
         return NextResponse.json({ error: 'Failed to process image' }, { status: 500 });
     }
 }
