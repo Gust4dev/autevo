@@ -559,10 +559,25 @@ function ChecklistItemCard({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onUpload(file);
+    try {
+      console.log("[FileChange] Event triggered", e.target.validity);
+      const file = e.target.files?.[0];
+      if (file) {
+        console.log(
+          "[FileChange] File selected:",
+          file.name,
+          file.type,
+          file.size
+        );
+        onUpload(file);
+      } else {
+        console.log("[FileChange] No file selected");
+      }
+    } catch (error) {
+      console.error("[FileChange] Error in handler:", error);
     }
+    // Reset input to allow selecting same file again
+    e.target.value = "";
   };
 
   const handleConfirmDamage = () => {
