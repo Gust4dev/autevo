@@ -4,7 +4,7 @@ import '@/lib/superjson-config';
 import { ZodError } from 'zod';
 import { prisma } from '@autevo/database';
 import type { User } from '@autevo/database';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { checkRateLimit, redis } from '@/lib/rate-limit';
 
 export interface Context {
     db: typeof prisma;
@@ -28,7 +28,47 @@ const t = initTRPC.context<Context>().create({
 export const router = t.router;
 export const middleware = t.middleware;
 
-// Middleware: requires auth + valid tenant
+const TENANT_CACHE_TTL = 1800; // 30 minutes in seconds
+
+async function getTenantStatus(tenantId: string, db: typeof prisma): Promise<string | null> {
+    const cacheKey = `tenant:status:${tenantId}`;
+
+    try {
+        const cachedStatus = await redis.get<string>(cacheKey);
+        if (cachedStatus) {
+            return cachedStatus;
+        }
+    } catch {
+        // Redis unavailable, fall through to DB query
+    }
+
+    const tenant = await db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { status: true },
+    });
+
+    if (!tenant) {
+        return null;
+    }
+
+    try {
+        await redis.set(cacheKey, tenant.status, { ex: TENANT_CACHE_TTL });
+    } catch {
+        // Redis unavailable, continue without caching
+    }
+
+    return tenant.status;
+}
+
+export async function invalidateTenantCache(tenantId: string): Promise<void> {
+    const cacheKey = `tenant:status:${tenantId}`;
+    try {
+        await redis.del(cacheKey);
+    } catch {
+        // Redis unavailable, ignore
+    }
+}
+
 const tenantMiddleware = middleware(async ({ ctx, next }) => {
     if (!ctx.user) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Login required' });
@@ -42,17 +82,11 @@ const tenantMiddleware = middleware(async ({ ctx, next }) => {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'No tenant assigned' });
     }
 
-    // Always fetch latest status from DB to ensure immediate suspension/activation
-    const tenant = await ctx.db.tenant.findUnique({
-        where: { id: ctx.user.tenantId },
-        select: { status: true },
-    });
+    const status = await getTenantStatus(ctx.user.tenantId, ctx.db);
 
-    if (!tenant) {
+    if (!status) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant not found' });
     }
-
-    const status = tenant.status;
 
     if (status === 'PENDING_ACTIVATION') {
         throw new TRPCError({

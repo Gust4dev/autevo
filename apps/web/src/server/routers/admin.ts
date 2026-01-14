@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, adminProcedure } from '../trpc';
+import { router, adminProcedure, invalidateTenantCache } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { TenantStatus } from '@prisma/client';
 
@@ -193,6 +193,8 @@ export const adminRouter = router({
                 },
             });
 
+            await invalidateTenantCache(tenantId);
+
             // Update Clerk metadata for all users in this tenant
             const users = await ctx.db.user.findMany({
                 where: { tenantId },
@@ -317,6 +319,8 @@ export const adminRouter = router({
                 data: { status: 'SUSPENDED' },
             });
 
+            await invalidateTenantCache(tenantId);
+
             // Update Clerk metadata for all users in this tenant
             const users = await ctx.db.user.findMany({
                 where: { tenantId },
@@ -404,6 +408,8 @@ export const adminRouter = router({
                 where: { id: tenantId },
                 data,
             });
+
+            await invalidateTenantCache(tenantId);
 
             // Update Clerk metadata for all users in this tenant
             const users = await ctx.db.user.findMany({

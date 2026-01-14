@@ -1,6 +1,7 @@
 export type MessageTemplateKey =
     | 'tracking_link'
     | 'service_completed'
+    | 'service_completed_with_value'
     | 'payment_reminder'
     | 'birthday'
     | 'generic';
@@ -26,15 +27,21 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
         variables: ['nome', 'veiculo'],
     },
     {
+        key: 'service_completed_with_value',
+        name: 'Servico Concluido com Valor',
+        message: 'Ola {nome}! O servico no seu {veiculo} foi concluido. Valor total: R$ {valor}. Veja as fotos e detalhes: {link}',
+        variables: ['nome', 'veiculo', 'valor', 'link'],
+    },
+    {
         key: 'payment_reminder',
         name: 'Lembrete de Pagamento',
-        message: 'Ola {nome}! Lembramos que o pagamento do servico esta pendente. Valor: {valor}',
+        message: 'Ola {nome}! Lembramos que o pagamento do servico esta pendente. Valor: R$ {valor}. Pague via Pix ou na retirada.',
         variables: ['nome', 'valor'],
     },
     {
         key: 'birthday',
         name: 'Feliz Aniversario',
-        message: 'Feliz aniversario, {nome}! A equipe da {empresa} deseja um dia incrivel!',
+        message: 'Feliz aniversario, {nome}! A equipe da {empresa} deseja um dia incrivel! Temos uma oferta especial para voce.',
         variables: ['nome', 'empresa'],
     },
     {

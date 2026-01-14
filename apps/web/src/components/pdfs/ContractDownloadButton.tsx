@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { PDFDownloadLink } from "@react-pdf/renderer";
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc/provider";
-import { ContractPDF } from "./ContractPDF";
 import { Button } from "@/components/ui";
 import { FileSignature, Loader2 } from "lucide-react";
 
@@ -14,86 +12,164 @@ interface ContractDownloadButtonProps {
 export function ContractDownloadButton({
   orderId,
 }: ContractDownloadButtonProps) {
-  const [isClient, setIsClient] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  // We use getById to get full details including sensitive customer data
-  const { data: order, isLoading } = trpc.order.getById.useQuery({
+  const { data: order, isLoading: orderLoading } = trpc.order.getById.useQuery({
     id: orderId,
   });
-  const { data: tenantSettings } = trpc.settings.get.useQuery();
+  const { data: tenantSettings, isLoading: settingsLoading } =
+    trpc.settings.get.useQuery();
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
 
-  if (!isClient) return null;
+  const formatDate = () => {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }).format(new Date());
+  };
 
-  if (isLoading || !order) {
+  const handleGenerateContract = useCallback(async () => {
+    if (!order || !tenantSettings?.contractTemplate) return;
+
+    setIsGenerating(true);
+
+    try {
+      const servicesHtml = order.items
+        .map(
+          (item) =>
+            `<li>${item.customName || item.service?.name || "Serviço"} (x${
+              item.quantity
+            }) - ${formatCurrency(Number(item.price) * item.quantity)}</li>`
+        )
+        .join("\n");
+
+      const processedTemplate = tenantSettings.contractTemplate
+        .replace(/\{\{cliente\}\}/g, order.vehicle.customer?.name || "N/A")
+        .replace(/\{\{telefone\}\}/g, order.vehicle.customer?.phone || "N/A")
+        .replace(
+          /\{\{veiculo\}\}/g,
+          `${order.vehicle.brand} ${order.vehicle.model}`
+        )
+        .replace(/\{\{placa\}\}/g, order.vehicle.plate)
+        .replace(/\{\{cor\}\}/g, order.vehicle.color)
+        .replace(/\{\{servicos\}\}/g, `<ul>${servicesHtml}</ul>`)
+        .replace(/\{\{total\}\}/g, formatCurrency(Number(order.total)))
+        .replace(/\{\{data\}\}/g, formatDate())
+        .replace(/\{\{empresa\}\}/g, tenantSettings.name || "Empresa")
+        .replace(/\{\{cnpj\}\}/g, tenantSettings.cnpj || "Não informado");
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Contrato - ${order.code}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              font-size: 14px;
+              line-height: 1.6;
+              padding: 40px;
+              max-width: 800px;
+              margin: 0 auto;
+              color: #333;
+            }
+            h1 { font-size: 24px; text-align: center; margin-bottom: 30px; text-transform: uppercase; letter-spacing: 2px; }
+            h2 { font-size: 18px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+            p { margin-bottom: 10px; }
+            ul { margin: 10px 0 10px 20px; }
+            li { margin-bottom: 5px; }
+            .signature { margin-top: 60px; display: flex; justify-content: space-between; }
+            .signature-box { width: 45%; text-align: center; }
+            .signature-line { border-top: 1px solid #333; margin-top: 50px; padding-top: 5px; }
+          </style>
+        </head>
+        <body>
+          ${processedTemplate}
+          <div class="signature">
+            <div class="signature-box">
+              <div class="signature-line">Contratante</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-line">Contratada</div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const { default: html2pdf } = await import("html2pdf.js");
+
+      const container = document.createElement("div");
+      container.innerHTML = fullHtml;
+      document.body.appendChild(container);
+
+      await html2pdf()
+        .set({
+          margin: 10,
+          filename: `contrato-${order.code}-${
+            order.vehicle.customer?.name.split(" ")[0] || "cliente"
+          }.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(container)
+        .save();
+
+      document.body.removeChild(container);
+    } catch (error) {
+      console.error("Error generating contract:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [order, tenantSettings]);
+
+  if (orderLoading || settingsLoading) {
     return (
       <Button variant="outline" disabled size="sm">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Preparando Contrato...
+        Carregando...
       </Button>
     );
   }
 
-  // Map data to contract format
-  const contractData = {
-    customer: {
-      name: order.vehicle.customer?.name || "Cliente N/A",
-      document: order.vehicle.customer?.document,
-      phone: order.vehicle.customer?.phone,
-      address: "", // Address not currently in customer schema, leaving empty for placeholder
-      rg: "", // RG not currently in customer schema
-    },
-    vehicle: {
-      brand: order.vehicle.brand,
-      model: order.vehicle.model,
-      plate: order.vehicle.plate,
-      color: order.vehicle.color,
-    },
-    order: {
-      startedAt: order.startedAt,
-      completedAt: order.completedAt,
-      total: Number(order.total),
-      items: order.items.map((i) => ({
-        name: i.customName || i.service?.name || "Serviço",
-        price: Number(i.price) * i.quantity,
-      })),
-    },
-    tenant: {
-      name: tenantSettings?.name || "FILMTECH LUXURY",
-      document: tenantSettings?.cnpj || "59.881.586/0001-93",
-      address:
-        tenantSettings?.address ||
-        "Rua S1, Quadra 139, Lote 21, Nº 100 – CEP 74230-220 – Goiânia/GO.",
-      phone: tenantSettings?.phone || "(62) 98235-7986",
-      email: tenantSettings?.email || "filmtechluxury@gmail.com",
-    },
-  };
+  if (!order || !tenantSettings?.contractTemplate) {
+    return (
+      <Button
+        variant="outline"
+        disabled
+        size="sm"
+        title="Configure o template de contrato nas configurações"
+      >
+        <FileSignature className="mr-2 h-4 w-4" />
+        Sem Template
+      </Button>
+    );
+  }
 
   return (
-    <PDFDownloadLink
-      document={<ContractPDF data={contractData} />}
-      fileName={`contrato-${order.code}-${
-        order.vehicle.customer?.name.split(" ")[0] || "cliente"
-      }.pdf`}
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleGenerateContract}
+      disabled={isGenerating}
+      className="border-blue-600 text-blue-600 hover:bg-blue-50"
     >
-      {({ blob, url, loading, error }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={loading}
-          className="border-blue-600 text-blue-600 hover:bg-blue-50"
-        >
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <FileSignature className="mr-2 h-4 w-4" />
-          )}
-          {loading ? "Gerando Contrato..." : "GERAR CONTRATO"}
-        </Button>
+      {isGenerating ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      ) : (
+        <FileSignature className="mr-2 h-4 w-4" />
       )}
-    </PDFDownloadLink>
+      {isGenerating ? "Gerando..." : "GERAR CONTRATO"}
+    </Button>
   );
 }

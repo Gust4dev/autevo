@@ -3,3 +3,5 @@ export * from './Timeline';
 export * from './PaymentDialog';
 export * from './ShareOrderButton';
 export * from './ContractPreviewModal';
+export * from './OrderPrint';
+

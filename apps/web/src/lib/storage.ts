@@ -10,10 +10,16 @@ const s3Client = new S3Client({
     forcePathStyle: true,
 });
 
+export interface UploadContext {
+    tenantId: string;
+    orderId?: string;
+}
+
 export async function uploadFile(
     file: Buffer | Uint8Array,
     filename: string,
-    contentType: string
+    contentType: string,
+    context?: UploadContext
 ): Promise<string> {
     const bucket = process.env.AWS_BUCKET_NAME;
 
@@ -30,9 +36,13 @@ export async function uploadFile(
         throw new Error('AWS_SECRET_ACCESS_KEY is not defined');
     }
 
+    const key = context
+        ? `${context.tenantId}/${context.orderId || 'general'}/${filename}`
+        : filename;
+
     const command = new PutObjectCommand({
         Bucket: bucket,
-        Key: filename,
+        Key: key,
         Body: file,
         ContentType: contentType,
     });
@@ -43,10 +53,11 @@ export async function uploadFile(
 
     if (process.env.AWS_ENDPOINT?.includes('supabase.co')) {
         const baseUrl = process.env.AWS_ENDPOINT.replace('/s3', '/object/public');
-        publicUrl = `${baseUrl}/${bucket}/${filename}`;
+        publicUrl = `${baseUrl}/${bucket}/${key}`;
     } else {
-        publicUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
+        publicUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
     }
 
     return publicUrl;
 }
+

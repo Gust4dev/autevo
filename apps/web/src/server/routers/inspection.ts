@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { router, protectedProcedure, protectedProcedureNoRateLimit, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { generateChecklistItems, REQUIRED_CHECKLIST_ITEMS } from '@/lib/ChecklistDefinition';
-import { uploadFile } from '@/lib/storage';
+import { uploadFile, UploadContext } from '@/lib/storage';
 
 const inspectionTypeEnum = z.enum(['entrada', 'intermediaria', 'final']);
 const inspectionStatusEnum = z.enum(['em_andamento', 'concluida']);
@@ -485,9 +485,13 @@ export const inspectionRouter = router({
 
             const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            const fileName = `signatures/${ctx.tenantId}/${inspection.order.code}-${inspection.type}-${Date.now()}.png`;
+            const fileName = `${inspection.order.code}-${inspection.type}-signature-${Date.now()}.png`;
+            const uploadContext: UploadContext = {
+                tenantId: ctx.tenantId!,
+                orderId: inspection.order.code,
+            };
 
-            const signatureUrl = await uploadFile(buffer, fileName, 'image/png');
+            const signatureUrl = await uploadFile(buffer, fileName, 'image/png', uploadContext);
 
             const updated = await ctx.db.inspection.update({
                 where: { id: input.inspectionId },
@@ -582,9 +586,13 @@ export const inspectionRouter = router({
 
             const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            const fileName = `signatures/${inspection.order.tenantId}/${inspection.order.code}-${inspection.type}-${Date.now()}.png`;
+            const fileName = `${inspection.order.code}-${inspection.type}-signature-${Date.now()}.png`;
+            const uploadContext: UploadContext = {
+                tenantId: inspection.order.tenantId,
+                orderId: inspection.order.code,
+            };
 
-            const signatureUrl = await uploadFile(buffer, fileName, 'image/png');
+            const signatureUrl = await uploadFile(buffer, fileName, 'image/png', uploadContext);
 
             const updated = await ctx.db.inspection.update({
                 where: { id: input.inspectionId },
