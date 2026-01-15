@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/web/src/app/icon.svg" alt="Autevo Logo" width="80" height="80" />
+  <img src="apps/web/src/app/icon.svg" alt="Autevo Logo" width="150" height="150" />
 </p>
 
 <h1 align="center">Autevo</h1>
