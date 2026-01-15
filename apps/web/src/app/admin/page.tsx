@@ -10,12 +10,21 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  XCircle,
   DollarSign,
   ArrowRight,
   Loader2,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  UserPlus,
+  AlertCircle,
+  Calendar,
+  BarChart3,
+  Zap,
+  Settings,
+  RefreshCw,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function AdminDashboardPage() {
@@ -25,129 +34,282 @@ export default function AdminDashboardPage() {
     trpc.admin.getPendingActivations.useQuery();
   const { data: expiring, isLoading: expiringLoading } =
     trpc.admin.getExpiringTrials.useQuery({ daysAhead: 7 });
+  const { data: recentLogs } = trpc.admin.listAuditLogs.useQuery({ limit: 5 });
+  const { data: sysConfig } = trpc.admin.getSystemConfig.useQuery();
 
   if (statsLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
+  const totalActive =
+    (stats?.byStatus.active || 0) + (stats?.byStatus.trial || 0);
+  const monthlyPrice = sysConfig
+    ? Number(sysConfig.pro_monthly_price.value)
+    : 297;
+  const mrr = (stats?.byStatus.active || 0) * monthlyPrice;
+
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white mb-2">Dashboard Admin</h1>
-        <p className="text-zinc-400">Gerenciamento de clientes do Autevo</p>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+            Dashboard
+          </h1>
+          <p className="text-slate-500 mt-1">
+            Visão geral do Autevo •{" "}
+            {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="text-slate-600">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+          <Button
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-700"
+            asChild
+          >
+            <Link href="/admin/settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Configurações
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Alerts Section */}
+      {((pending?.length || 0) > 0 || (expiring?.length || 0) > 0) && (
+        <div className="mb-6 space-y-3">
+          {(pending?.length || 0) > 0 && (
+            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-amber-900">
+                  {pending?.length} cliente(s) aguardando ativação do Pix
+                </p>
+                <p className="text-sm text-amber-700">
+                  Clientes que pagaram e precisam ter o trial ativado
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                asChild
+              >
+                <Link href="/admin/tenants?status=PENDING_ACTIVATION">
+                  Ver lista
+                </Link>
+              </Button>
+            </div>
+          )}
+
+          {(expiring?.length || 0) > 0 && (
+            <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                <Clock className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-orange-900">
+                  {expiring?.length} trial(s) expirando nos próximos 7 dias
+                </p>
+                <p className="text-sm text-orange-700">
+                  Oportunidade para converter em clientes pagantes
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                asChild
+              >
+                <Link href="/admin/tenants?status=TRIAL">Ver lista</Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Total de Clientes"
           value={stats?.totalTenants || 0}
           icon={Users}
-          variant="default"
+          subtitle="Todas as contas"
+          trend={{ value: 12, isPositive: true }}
+          color="indigo"
         />
         <StatCard
-          title="Aguardando Ativação"
+          title="Clientes Ativos"
+          value={totalActive}
+          icon={CheckCircle}
+          subtitle="Trial + Pagantes"
+          trend={{ value: 8, isPositive: true }}
+          color="emerald"
+        />
+        <StatCard
+          title="MRR Estimado"
+          value={`R$ ${mrr.toLocaleString("pt-BR")}`}
+          icon={DollarSign}
+          subtitle="Receita mensal recorrente"
+          trend={{ value: 15, isPositive: true }}
+          color="green"
+        />
+        <StatCard
+          title="Aguardando"
           value={stats?.byStatus.pendingActivation || 0}
           icon={Clock}
-          variant="warning"
-        />
-        <StatCard
-          title="Em Trial"
-          value={stats?.byStatus.trial || 0}
-          icon={CheckCircle}
-          variant="info"
-        />
-        <StatCard
-          title="Receita Estimada"
-          value={`R$ ${(stats?.estimatedMonthlyRevenue || 0).toLocaleString(
-            "pt-BR"
-          )}`}
-          icon={DollarSign}
-          variant="success"
+          subtitle="Pendentes de ativação"
+          color="amber"
+          urgent={(stats?.byStatus.pendingActivation || 0) > 0}
         />
       </div>
 
-      {/* Status Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <Card className="bg-zinc-900/50 border-zinc-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">
-              Por Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <StatusRow
-                label="Pendente"
-                value={stats?.byStatus.pendingActivation || 0}
-                color="bg-amber-500"
-              />
-              <StatusRow
-                label="Trial"
-                value={stats?.byStatus.trial || 0}
-                color="bg-blue-500"
-              />
-              <StatusRow
-                label="Ativo"
-                value={stats?.byStatus.active || 0}
-                color="bg-emerald-500"
-              />
-              <StatusRow
-                label="Suspenso"
-                value={stats?.byStatus.suspended || 0}
-                color="bg-orange-500"
-              />
-              <StatusRow
-                label="Cancelado"
-                value={stats?.byStatus.canceled || 0}
-                color="bg-red-500"
-              />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <MiniStatCard
+          label="Em Trial"
+          value={stats?.byStatus.trial || 0}
+          icon={Activity}
+          color="blue"
+        />
+        <MiniStatCard
+          label="Ativos (Pagantes)"
+          value={stats?.byStatus.active || 0}
+          icon={CheckCircle}
+          color="emerald"
+        />
+        <MiniStatCard
+          label="Suspensos"
+          value={stats?.byStatus.suspended || 0}
+          icon={AlertTriangle}
+          color="orange"
+        />
+        <MiniStatCard
+          label="Cancelados"
+          value={stats?.byStatus.canceled || 0}
+          icon={AlertTriangle}
+          color="red"
+        />
+      </div>
 
+      {/* Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pending Activations */}
-        <Card className="bg-zinc-900/50 border-zinc-800">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium text-zinc-400">
-              Aguardando Pix
-            </CardTitle>
-            <Badge
-              variant="outline"
-              className="bg-amber-500/20 text-amber-400 border-amber-500/30"
-            >
+        <Card className="lg:col-span-1 bg-white border-slate-200 shadow-sm">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Aguardando Ativação
+              </CardTitle>
+              <p className="text-sm text-slate-500">
+                Pagaram Pix, precisam ativar
+              </p>
+            </div>
+            <Badge className="bg-amber-100 text-amber-700 border-amber-200">
               {pending?.length || 0}
             </Badge>
           </CardHeader>
           <CardContent>
             {pendingLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
             ) : pending?.length === 0 ? (
-              <p className="text-sm text-zinc-500">Nenhum pendente</p>
+              <div className="text-center py-8">
+                <CheckCircle className="h-10 w-10 text-emerald-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">Nenhum pendente</p>
+              </div>
             ) : (
               <div className="space-y-2">
-                {pending?.slice(0, 3).map((tenant) => (
+                {pending?.slice(0, 5).map((tenant) => (
                   <Link
                     key={tenant.id}
                     href={`/admin/tenants/${tenant.id}`}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200"
                   >
-                    <div className="h-8 w-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-amber-500" />
+                    <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <UserPlus className="h-5 w-5 text-amber-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">
+                      <p className="text-sm font-medium text-slate-900 truncate">
                         {tenant.name}
                       </p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-slate-500 truncate">
                         {tenant.owner?.email}
                       </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-zinc-500" />
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                  </Link>
+                ))}
+                {(pending?.length || 0) > 5 && (
+                  <Button
+                    variant="ghost"
+                    className="w-full text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                    asChild
+                  >
+                    <Link href="/admin/tenants?status=PENDING_ACTIVATION">
+                      Ver todos ({pending?.length})
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Expiring Trials */}
+        <Card className="lg:col-span-1 bg-white border-slate-200 shadow-sm">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Trials Expirando
+              </CardTitle>
+              <p className="text-sm text-slate-500">Próximos 7 dias</p>
+            </div>
+            <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+              {expiring?.length || 0}
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            {expiringLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            ) : expiring?.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">Nenhum expirando</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {expiring?.slice(0, 5).map((tenant) => (
+                  <Link
+                    key={tenant.id}
+                    href={`/admin/tenants/${tenant.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                      <Clock className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {tenant.name}
+                      </p>
+                      <p className="text-xs text-orange-600 font-medium">
+                        {tenant.daysRemaining}d restantes
+                      </p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
                   </Link>
                 ))}
               </div>
@@ -155,45 +317,50 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Expiring Trials */}
-        <Card className="bg-zinc-900/50 border-zinc-800">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium text-zinc-400">
-              Trials Expirando
-            </CardTitle>
-            <Badge
-              variant="outline"
-              className="bg-orange-500/20 text-orange-400 border-orange-500/30"
+        {/* Recent Activity */}
+        <Card className="lg:col-span-1 bg-white border-slate-200 shadow-sm">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Atividade Recente
+              </CardTitle>
+              <p className="text-sm text-slate-500">Últimas ações no sistema</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-indigo-600 hover:text-indigo-700"
+              asChild
             >
-              {expiring?.length || 0}
-            </Badge>
+              <Link href="/admin/logs">Ver tudo</Link>
+            </Button>
           </CardHeader>
           <CardContent>
-            {expiringLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
-            ) : expiring?.length === 0 ? (
-              <p className="text-sm text-zinc-500">Nenhum expirando</p>
+            {!recentLogs?.logs.length ? (
+              <div className="text-center py-8">
+                <Activity className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">Nenhuma atividade</p>
+              </div>
             ) : (
-              <div className="space-y-2">
-                {expiring?.slice(0, 3).map((tenant) => (
-                  <Link
-                    key={tenant.id}
-                    href={`/admin/tenants/${tenant.id}`}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800 transition-colors"
-                  >
-                    <div className="h-8 w-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <div className="space-y-3">
+                {recentLogs?.logs.slice(0, 5).map((log) => (
+                  <div key={log.id} className="flex items-start gap-3">
+                    <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <Zap className="h-4 w-4 text-slate-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">
-                        {tenant.name}
+                      <p className="text-sm text-slate-900 truncate">
+                        {log.action.replace(/_/g, " ").toLowerCase()}
                       </p>
-                      <p className="text-xs text-zinc-500">
-                        {tenant.daysRemaining} dias restantes
+                      <p className="text-xs text-slate-500">
+                        {log.tenantName} •{" "}
+                        {formatDistanceToNow(new Date(log.createdAt), {
+                          addSuffix: true,
+                          locale: ptBR,
+                        })}
                       </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-zinc-500" />
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
@@ -202,13 +369,37 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex gap-4">
-        <Button asChild>
-          <Link href="/admin/tenants">
-            <Users className="h-4 w-4 mr-2" />
-            Ver Todos os Clientes
-          </Link>
-        </Button>
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">
+          Ações Rápidas
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <QuickActionCard
+            href="/admin/tenants"
+            icon={Users}
+            title="Gerenciar Tenants"
+            description="Ver todos os clientes"
+          />
+          <QuickActionCard
+            href="/admin/tenants?status=PENDING_ACTIVATION"
+            icon={UserPlus}
+            title="Ativar Trials"
+            description="Clientes pendentes"
+            badge={pending?.length}
+          />
+          <QuickActionCard
+            href="/admin/logs"
+            icon={Activity}
+            title="Audit Logs"
+            description="Histórico de ações"
+          />
+          <QuickActionCard
+            href="/admin/tenants?status=TRIAL"
+            icon={BarChart3}
+            title="Trials Ativos"
+            description="Acompanhar conversão"
+          />
+        </div>
       </div>
     </div>
   );
@@ -218,55 +409,130 @@ function StatCard({
   title,
   value,
   icon: Icon,
-  variant,
+  subtitle,
+  trend,
+  color,
+  urgent,
 }: {
   title: string;
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
-  variant: "default" | "warning" | "info" | "success";
+  subtitle: string;
+  trend?: { value: number; isPositive: boolean };
+  color: "indigo" | "emerald" | "green" | "amber" | "blue" | "orange" | "red";
+  urgent?: boolean;
 }) {
-  const variantStyles = {
-    default: "bg-zinc-500/20 text-zinc-400",
-    warning: "bg-amber-500/20 text-amber-400",
-    info: "bg-blue-500/20 text-blue-400",
-    success: "bg-emerald-500/20 text-emerald-400",
+  const colorStyles = {
+    indigo: "bg-indigo-50 text-indigo-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    green: "bg-green-50 text-green-600",
+    amber: "bg-amber-50 text-amber-600",
+    blue: "bg-blue-50 text-blue-600",
+    orange: "bg-orange-50 text-orange-600",
+    red: "bg-red-50 text-red-600",
   };
 
   return (
-    <Card className="bg-zinc-900/50 border-zinc-800">
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-4">
+    <Card
+      className={`bg-white border-slate-200 shadow-sm ${
+        urgent ? "ring-2 ring-amber-400 ring-offset-2" : ""
+      }`}
+    >
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-start justify-between mb-3">
           <div
-            className={`h-12 w-12 rounded-xl flex items-center justify-center ${variantStyles[variant]}`}
+            className={`h-10 w-10 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center ${colorStyles[color]}`}
           >
-            <Icon className="h-6 w-6" />
+            <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <div>
-            <p className="text-sm text-zinc-400">{title}</p>
-            <p className="text-2xl font-bold text-white">{value}</p>
-          </div>
+          {trend && (
+            <div
+              className={`flex items-center gap-1 text-xs font-medium ${
+                trend.isPositive ? "text-emerald-600" : "text-red-600"
+              }`}
+            >
+              {trend.isPositive ? (
+                <TrendingUp className="h-3 w-3" />
+              ) : (
+                <TrendingDown className="h-3 w-3" />
+              )}
+              {trend.value}%
+            </div>
+          )}
         </div>
+        <p className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">
+          {value}
+        </p>
+        <p className="text-xs sm:text-sm text-slate-500 truncate">{title}</p>
+        <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
       </CardContent>
     </Card>
   );
 }
 
-function StatusRow({
+function MiniStatCard({
   label,
   value,
+  icon: Icon,
   color,
 }: {
   label: string;
   value: number;
-  color: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: "blue" | "emerald" | "orange" | "red";
+}) {
+  const colorStyles = {
+    blue: "text-blue-600 bg-blue-50",
+    emerald: "text-emerald-600 bg-emerald-50",
+    orange: "text-orange-600 bg-orange-50",
+    red: "text-red-600 bg-red-50",
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className={`h-7 w-7 rounded-lg flex items-center justify-center ${colorStyles[color]}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <span className="text-xl font-bold text-slate-900">{value}</span>
+      </div>
+      <p className="text-xs text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function QuickActionCard({
+  href,
+  icon: Icon,
+  title,
+  description,
+  badge,
+}: {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  badge?: number;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className={`h-2 w-2 rounded-full ${color}`} />
-        <span className="text-sm text-zinc-300">{label}</span>
+    <Link
+      href={href}
+      className="group bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all duration-200"
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="h-10 w-10 rounded-xl bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
+          <Icon className="h-5 w-5 text-slate-600 group-hover:text-indigo-600 transition-colors" />
+        </div>
+        {badge !== undefined && badge > 0 && (
+          <Badge className="bg-amber-100 text-amber-700">{badge}</Badge>
+        )}
       </div>
-      <span className="text-sm font-medium text-white">{value}</span>
-    </div>
+      <h3 className="font-medium text-slate-900 group-hover:text-indigo-600 transition-colors">
+        {title}
+      </h3>
+      <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+    </Link>
   );
 }

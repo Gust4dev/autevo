@@ -115,16 +115,7 @@ export default function InspectionChecklistPage({ params }: PageProps) {
   const handleFileUpload = async (itemId: string, file: File) => {
     setUploadingItemId(itemId);
 
-    // Debug logging for mobile photo issues
-    console.log("[Inspection Upload] File:", {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified,
-    });
-
     try {
-      // CONVERT TO WEBP BASE64 ON CLIENT SIDE
       const base64 = await convertFileToWebPBase64(file);
 
       updateItem.mutate({
@@ -546,19 +537,11 @@ function ChecklistItemCard({
     try {
       const file = e.target.files?.[0];
       if (file) {
-        console.log(
-          "[FileChange] File selected:",
-          file.name,
-          file.type,
-          file.size
-        );
         onUpload(file);
-      } else {
       }
     } catch (error) {
       console.error("[FileChange] Error in handler:", error);
     }
-    // Reset input to allow selecting same file again
     e.target.value = "";
   };
 

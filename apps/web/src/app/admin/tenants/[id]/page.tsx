@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft,
   Clock,
@@ -23,6 +24,13 @@ import {
   Car,
   Wrench,
   Calendar,
+  Timer,
+  Hourglass,
+  Ban,
+  CreditCard,
+  Mail,
+  Phone,
+  Globe,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,43 +46,57 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const statusConfig: Record<
   TenantStatus,
   {
     label: string;
     color: string;
+    bgColor: string;
     icon: React.ComponentType<{ className?: string }>;
   }
 > = {
   PENDING_ACTIVATION: {
     label: "Pendente",
-    color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    color: "text-amber-700",
+    bgColor: "bg-amber-100",
     icon: Clock,
   },
   TRIAL: {
     label: "Trial",
-    color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    color: "text-blue-700",
+    bgColor: "bg-blue-100",
     icon: Clock,
   },
   ACTIVE: {
     label: "Ativo",
-    color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    color: "text-emerald-700",
+    bgColor: "bg-emerald-100",
     icon: CheckCircle,
   },
   SUSPENDED: {
     label: "Suspenso",
-    color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    color: "text-orange-700",
+    bgColor: "bg-orange-100",
     icon: AlertTriangle,
   },
   PAST_DUE: {
     label: "Atrasado",
-    color: "bg-red-500/20 text-red-400 border-red-500/30",
+    color: "text-red-700",
+    bgColor: "bg-red-100",
     icon: AlertTriangle,
   },
   CANCELED: {
     label: "Cancelado",
-    color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+    color: "text-slate-600",
+    bgColor: "bg-slate-100",
     icon: XCircle,
   },
 };
@@ -88,6 +110,9 @@ export default function TenantDetailsPage() {
   const [showActivateDialog, setShowActivateDialog] = useState(false);
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [showReactivateDialog, setShowReactivateDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [newPlan, setNewPlan] = useState<string>("");
 
   const {
     data: tenant,
@@ -130,18 +155,36 @@ export default function TenantDetailsPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const cancelMutation = trpc.admin.cancelTenant.useMutation({
+    onSuccess: () => {
+      toast.success("Conta cancelada permanentemente");
+      refetch();
+      setShowCancelDialog(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updatePlanMutation = trpc.admin.updateTenantPlan.useMutation({
+    onSuccess: () => {
+      toast.success("Plano atualizado!");
+      refetch();
+      setShowPlanDialog(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
   if (!tenant) {
     return (
-      <div className="p-8">
-        <p className="text-zinc-300">Tenant não encontrado</p>
+      <div className="p-4 sm:p-8">
+        <p className="text-slate-600">Tenant não encontrado</p>
       </div>
     );
   }
@@ -150,44 +193,116 @@ export default function TenantDetailsPage() {
   const StatusIcon = status.icon;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.back()}
-          className="text-zinc-300 hover:text-white hover:bg-zinc-800"
+          className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">{tenant.name}</h1>
-          <p className="text-zinc-300">{tenant.slug}</p>
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xl">
+              {tenant.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {tenant.name}
+              </h1>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Globe className="h-3.5 w-3.5" />
+                <span>{tenant.slug}</span>
+              </div>
+            </div>
+          </div>
         </div>
         <Badge
-          variant="outline"
-          className={`${status.color} text-sm px-3 py-1 font-medium`}
+          className={`${status.bgColor} ${status.color} border-0 text-sm px-3 py-1.5 font-medium self-start sm:self-center`}
         >
-          <StatusIcon className="h-4 w-4 mr-1" />
+          <StatusIcon className="h-4 w-4 mr-1.5" />
           {status.label}
         </Badge>
       </div>
 
+      {/* Trial Countdown Banner */}
+      {tenant.trialTimeRemaining && tenant.status === "TRIAL" && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 mb-6 overflow-hidden">
+          <CardContent className="p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+                  <Timer className="h-7 w-7 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-600 mb-0.5">
+                    Tempo restante do Trial
+                  </p>
+                  {tenant.trialTimeRemaining.isExpired ? (
+                    <p className="text-2xl sm:text-3xl font-bold text-red-600">
+                      Expirado
+                    </p>
+                  ) : (
+                    <p className="text-2xl sm:text-3xl font-bold text-slate-900">
+                      {tenant.trialTimeRemaining.days}d{" "}
+                      {tenant.trialTimeRemaining.hours}h{" "}
+                      {tenant.trialTimeRemaining.minutes}m
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 sm:max-w-xs">
+                <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                  <span>Progresso do trial</span>
+                  <span className="font-medium text-slate-700">
+                    {tenant.trialProgress}%
+                  </span>
+                </div>
+                <Progress
+                  value={tenant.trialProgress}
+                  className="h-2.5 bg-blue-100"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* System Usage Banner */}
+      {tenant.systemUsageTime && (
+        <div className="flex items-center gap-3 mb-6 p-4 bg-slate-100 rounded-xl">
+          <Hourglass className="h-5 w-5 text-slate-500" />
+          <span className="text-sm text-slate-600">
+            Usando o sistema há{" "}
+            <span className="text-slate-900 font-semibold">
+              {tenant.systemUsageTime.totalDays} dias
+            </span>
+          </span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
+        {/* Main Info - 2 columns */}
         <div className="lg:col-span-2 space-y-6">
           {/* General Info */}
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardHeader>
-              <CardTitle className="text-lg text-zinc-100">
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100">
+              <CardTitle className="text-lg text-slate-900">
                 Informações Gerais
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-0 divide-y divide-slate-100">
               <InfoRow label="ID" value={tenant.id} mono />
               <InfoRow label="Nome" value={tenant.name} />
-              <InfoRow label="Slug" value={tenant.slug} mono />
+              <InfoRow label="Slug" value={tenant.slug} />
+              <InfoRow
+                label="Plano"
+                value={tenant.plan.replace("_", " ").toUpperCase()}
+                badge
+              />
               <InfoRow
                 label="Criado em"
                 value={format(
@@ -219,27 +334,37 @@ export default function TenantDetailsPage() {
           </Card>
 
           {/* Users */}
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardHeader>
-              <CardTitle className="text-lg text-zinc-100">
-                Usuários ({tenant.users.length})
-              </CardTitle>
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg text-slate-900">Usuários</CardTitle>
+              <Badge
+                variant="secondary"
+                className="bg-slate-100 text-slate-600"
+              >
+                {tenant.users.length}
+              </Badge>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4">
               <div className="space-y-3">
                 {tenant.users.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-4 bg-zinc-800/80 rounded-lg border border-zinc-700/50"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100"
                   >
-                    <div>
-                      <p className="font-medium text-zinc-100">{user.name}</p>
-                      <p className="text-sm text-zinc-300">{user.email}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-medium text-sm shrink-0">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900 truncate">
+                          {user.name}
+                        </p>
+                        <p className="text-sm text-slate-500 truncate">
+                          {user.email}
+                        </p>
+                      </div>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="text-xs bg-zinc-950 text-zinc-300 border-zinc-700"
-                    >
+                    <Badge className="bg-slate-200 text-slate-700 border-0 self-start sm:self-center shrink-0">
                       {user.role}
                     </Badge>
                   </div>
@@ -249,44 +374,48 @@ export default function TenantDetailsPage() {
           </Card>
 
           {/* Usage Stats */}
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardHeader>
-              <CardTitle className="text-lg text-zinc-100">
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100">
+              <CardTitle className="text-lg text-slate-900">
                 Métricas de Uso
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <UsageStat
                   icon={ClipboardList}
                   label="Ordens"
                   value={tenant.usage.orders}
+                  color="indigo"
                 />
                 <UsageStat
                   icon={Users}
                   label="Clientes"
                   value={tenant.usage.customers}
+                  color="blue"
                 />
                 <UsageStat
                   icon={Car}
                   label="Veículos"
                   value={tenant.usage.vehicles}
+                  color="purple"
                 />
                 <UsageStat
                   icon={Wrench}
                   label="Serviços"
                   value={tenant.usage.services}
+                  color="emerald"
                 />
               </div>
-              <div className="mt-4 pt-4 border-t border-zinc-800">
-                <div className="flex items-center gap-2 text-sm text-zinc-400">
-                  <Calendar className="h-4 w-4" />
-                  Última atividade:{" "}
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 text-sm text-slate-500">
+                <Calendar className="h-4 w-4" />
+                Última atividade:{" "}
+                <span className="text-slate-700 font-medium">
                   {formatDistanceToNow(new Date(tenant.lastActivity), {
                     addSuffix: true,
                     locale: ptBR,
                   })}
-                </div>
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -294,14 +423,15 @@ export default function TenantDetailsPage() {
 
         {/* Actions Sidebar */}
         <div className="space-y-6">
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardHeader>
-              <CardTitle className="text-lg text-zinc-100">Ações</CardTitle>
+          {/* Quick Actions */}
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100">
+              <CardTitle className="text-lg text-slate-900">Ações</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="p-4 space-y-3">
               {tenant.status === "PENDING_ACTIVATION" && (
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                   onClick={() => setShowActivateDialog(true)}
                 >
                   <Play className="h-4 w-4 mr-2" />
@@ -310,7 +440,10 @@ export default function TenantDetailsPage() {
               )}
 
               {tenant.status === "TRIAL" && (
-                <div className="space-y-2">
+                <div className="space-y-2 p-3 bg-slate-50 rounded-xl">
+                  <p className="text-sm font-medium text-slate-700">
+                    Estender Trial
+                  </p>
                   <div className="flex gap-2">
                     <Input
                       type="number"
@@ -318,7 +451,7 @@ export default function TenantDetailsPage() {
                       max={365}
                       value={extendDays}
                       onChange={(e) => setExtendDays(Number(e.target.value))}
-                      className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                      className="bg-white border-slate-200"
                     />
                     <Button
                       variant="outline"
@@ -329,22 +462,31 @@ export default function TenantDetailsPage() {
                         })
                       }
                       disabled={extendMutation.isPending}
-                      className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+                      className="shrink-0 border-slate-200"
                     >
                       <Plus className="h-4 w-4 mr-1" />
-                      Estender
+                      Dias
                     </Button>
                   </div>
-                  <p className="text-xs text-zinc-400">
-                    Adicionar dias ao trial
-                  </p>
                 </div>
               )}
+
+              <Button
+                variant="outline"
+                className="w-full border-slate-200 text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setNewPlan(tenant.plan);
+                  setShowPlanDialog(true);
+                }}
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Alterar Plano
+              </Button>
 
               {["TRIAL", "ACTIVE", "PAST_DUE"].includes(tenant.status) && (
                 <Button
                   variant="outline"
-                  className="w-full border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300"
+                  className="w-full border-orange-200 text-orange-700 hover:bg-orange-50"
                   onClick={() => setShowSuspendDialog(true)}
                 >
                   <Pause className="h-4 w-4 mr-2" />
@@ -354,36 +496,77 @@ export default function TenantDetailsPage() {
 
               {tenant.status === "SUSPENDED" && (
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                   onClick={() => setShowReactivateDialog(true)}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Reativar Conta
                 </Button>
               )}
+
+              {tenant.status !== "CANCELED" && (
+                <Button
+                  variant="outline"
+                  className="w-full border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={() => setShowCancelDialog(true)}
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  Cancelar Permanentemente
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Contact Info */}
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100">
+              <CardTitle className="text-lg text-slate-900">Contato</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              {tenant.email && (
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <Mail className="h-4 w-4 text-slate-500" />
+                  </div>
+                  <span className="text-slate-700">{tenant.email}</span>
+                </div>
+              )}
+              {tenant.phone && (
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <Phone className="h-4 w-4 text-slate-500" />
+                  </div>
+                  <span className="text-slate-700">{tenant.phone}</span>
+                </div>
+              )}
+              {!tenant.email && !tenant.phone && (
+                <p className="text-sm text-slate-400 text-center py-2">
+                  Nenhuma informação de contato
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Activate Dialog */}
+      {/* Dialogs */}
       <AlertDialog
         open={showActivateDialog}
         onOpenChange={setShowActivateDialog}
       >
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+        <AlertDialogContent className="bg-white max-w-[95vw] sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">
+            <AlertDialogTitle className="text-slate-900">
               Ativar Trial
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogDescription className="text-slate-500">
               Isso ativará o trial de 60 dias para{" "}
-              <span className="text-white font-medium">{tenant.name}</span>. O
-              cliente poderá acessar o sistema imediatamente.
+              <span className="text-slate-900 font-medium">{tenant.name}</span>.
+              O cliente poderá acessar o sistema imediatamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700 hover:text-white">
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="border-slate-200">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
@@ -391,7 +574,7 @@ export default function TenantDetailsPage() {
                 activateMutation.mutate({ tenantId, trialDays: 60 })
               }
               disabled={activateMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {activateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -403,28 +586,26 @@ export default function TenantDetailsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Suspend Dialog */}
       <AlertDialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+        <AlertDialogContent className="bg-white max-w-[95vw] sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">
+            <AlertDialogTitle className="text-slate-900">
               Suspender Conta
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogDescription className="text-slate-500">
               Isso suspenderá imediatamente o acesso de{" "}
-              <span className="text-white font-medium">{tenant.name}</span> ao
-              sistema. Os dados serão mantidos e a conta pode ser reativada
-              depois.
+              <span className="text-slate-900 font-medium">{tenant.name}</span>{" "}
+              ao sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700 hover:text-white">
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="border-slate-200">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => suspendMutation.mutate({ tenantId })}
               disabled={suspendMutation.isPending}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
+              className="bg-orange-600 hover:bg-orange-700"
             >
               {suspendMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -436,23 +617,22 @@ export default function TenantDetailsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Reactivate Dialog */}
       <AlertDialog
         open={showReactivateDialog}
         onOpenChange={setShowReactivateDialog}
       >
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+        <AlertDialogContent className="bg-white max-w-[95vw] sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">
+            <AlertDialogTitle className="text-slate-900">
               Reativar Conta
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogDescription className="text-slate-500">
               Escolha como reativar a conta de{" "}
-              <span className="text-white font-medium">{tenant.name}</span>:
+              <span className="text-slate-900 font-medium">{tenant.name}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel className="bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700 hover:text-white">
+          <AlertDialogFooter className="flex-col gap-2">
+            <AlertDialogCancel className="border-slate-200">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
@@ -464,7 +644,7 @@ export default function TenantDetailsPage() {
                 })
               }
               disabled={reactivateMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700"
             >
               Como Trial (60 dias)
             </AlertDialogAction>
@@ -473,9 +653,96 @@ export default function TenantDetailsPage() {
                 reactivateMutation.mutate({ tenantId, asStatus: "ACTIVE" })
               }
               disabled={reactivateMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               Como Ativo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent className="bg-white max-w-[95vw] sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">
+              Cancelar Conta Permanentemente
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500">
+              Esta ação marcará a conta de{" "}
+              <span className="text-slate-900 font-medium">{tenant.name}</span>{" "}
+              como cancelada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="border-slate-200">
+              Voltar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelMutation.mutate({ tenantId })}
+              disabled={cancelMutation.isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {cancelMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Cancelar Conta"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+        <AlertDialogContent className="bg-white max-w-[95vw] sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900">
+              Alterar Plano
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500">
+              Selecione o novo plano para{" "}
+              <span className="text-slate-900 font-medium">{tenant.name}</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Select value={newPlan} onValueChange={setNewPlan}>
+              <SelectTrigger className="bg-white border-slate-200">
+                <SelectValue placeholder="Selecione um plano" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-slate-200">
+                <SelectItem value="pro_monthly">
+                  Pro Mensal (R$ 297/mês)
+                </SelectItem>
+                <SelectItem value="pro_yearly">
+                  Pro Anual (R$ 2.970/ano)
+                </SelectItem>
+                <SelectItem value="enterprise">
+                  Enterprise (Sob consulta)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="border-slate-200">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                updatePlanMutation.mutate({
+                  tenantId,
+                  newPlan: newPlan as
+                    | "pro_monthly"
+                    | "pro_yearly"
+                    | "enterprise",
+                })
+              }
+              disabled={updatePlanMutation.isPending || !newPlan}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {updatePlanMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Salvar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -488,21 +755,31 @@ function InfoRow({
   label,
   value,
   mono,
+  badge,
 }: {
   label: string;
   value: string;
   mono?: boolean;
+  badge?: boolean;
 }) {
   return (
-    <div className="flex justify-between items-center py-2 border-b border-zinc-800/50 last:border-0">
-      <span className="text-sm text-zinc-400 font-medium">{label}</span>
-      <span
-        className={`text-sm text-zinc-100 ${
-          mono ? "font-mono bg-zinc-800 px-2 py-0.5 rounded text-xs" : ""
-        }`}
-      >
-        {value}
-      </span>
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 px-6 py-4">
+      <span className="text-sm text-slate-500">{label}</span>
+      {badge ? (
+        <Badge className="bg-indigo-100 text-indigo-700 border-0 w-fit">
+          {value}
+        </Badge>
+      ) : (
+        <span
+          className={`text-sm text-slate-900 ${
+            mono
+              ? "font-mono text-xs bg-slate-100 px-2 py-1 rounded"
+              : "font-medium"
+          }`}
+        >
+          {value}
+        </span>
+      )}
     </div>
   );
 }
@@ -511,24 +788,31 @@ function UsageStat({
   icon: Icon,
   label,
   value,
+  color,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
+  color: "indigo" | "blue" | "purple" | "emerald";
 }) {
+  const colorStyles = {
+    indigo: "bg-indigo-50 text-indigo-600",
+    blue: "bg-blue-50 text-blue-600",
+    purple: "bg-purple-50 text-purple-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+  };
+
   return (
-    <div className="flex items-center gap-3 p-4 bg-zinc-800/50 rounded-lg border border-zinc-800 hover:bg-zinc-800 transition-colors">
-      <div className="p-2 bg-zinc-900 rounded-md">
-        <Icon className="h-5 w-5 text-zinc-300" />
+    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-center">
+      <div
+        className={`h-10 w-10 rounded-xl ${colorStyles[color]} flex items-center justify-center mx-auto mb-2`}
+      >
+        <Icon className="h-5 w-5" />
       </div>
-      <div>
-        <p className="text-xl font-bold text-white leading-none mb-1">
-          {value}
-        </p>
-        <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
-          {label}
-        </p>
-      </div>
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mt-0.5">
+        {label}
+      </p>
     </div>
   );
 }

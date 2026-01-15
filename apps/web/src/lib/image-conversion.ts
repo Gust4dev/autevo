@@ -1,7 +1,46 @@
+import heic2any from 'heic2any';
+
+/**
+ * Detecta se o arquivo é HEIC/HEIF (formato padrão do iPhone)
+ */
+function isHeicFile(file: File): boolean {
+    const heicTypes = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
+    if (heicTypes.includes(file.type.toLowerCase())) return true;
+    const ext = file.name.toLowerCase().split('.').pop();
+    return ext === 'heic' || ext === 'heif';
+}
+
+/**
+ * Converte arquivo HEIC para Blob JPEG
+ */
+async function convertHeicToBlob(file: File): Promise<Blob> {
+    const result = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.92,
+    });
+    return Array.isArray(result) ? result[0] : result;
+}
+
+/**
+ * Pré-processa o arquivo, convertendo HEIC para JPEG se necessário
+ */
+async function preprocessFile(file: File): Promise<File> {
+    if (!isHeicFile(file)) {
+        return file;
+    }
+
+    const jpegBlob = await convertHeicToBlob(file);
+    const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+    return new File([jpegBlob], newName, { type: 'image/jpeg' });
+}
+
 export async function convertFileToWebP(file: File, quality = 0.8): Promise<File> {
+    const processedFile = await preprocessFile(file);
+
     return new Promise((resolve, reject) => {
         const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
+        const objectUrl = URL.createObjectURL(processedFile);
 
         img.onload = () => {
             try {
@@ -16,7 +55,7 @@ export async function convertFileToWebP(file: File, quality = 0.8): Promise<File
                     return;
                 }
 
-                if (file.type === 'image/png') {
+                if (processedFile.type === 'image/png') {
                     ctx.fillStyle = '#FFFFFF';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
@@ -28,7 +67,7 @@ export async function convertFileToWebP(file: File, quality = 0.8): Promise<File
                         URL.revokeObjectURL(objectUrl);
 
                         if (blob) {
-                            const newName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+                            const newName = processedFile.name.replace(/\.[^/.]+$/, '') + '.webp';
                             const newFile = new File([blob], newName, { type: 'image/webp' });
                             resolve(newFile);
                         } else {
@@ -54,8 +93,9 @@ export async function convertFileToWebP(file: File, quality = 0.8): Promise<File
 }
 
 export async function convertFileToWebPBase64(file: File, quality = 0.8): Promise<string> {
+    const processedFile = await preprocessFile(file);
+
     return new Promise((resolve, reject) => {
-        // Use FileReader for better iOS Safari compatibility
         const reader = new FileReader();
 
         reader.onload = () => {
@@ -76,7 +116,6 @@ export async function convertFileToWebPBase64(file: File, quality = 0.8): Promis
                     ctx.drawImage(img, 0, 0);
                     const base64 = canvas.toDataURL('image/webp', quality);
 
-                    // Fallback to JPEG if WebP not supported (older Safari)
                     if (base64 === 'data:,') {
                         const jpegBase64 = canvas.toDataURL('image/jpeg', quality);
                         resolve(jpegBase64);
@@ -99,7 +138,7 @@ export async function convertFileToWebPBase64(file: File, quality = 0.8): Promis
             reject(new Error('Erro ao ler o arquivo. Tente novamente.'));
         };
 
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(processedFile);
     });
 }
 
