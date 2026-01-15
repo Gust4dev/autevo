@@ -68,10 +68,13 @@ model Tenant {
   secondaryColor   String       @default("#1F2937")
   status           TenantStatus @default(PENDING_ACTIVATION)
   plan             String       @default("pro_monthly")
-  trialStartedAt   DateTime?
-  trialEndsAt      DateTime?
-  nextBillingAt    DateTime?
-  stripeCustomerId String?
+  trialStartedAt     DateTime?
+  trialEndsAt        DateTime?
+  nextBillingAt      DateTime?
+  customMonthlyPrice Decimal?   @db.Decimal(10, 2)
+  isFoundingMember   Boolean    @default(false)
+  billingCycleStart  DateTime?
+  stripeCustomerId   String?
   phone            String?
   email            String?
   address          String?

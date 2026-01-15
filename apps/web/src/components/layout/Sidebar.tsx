@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { useTenantTheme } from "@/components/providers/TenantThemeProvider";
+import { FoundingMemberBadge } from "./FoundingMemberBadge";
 
 type UserRole =
   | "ADMIN_SAAS"
@@ -134,6 +135,13 @@ export function Sidebar({ isCollapsed, onToggle, userRole }: SidebarProps) {
             )}
           </Link>
         </div>
+
+        {/* Founding Member Badge */}
+        {!isCollapsed && (user?.publicMetadata as any)?.isFoundingMember && (
+          <div className="px-3 pt-3">
+            <FoundingMemberBadge />
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3 scrollbar-thin">

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure, managerProcedure, ownerProcedure } from '../trpc';
+import { router, protectedProcedure, managerProcedure, authenticatedProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { encrypt, decrypt } from '@/lib/encryption';
 
@@ -146,4 +146,63 @@ export const settingsRouter = router({
 
             return tenant;
         }),
+
+    activateFreeTrial: authenticatedProcedure.mutation(async ({ ctx }) => {
+        if (!ctx.user.tenantId) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'No tenant found' });
+        }
+
+        const tenant = await ctx.db.tenant.findUnique({
+            where: { id: ctx.user.tenantId },
+            select: { status: true },
+        });
+
+        if (tenant?.status !== 'PENDING_ACTIVATION') {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Tenant not pending activation' });
+        }
+
+        const config = await ctx.db.systemConfig.findUnique({
+            where: { key: 'trial_days_standard' },
+        });
+
+        const trialDays = config?.value ? parseInt(config.value) : 14;
+        const now = new Date();
+        const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
+        const updated = await ctx.db.tenant.update({
+            where: { id: ctx.user.tenantId },
+            data: {
+                status: 'TRIAL',
+                trialStartedAt: now,
+                trialEndsAt,
+                isFoundingMember: false,
+            },
+        });
+
+        const { createAuditLog } = await import('@/lib/audit');
+        await createAuditLog({
+            tenantId: ctx.user.tenantId,
+            userId: ctx.user.id,
+            action: 'ACTIVATE_FREE_TRIAL',
+            entityType: 'Tenant',
+            entityId: ctx.user.tenantId,
+            oldValue: { status: tenant.status },
+            newValue: { status: 'TRIAL', trialDays },
+        });
+
+        // Update Clerk metadata
+        const clerk = await import('@clerk/nextjs/server').then((m) => m.clerkClient());
+        await clerk.users.updateUser(ctx.user.id, {
+            publicMetadata: {
+                tenantId: ctx.user.tenantId,
+                role: ctx.user.role,
+                dbUserId: ctx.user.id,
+                tenantStatus: 'TRIAL',
+                trialEndsAt: trialEndsAt.toISOString(),
+                isFoundingMember: false,
+            },
+        });
+
+        return { success: true };
+    }),
 });

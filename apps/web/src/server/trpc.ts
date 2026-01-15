@@ -127,6 +127,15 @@ const rateLimitMiddleware = middleware(async ({ ctx, next }) => {
 export const publicProcedure = t.procedure.use(rateLimitMiddleware);
 export const publicProcedureNoRateLimit = t.procedure;
 
+const authMiddleware = middleware(async ({ ctx, next }) => {
+    if (!ctx.user) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Login required' });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+export const authenticatedProcedure = publicProcedure.use(authMiddleware);
+
 export const protectedProcedure = publicProcedure
     .use(tenantMiddleware);
 

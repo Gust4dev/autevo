@@ -29,6 +29,8 @@ import {
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc/client";
+import { motion } from "framer-motion";
 
 const lexendDeca = Lexend_Deca({
   subsets: ["latin"],
@@ -37,15 +39,11 @@ const lexendDeca = Lexend_Deca({
 
 const PIX_KEY = "3d8b2e72-72be-4d71-bfbd-0eeaea20a4e8";
 const WHATSAPP_NUMBER = "5561998031185";
-const TRIAL_PRICE = [97];
+const FOUNDER_PRICE = 97;
+const FOUNDER_RENEWAL = 140;
+const REGULAR_PRICE = 190;
 const TRIAL_DAYS = 60;
-
-type TenantStatus =
-  | "PENDING_ACTIVATION"
-  | "TRIAL"
-  | "ACTIVE"
-  | "SUSPENDED"
-  | "CANCELED";
+const TOTAL_SLOTS = 15;
 
 const FEATURES = [
   {
@@ -101,41 +99,40 @@ export default function ActivatePage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [copied, setCopied] = useState(false);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const tenantStatus = user?.publicMetadata?.tenantStatus as
-    | TenantStatus
-    | undefined;
+  const { data: founderStats, isLoading: isLoadingStats } =
+    trpc.admin.getFoundingMemberStats.useQuery();
+  const activateFreeTrial = trpc.settings.activateFreeTrial.useMutation({
+    onSuccess: async () => {
+      // Force session refresh although window location change will also do it
+      await user?.reload();
+      // Use window.location.href to force a full page reload and ensure middleware sees new cookies/claims
+      window.location.href = "/dashboard";
+    },
+    onError: (err) => {
+      console.error("Failed to activate trial:", err);
+      // Optional: Add toast here
+    },
+  });
 
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    if (tenantStatus === "TRIAL" || tenantStatus === "ACTIVE") {
-      router.replace("/setup");
-      return;
-    }
-
-    if (tenantStatus === "SUSPENDED") {
-      router.replace("/suspended");
-      return;
-    }
-
-    setIsCheckingStatus(false);
-  }, [isLoaded, tenantStatus, router]);
+  const remainingSlots = founderStats
+    ? Math.max(0, TOTAL_SLOTS - founderStats.count)
+    : 0;
+  const progress = founderStats
+    ? Math.min(100, (founderStats.count / TOTAL_SLOTS) * 100)
+    : 0;
 
   const handleVerifyPayment = async () => {
     setIsVerifying(true);
     try {
-      // Reload the user data from Clerk to get updated metadata
       await user?.reload();
-
-      // Small delay to allow state to update
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Check the new status
+      const session = await user?.reload(); // Force reload to get metadata? No, reload() is void.
+      // Need to rely on router refresh or checking user object
       const newStatus = user?.publicMetadata?.tenantStatus as
-        | TenantStatus
+        | string
         | undefined;
 
       if (newStatus === "TRIAL" || newStatus === "ACTIVE") {
@@ -143,7 +140,6 @@ export default function ActivatePage() {
       } else if (newStatus === "SUSPENDED") {
         router.replace("/suspended");
       } else {
-        // Still pending - will show message via UI update
         setIsVerifying(false);
       }
     } catch (err) {
@@ -160,12 +156,12 @@ export default function ActivatePage() {
   };
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    `Olá! Acabei de criar minha conta no Autevo e fiz o Pix de R$ ${TRIAL_PRICE}. Meu email: ${
+    `Olá! Acabei de criar minha conta no Autevo e fiz o Pix de R$ ${FOUNDER_PRICE} para garantir minha vaga de Membro Fundador. Meu email: ${
       user?.emailAddresses?.[0]?.emailAddress || "N/A"
     }`
   )}`;
 
-  if (!isLoaded || isCheckingStatus) {
+  if (!isLoaded || isLoadingStats) {
     return (
       <div
         className={cn(
@@ -191,7 +187,6 @@ export default function ActivatePage() {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Header */}
       <header className="relative border-b border-white/10 px-6 py-4 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
@@ -212,57 +207,96 @@ export default function ActivatePage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="relative max-w-6xl mx-auto px-6 py-12">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500/20 to-emerald-500/20 border border-indigo-500/30 rounded-full mb-6">
-            <Sparkles className="h-4 w-4 text-indigo-400" />
-            <span className="text-sm font-medium text-indigo-300">
-              Falta pouco para transformar sua estética
-            </span>
+        {/* Scarcity Bar */}
+        <div className="max-w-2xl mx-auto mb-12">
+          <div className="bg-zinc-900/80 border border-white/10 rounded-xl p-4 backdrop-blur-sm shadow-xl">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-emerald-400 flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                MEMBROS FUNDADORES
+              </span>
+              <span className="text-sm font-bold text-white">
+                {founderStats?.count || 0} / {TOTAL_SLOTS} vagas preenchidas
+              </span>
+            </div>
+            <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500"
+              />
+            </div>
+            <p className="text-xs text-zinc-500 mt-2 text-center">
+              Garanta o preço vitalício antes que as vagas acabem.
+            </p>
           </div>
+        </div>
+
+        <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-            Bem-vindo, {user?.firstName || "Empresário"}!
+            Parabéns, {user?.firstName}!
           </h1>
           <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
-            Sua conta foi criada. Ative agora e tenha acesso completo ao sistema
-            que vai revolucionar sua gestão.
+            Você garantiu uma das vagas reservadas. Ative agora para travar seu
+            desconto vitalício.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
           {/* Left Column - Features */}
           <div className="space-y-6">
-            {/* What You Get */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
               <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <Star className="h-5 w-5 text-amber-400" />O que você vai
-                receber
+                <Star className="h-5 w-5 text-amber-400" />
+                Vantagens de Membro Fundador
               </h2>
-              <div className="grid gap-4">
-                {FEATURES.map((feature) => (
-                  <div
-                    key={feature.title}
-                    className="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors"
-                  >
-                    <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
-                      <feature.icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-white">
-                        {feature.title}
-                      </h3>
-                      <p className="text-sm text-zinc-400">
-                        {feature.description}
-                      </p>
-                    </div>
+              <ul className="space-y-4">
+                <li className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 mt-1">
+                    <Wallet className="h-5 w-5" />
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg">
+                      Preço Travado para Sempre
+                    </h3>
+                    <p className="text-zinc-400 text-sm">
+                      Enquanto outros pagarão R$ {REGULAR_PRICE}, você pagará
+                      apenas R$ {FOUNDER_RENEWAL} vitalício.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 mt-1">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg">
+                      Grupo VIP no WhatsApp
+                    </h3>
+                    <p className="text-zinc-400 text-sm">
+                      Acesso direto ao time de desenvolvimento para sugerir
+                      features.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 mt-1">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg">
+                      Selo Exclusivo
+                    </h3>
+                    <p className="text-zinc-400 text-sm">
+                      Badge de "Membro Fundador" no seu painel.
+                    </p>
+                  </div>
+                </li>
+              </ul>
             </div>
 
-            {/* Quick Benefits */}
             <div className="grid grid-cols-2 gap-3">
               {BENEFITS.map((benefit) => (
                 <div
@@ -276,164 +310,112 @@ export default function ActivatePage() {
             </div>
           </div>
 
-          {/* Right Column - Payment */}
+          {/* Right Column - Pricing & Payment */}
           <div className="space-y-6">
-            {/* Pricing Card */}
-            <div className="bg-gradient-to-b from-indigo-500/10 to-transparent border border-indigo-500/30 rounded-2xl p-6 backdrop-blur-sm">
+            <div className="bg-gradient-to-b from-indigo-500/10 to-transparent border border-indigo-500/30 rounded-2xl p-6 backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-amber-500 text-amber-950 text-xs font-bold px-3 py-1 rounded-bl-lg">
+                OFERTA LIMITADA
+              </div>
               <div className="text-center mb-6">
-                <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 rounded-full text-sm font-semibold mb-4 border border-amber-500/30">
-                  🔥 Oferta de Lançamento
-                </span>
                 <div className="flex items-baseline justify-center gap-2 mb-2">
                   <span className="text-zinc-500 line-through text-2xl">
-                    R$ 190
+                    R$ {REGULAR_PRICE}
                   </span>
                   <span className="text-6xl font-bold bg-gradient-to-r from-white to-zinc-300 bg-clip-text text-transparent">
-                    R$ {TRIAL_PRICE}
+                    R$ {FOUNDER_PRICE}
                   </span>
                 </div>
-                <p className="text-zinc-400">
-                  <span className="text-emerald-400 font-semibold">
+                <p className="text-zinc-300 mb-4">
+                  pelos primeiros{" "}
+                  <span className="text-emerald-400 font-bold">
                     {TRIAL_DAYS} dias
-                  </span>{" "}
-                  de acesso completo
+                  </span>
                 </p>
-              </div>
-
-              <ul className="space-y-3 mb-6">
-                {[
-                  "Acesso a TODAS as funcionalidades",
-                  "Usuários e OS ilimitados",
-                  "Suporte prioritário via WhatsApp",
-                  "Sem multa de cancelamento",
-                  "Dados 100% seguros na nuvem",
-                ].map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-center gap-3 text-zinc-200"
-                  >
-                    <div className="p-0.5 rounded-full bg-emerald-500">
-                      <Check className="h-3 w-3 text-white" />
-                    </div>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Payment Section */}
-            <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-              <h2 className="text-lg font-semibold mb-5 text-center">
-                Escaneie o QR Code ou copie a chave Pix
-              </h2>
-
-              {/* QR Code */}
-              <div className="flex justify-center mb-5">
-                <div className="bg-white p-3 rounded-xl shadow-2xl shadow-indigo-500/10">
-                  <Image
-                    src="/qrcode/qr1.webp"
-                    alt="QR Code Pix"
-                    width={180}
-                    height={180}
-                    className="rounded-lg"
-                  />
+                <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 inline-block">
+                  <p className="text-xs text-zinc-400">
+                    Renovação futura garantida:{" "}
+                    <span className="text-white font-bold">
+                      R$ {FOUNDER_RENEWAL}/mês
+                    </span>
+                  </p>
                 </div>
               </div>
 
-              {/* Pix Key */}
-              <div className="mb-5">
-                <div className="flex items-center gap-2 bg-zinc-800/80 rounded-xl p-3 border border-zinc-700">
-                  <code className="flex-1 text-sm text-zinc-300 break-all font-mono">
-                    {PIX_KEY}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCopyPix}
-                    className={cn(
-                      "shrink-0 transition-all",
-                      copied && "text-emerald-400"
-                    )}
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <p className="text-center text-zinc-500 text-sm mt-2">
-                  Valor:{" "}
-                  <strong className="text-white">R$ {TRIAL_PRICE},00</strong>
-                </p>
+              {/* QR Code Section */}
+              <div className="bg-white p-4 rounded-xl mx-auto w-fit mb-4 shadow-xl">
+                <Image
+                  src="/qrcode/qr1.webp"
+                  alt="QR Code Pix"
+                  width={160}
+                  height={160}
+                />
               </div>
 
-              {/* Urgency */}
-              <div className="bg-gradient-to-r from-indigo-500/10 to-emerald-500/10 border border-indigo-500/20 rounded-xl p-4 text-center mb-5">
-                <p className="text-sm text-zinc-300">
-                  ⚡ Liberação em até{" "}
-                  <strong className="text-white">2 horas úteis</strong> após
-                  confirmação
-                </p>
+              <div className="flex items-center gap-2 bg-zinc-800/80 rounded-xl p-3 border border-zinc-700 mb-6">
+                <code className="flex-1 text-xs text-zinc-300 truncate font-mono">
+                  {PIX_KEY}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyPix}
+                  className={cn(
+                    "shrink-0 transition-all h-8 w-8 p-0",
+                    copied && "text-emerald-400"
+                  )}
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
 
-              {/* WhatsApp CTA */}
               <a
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold px-6 py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40"
+                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold px-6 py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/25 mb-3"
               >
                 <MessageCircle className="h-5 w-5" />
                 Já paguei! Liberar meu acesso
               </a>
 
-              {/* Verify Payment Button */}
               <button
                 onClick={handleVerifyPayment}
                 disabled={isVerifying}
-                className="flex items-center justify-center gap-2 w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium px-6 py-3 rounded-xl transition-all border border-zinc-700 mt-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-zinc-400 hover:text-white text-sm py-2 transition-colors flex items-center justify-center gap-2"
               >
-                {isVerifying ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {isVerifying
-                  ? "Verificando..."
-                  : "Já fui liberado? Verificar meu acesso"}
+                {isVerifying && <Loader2 className="h-3 w-3 animate-spin" />}
+                Verificar liberação
               </button>
             </div>
 
-            {/* Trust Badges */}
-            <div className="flex items-center justify-center gap-6 text-zinc-500 text-sm">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                <span>Pagamento seguro</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                <span>Dados protegidos</span>
-              </div>
+            {/* FOMO / Free Trial Option */}
+            <div className="text-center pt-2">
+              <button
+                onClick={() => activateFreeTrial.mutate()}
+                disabled={activateFreeTrial.isPending}
+                className="text-zinc-500 hover:text-zinc-300 text-sm underline decoration-zinc-700 transition-all hover:decoration-zinc-500"
+              >
+                {activateFreeTrial.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Ativando
+                    trial...
+                  </span>
+                ) : (
+                  "Prefiro testar por 14 dias primeiro (perco a vaga de Fundador)"
+                )}
+              </button>
+              <p className="text-xs text-zinc-600 mt-2 max-w-xs mx-auto">
+                Nota: Ao escolher o teste de 14 dias, você perde a garantia de
+                preço fixo e o badge de fundador.
+              </p>
             </div>
           </div>
         </div>
       </main>
     </div>
-  );
-}
-
-function Lock({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0110 0v4" />
-    </svg>
   );
 }

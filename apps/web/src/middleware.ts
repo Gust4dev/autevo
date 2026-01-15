@@ -37,6 +37,19 @@ export default clerkMiddleware(async (auth, request) => {
 
         const tenantStatus = metadata?.tenantStatus;
 
+        // Check for expired trial (14 days logic for non-founding members)
+        if (tenantStatus === 'TRIAL') {
+            const trialEndsAt = (metadata as any)?.trialEndsAt;
+            const isFoundingMember = (metadata as any)?.isFoundingMember;
+
+            if (!isFoundingMember && trialEndsAt && new Date(trialEndsAt) < new Date()) {
+                // If trial is expired and they are NOT a founding member, redirect to trial-expired
+                if (!request.nextUrl.pathname.startsWith('/trial-expired')) {
+                    return NextResponse.redirect(new URL('/trial-expired', request.url));
+                }
+            }
+        }
+
         // Redirect suspended users to /suspended page
         if (tenantStatus === 'SUSPENDED' && !isSuspendedRoute(request)) {
             return NextResponse.redirect(new URL('/suspended', request.url));

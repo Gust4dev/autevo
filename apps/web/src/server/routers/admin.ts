@@ -7,6 +7,15 @@ import { TenantStatus } from '@prisma/client';
 export const adminRouter = router({
     // Get dashboard statistics
     getDashboardStats: adminProcedure.query(async ({ ctx }) => {
+        // Fetch system config first
+        const configs = await ctx.db.systemConfig.findMany({
+            where: { key: { in: ['pro_monthly_price', 'trial_days_founder'] } },
+        });
+        const configMap = new Map(configs.map((c) => [c.key, c.value]));
+        const monthlyPrice = Number(configMap.get('pro_monthly_price') || '190'); // Default updated to 190 per user request context
+        const founderPrice = 140; // Fixed founder price or fetch if needed
+        const trialFounderPrice = 97; // 60 days trial price
+
         const [
             totalTenants,
             pendingActivation,
@@ -14,22 +23,44 @@ export const adminRouter = router({
             activeTenants,
             suspendedTenants,
             canceledTenants,
+            adminTenants,
         ] = await Promise.all([
-            ctx.db.tenant.count(),
-            ctx.db.tenant.count({ where: { status: 'PENDING_ACTIVATION' } }),
-            ctx.db.tenant.count({ where: { status: 'TRIAL' } }),
-            ctx.db.tenant.count({ where: { status: 'ACTIVE' } }),
-            ctx.db.tenant.count({ where: { status: 'SUSPENDED' } }),
-            ctx.db.tenant.count({ where: { status: 'CANCELED' } }),
+            ctx.db.tenant.count({ where: { plan: { not: 'ADMIN' } } }),
+            ctx.db.tenant.count({ where: { status: 'PENDING_ACTIVATION', plan: { not: 'ADMIN' } } }),
+            ctx.db.tenant.count({ where: { status: 'TRIAL', plan: { not: 'ADMIN' } } }),
+            ctx.db.tenant.count({ where: { status: 'ACTIVE', plan: { not: 'ADMIN' } } }),
+            ctx.db.tenant.count({ where: { status: 'SUSPENDED', plan: { not: 'ADMIN' } } }),
+            ctx.db.tenant.count({ where: { status: 'CANCELED', plan: { not: 'ADMIN' } } }),
+            ctx.db.tenant.count({ where: { plan: 'ADMIN' } }),
         ]);
 
-        // Calculate estimated revenue
-        const TRIAL_PRICE = 97;
-        const MONTHLY_PRICE = 297;
-        const estimatedMonthlyRevenue = (trialTenants * TRIAL_PRICE) + (activeTenants * MONTHLY_PRICE);
+        // More accurate revenue calculation fetching active tenants with custom prices
+        const payingTenants = await ctx.db.tenant.findMany({
+            where: {
+                status: 'ACTIVE',
+                plan: { not: 'ADMIN' }
+            },
+            select: { customMonthlyPrice: true, isFoundingMember: true }
+        });
+
+        const revenue = payingTenants.reduce((sum, t) => {
+            if (t.customMonthlyPrice) return sum + Number(t.customMonthlyPrice);
+            if (t.isFoundingMember) return sum + founderPrice;
+            return sum + monthlyPrice;
+        }, 0);
+
+        // Add revenue from founding trials (approximate)
+        const foundingTrials = await ctx.db.tenant.count({
+            where: { status: 'TRIAL', isFoundingMember: true, plan: { not: 'ADMIN' } }
+        });
+
+        // We can consider trial revenue as realized or potential. Here we list MRR (Recurring).
+        // Trial payment (97) is one-off, so maybe exclued from MRR stats, or amortized.
+        // User asked for "valor que recebemos mensalmente". Active subscriptions are the recurring part.
 
         return {
             totalTenants,
+            adminTenants,
             byStatus: {
                 pendingActivation,
                 trial: trialTenants,
@@ -37,7 +68,7 @@ export const adminRouter = router({
                 suspended: suspendedTenants,
                 canceled: canceledTenants,
             },
-            estimatedMonthlyRevenue,
+            estimatedMonthlyRevenue: revenue,
         };
     }),
 
@@ -247,6 +278,8 @@ export const adminRouter = router({
                                     role: u.role,
                                     dbUserId: u.id,
                                     tenantStatus: 'TRIAL',
+                                    trialEndsAt: trialEndsAt.toISOString(),
+                                    isFoundingMember: updated.isFoundingMember,
                                 },
                             })
                         )
@@ -289,7 +322,7 @@ export const adminRouter = router({
 
             const tenant = await ctx.db.tenant.findUnique({
                 where: { id: tenantId },
-                select: { status: true, name: true, trialEndsAt: true },
+                select: { status: true, name: true, trialEndsAt: true, isFoundingMember: true },
             });
 
             if (!tenant) {
@@ -310,6 +343,32 @@ export const adminRouter = router({
                 where: { id: tenantId },
                 data: { trialEndsAt: newEnd },
             });
+
+            // Update Clerk metadata for all users in this tenant
+            const users = await ctx.db.user.findMany({
+                where: { tenantId },
+                select: { clerkId: true, role: true, id: true },
+            });
+
+            if (users.length > 0) {
+                const clerk = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+                await Promise.all(
+                    users
+                        .filter(u => u.clerkId)
+                        .map(u =>
+                            clerk.users.updateUser(u.clerkId!, {
+                                publicMetadata: {
+                                    tenantId,
+                                    role: u.role,
+                                    dbUserId: u.id,
+                                    tenantStatus: 'TRIAL',
+                                    trialEndsAt: newEnd.toISOString(),
+                                    isFoundingMember: tenant.isFoundingMember,
+                                },
+                            })
+                        )
+                );
+            }
 
             return {
                 success: true,
@@ -761,7 +820,9 @@ export const adminRouter = router({
 
         // Return with defaults if not set
         return {
-            trial_days: configMap['trial_days'] || { value: '60', label: 'Dias de Trial', type: 'number' },
+            trial_days: configMap['trial_days'] || { value: '60', label: 'Dias de Trial (Legado)', type: 'number' },
+            trial_days_founder: configMap['trial_days_founder'] || { value: '60', label: 'Dias Trial Fundador', type: 'number' },
+            trial_days_standard: configMap['trial_days_standard'] || { value: '14', label: 'Dias Trial Padrão', type: 'number' },
             pro_monthly_price: configMap['pro_monthly_price'] || { value: '297', label: 'Preço Pro Mensal', type: 'number' },
             pro_yearly_price: configMap['pro_yearly_price'] || { value: '2970', label: 'Preço Pro Anual', type: 'number' },
             maintenance_mode: configMap['maintenance_mode'] || { value: 'false', label: 'Modo Manutenção', type: 'boolean' },
@@ -812,11 +873,79 @@ export const adminRouter = router({
             return { success: true };
         }),
 
+    // Update tenant pricing and founding member status
+    updateTenantPricing: adminProcedure
+        .input(
+            z.object({
+                tenantId: z.string(),
+                customMonthlyPrice: z.number().min(0).optional(),
+                isFoundingMember: z.boolean().optional(),
+                billingCycleStart: z.string().transform(str => new Date(str)).optional(),
+                plan: z.string().optional(),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            const { tenantId, customMonthlyPrice, isFoundingMember, billingCycleStart, plan } = input;
+
+            const updated = await ctx.db.tenant.update({
+                where: { id: tenantId },
+                data: {
+                    customMonthlyPrice,
+                    isFoundingMember,
+                    billingCycleStart,
+                    plan,
+                },
+            });
+
+            await invalidateTenantCache(tenantId);
+
+            // Update Clerk metadata for all users in this tenant if status changed
+            if (isFoundingMember !== undefined) {
+                const users = await ctx.db.user.findMany({
+                    where: { tenantId },
+                    select: { clerkId: true, role: true, id: true },
+                });
+
+                if (users.length > 0) {
+                    const clerk = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+                    await Promise.all(
+                        users
+                            .filter(u => u.clerkId)
+                            .map(u =>
+                                clerk.users.updateUser(u.clerkId!, {
+                                    publicMetadata: {
+                                        tenantId,
+                                        role: u.role,
+                                        dbUserId: u.id,
+                                        tenantStatus: updated.status,
+                                        isFoundingMember: updated.isFoundingMember,
+                                    },
+                                })
+                            )
+                    );
+                }
+            }
+
+            return { success: true, tenant: updated };
+        }),
+
+    // Get founding member stats
+    getFoundingMemberStats: publicProcedure.query(async ({ ctx }) => {
+        const count = await ctx.db.tenant.count({
+            where: { isFoundingMember: true },
+        });
+        return {
+            count,
+            limit: 15,
+            remaining: Math.max(0, 15 - count),
+        };
+    }),
+
     // Get public pricing config (for landing page, no auth required)
     getPublicPricing: publicProcedure.query(async ({ ctx }) => {
         const configs = await ctx.db.systemConfig.findMany({
             where: {
-                key: { in: ['pro_monthly_price', 'pro_yearly_price', 'trial_days'] },
+                key: { in: ['pro_monthly_price', 'pro_yearly_price', 'trial_days_founder', 'trial_days_standard'] },
             },
         });
 
@@ -825,7 +954,8 @@ export const adminRouter = router({
         return {
             proMonthlyPrice: Number(configMap.get('pro_monthly_price') || '297'),
             proYearlyPrice: Number(configMap.get('pro_yearly_price') || '2970'),
-            trialDays: Number(configMap.get('trial_days') || '60'),
+            trialDaysFounder: Number(configMap.get('trial_days_founder') || '60'),
+            trialDaysStandard: Number(configMap.get('trial_days_standard') || '14'),
         };
     }),
 });
