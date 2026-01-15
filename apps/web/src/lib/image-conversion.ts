@@ -2,34 +2,29 @@
 
 /**
  * Detecta se o arquivo é HEIC/HEIF (formato padrão do iPhone)
- * O iOS às vezes não envia o MIME type correto, então checamos também a extensão
+ * IMPORTANTE: Não assumir HEIC baseado apenas em MIME vazio - isso causa falsos positivos
  */
 function isHeicFile(file: File): boolean {
-    // Verifica MIME type
+    // Verifica MIME type explícito
     const heicTypes = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
     if (file.type && heicTypes.includes(file.type.toLowerCase())) {
+        console.log('[isHeicFile] Detected HEIC via MIME type:', file.type);
         return true;
     }
 
-    // Verifica extensão (fallback para quando iOS não envia MIME)
+    // Verifica extensão (mais confiável que MIME no iOS)
     const ext = file.name.toLowerCase().split('.').pop();
     if (ext === 'heic' || ext === 'heif') {
+        console.log('[isHeicFile] Detected HEIC via extension:', ext);
         return true;
     }
 
-    // Verifica se MIME está vazio mas tem padrão de nome de iPhone
-    // Às vezes o Safari envia "" como type para HEIC
-    if (!file.type || file.type === '' || file.type === 'application/octet-stream') {
-        const name = file.name.toLowerCase();
-        // Padrões comuns de nome de arquivo do iPhone
-        if (name.startsWith('img_') || name.startsWith('photo') || name.includes('image')) {
-            console.log('[isHeicFile] Empty MIME with iPhone-like filename, assuming HEIC');
-            return true;
-        }
-    }
-
+    // NÃO assumir HEIC apenas porque MIME está vazio
+    // O iOS envia JPEG com MIME vazio às vezes, e assumir HEIC causa erro
+    console.log('[isHeicFile] Not HEIC (type:', file.type, ', ext:', ext, ')');
     return false;
 }
+
 
 /**
  * Converte arquivo HEIC para Blob JPEG
