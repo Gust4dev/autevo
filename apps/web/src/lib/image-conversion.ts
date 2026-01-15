@@ -108,7 +108,7 @@ function getScaledDimensions(width: number, height: number, maxSize: number = 20
  * Usa URL.createObjectURL (mais estável no Safari iOS) ao invés de FileReader
  * Fallback para JPEG quando WebP falha
  */
-export async function convertFileToWebPBase64(file: File, quality = 0.8): Promise<string> {
+export async function convertFileToWebPBase64(file: File, quality = 0.7): Promise<string> {
     console.log('[convertFileToWebPBase64] Starting...', {
         name: file.name,
         type: file.type,
@@ -147,8 +147,8 @@ export async function convertFileToWebPBase64(file: File, quality = 0.8): Promis
 
                 const canvas = document.createElement('canvas');
 
-                // Redimensiona se necessário
-                const { width, height } = getScaledDimensions(img.width, img.height, 2048);
+                // Redimensiona para max 1200px (menor = menor base64 = evita limite do Vercel)
+                const { width, height } = getScaledDimensions(img.width, img.height, 1200);
                 console.log('[convertFileToWebPBase64] Scaled dimensions:', { width, height });
 
                 canvas.width = width;
