@@ -6,7 +6,6 @@ const isPublicRoute = createRouteMatcher([
     '/sign-in(.*)',
     '/sign-up(.*)',
     '/activate(.*)',
-    '/suspended(.*)',
     '/public/(.*)',
     '/tracking(.*)',
     '/booking(.*)',
@@ -22,7 +21,6 @@ const isOnboardingRoute = createRouteMatcher([
     '/setup(.*)',
 ]);
 
-const isSuspendedRoute = createRouteMatcher(['/suspended(.*)']);
 const isActivateRoute = createRouteMatcher(['/activate(.*)']);
 
 export default clerkMiddleware(async (auth, request) => {
@@ -50,9 +48,11 @@ export default clerkMiddleware(async (auth, request) => {
             }
         }
 
-        // Redirect suspended users to /suspended page
-        if (tenantStatus === 'SUSPENDED' && !isSuspendedRoute(request)) {
-            return NextResponse.redirect(new URL('/suspended', request.url));
+        // Redirect suspended users to /trial-expired (using same expired logic)
+        if (tenantStatus === 'SUSPENDED') {
+            if (!request.nextUrl.pathname.startsWith('/trial-expired')) {
+                return NextResponse.redirect(new URL('/trial-expired', request.url));
+            }
         }
 
         // Redirect pending activation users to /activate page

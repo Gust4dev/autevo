@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 const lexendDeca = Lexend_Deca({
   subsets: ["latin"],
@@ -105,14 +106,38 @@ export default function ActivatePage() {
     trpc.admin.getFoundingMemberStats.useQuery();
   const activateFreeTrial = trpc.settings.activateFreeTrial.useMutation({
     onSuccess: async () => {
-      // Force session refresh although window location change will also do it
-      await user?.reload();
-      // Use window.location.href to force a full page reload and ensure middleware sees new cookies/claims
-      window.location.href = "/dashboard";
+      toast.success("Trial solicitado! Verificando ativação...");
+
+      const checkStatusAndRedirect = async (attempts = 0) => {
+        try {
+          await user?.reload();
+          const status = (user?.publicMetadata as any)?.tenantStatus;
+
+          if (status === "TRIAL") {
+            toast.success("Confirmado! Redirecionando para o Setup...");
+            window.location.href = "/setup";
+            return;
+          }
+
+          if (attempts > 15) {
+            // 7.5 seconds
+            toast.error(
+              "A ativação está demorando. Por favor, recarregue a página manualmente."
+            );
+            return;
+          }
+
+          setTimeout(() => checkStatusAndRedirect(attempts + 1), 500);
+        } catch (e) {
+          console.error("Polling error", e);
+        }
+      };
+
+      checkStatusAndRedirect();
     },
     onError: (err) => {
       console.error("Failed to activate trial:", err);
-      // Optional: Add toast here
+      toast.error(`Erro ao ativar trial: ${err.message}`);
     },
   });
 
@@ -395,14 +420,14 @@ export default function ActivatePage() {
             {/* FOMO / Free Trial Option */}
             <div className="text-center pt-2">
               <button
+                type="button"
                 onClick={() => activateFreeTrial.mutate()}
                 disabled={activateFreeTrial.isPending}
                 className="text-zinc-500 hover:text-zinc-300 text-sm underline decoration-zinc-700 transition-all hover:decoration-zinc-500"
               >
                 {activateFreeTrial.isPending ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Ativando
-                    trial...
+                    <Loader2 className="h-3 w-3 animate-spin" /> Ativando...
                   </span>
                 ) : (
                   "Prefiro testar por 14 dias primeiro (perco a vaga de Fundador)"

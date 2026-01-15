@@ -348,4 +348,54 @@ export const userRouter = router({
 
         return { success: true };
     }),
+    delete: ownerProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            const user = await ctx.db.user.findFirst({
+                where: {
+                    id: input.id,
+                    tenantId: ctx.tenantId!,
+                },
+            });
+
+            if (!user) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Usuário não encontrado',
+                });
+            }
+
+            if (user.id === ctx.user!.id) {
+                throw new TRPCError({
+                    code: 'FORBIDDEN',
+                    message: 'Você não pode excluir sua própria conta',
+                });
+            }
+
+            if (user.clerkId) {
+                const clerk = await clerkClient();
+                try {
+                    await clerk.users.deleteUser(user.clerkId);
+                } catch (error) {
+                    console.error('Failed to delete user in Clerk:', error);
+                    // Continue to delete in DB even if Clerk fails (or user mostly already deleted)
+                }
+            }
+
+            await ctx.db.user.delete({
+                where: { id: user.id },
+            });
+
+            const { createAuditLog } = await import('@/lib/audit');
+            await createAuditLog({
+                tenantId: ctx.tenantId!,
+                userId: ctx.user!.id,
+                action: 'user.deleted',
+                entityType: 'User',
+                entityId: user.id,
+                oldValue: { name: user.name, email: user.email, role: user.role },
+            }).catch(() => { });
+
+            return { success: true };
+        }),
 });

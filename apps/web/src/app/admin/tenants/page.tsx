@@ -20,7 +20,7 @@ import {
   Filter,
   X,
   Users,
-  MoreHorizontal,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -32,6 +32,17 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 const statusConfig: Record<
   TenantStatus,
@@ -85,13 +96,36 @@ export default function TenantsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | undefined>();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
+  const utils = trpc.useUtils();
   const { data, isLoading } = trpc.admin.listTenants.useQuery({
     page,
     limit: 20,
     search: search || undefined,
     status: statusFilter,
   });
+
+  const deleteTenant = trpc.admin.deleteTenant.useMutation({
+    onSuccess: () => {
+      toast.success("Empresa excluída com sucesso");
+      utils.admin.listTenants.invalidate();
+      setTenantToDelete(null);
+      setDeleteConfirmation("");
+    },
+    onError: (error) => {
+      toast.error(`Erro ao excluir empresa: ${error.message}`);
+    },
+  });
+
+  const handleDelete = () => {
+    if (!tenantToDelete) return;
+    deleteTenant.mutate({ tenantId: tenantToDelete.id });
+  };
 
   const FilterButtons = () => (
     <div className="flex flex-wrap gap-2">
@@ -144,6 +178,61 @@ export default function TenantsPage() {
           </p>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!tenantToDelete}
+        onOpenChange={(open) => !open && setTenantToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente a
+              empresa
+              <span className="font-bold text-slate-900">
+                {" "}
+                {tenantToDelete?.name}{" "}
+              </span>
+              e removerá todos os dados e contas de usuários associados dos
+              nossos servidores.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="py-4">
+            <p className="text-sm text-slate-600 mb-2">
+              Digite <span className="font-bold text-red-600">DELETAR</span>{" "}
+              para confirmar:
+            </p>
+            <Input
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              placeholder="DELETAR"
+              className="font-mono uppercase"
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTenant.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={
+                deleteConfirmation !== "DELETAR" || deleteTenant.isPending
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+            >
+              {deleteTenant.isPending
+                ? "Excluindo..."
+                : "Sim, excluir empresa e usuários"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 my-6">
@@ -294,17 +383,33 @@ export default function TenantsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200"
-                            asChild
-                          >
-                            <Link href={`/admin/tenants/${tenant.id}`}>
-                              Ver detalhes
-                              <ExternalLink className="h-3 w-3 ml-1.5" />
-                            </Link>
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => {
+                                setTenantToDelete({
+                                  id: tenant.id,
+                                  name: tenant.name,
+                                });
+                                setDeleteConfirmation("");
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200"
+                              asChild
+                            >
+                              <Link href={`/admin/tenants/${tenant.id}`}>
+                                Ver detalhes
+                                <ExternalLink className="h-3 w-3 ml-1.5" />
+                              </Link>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -321,54 +426,75 @@ export default function TenantsPage() {
               const StatusIcon = status.icon;
 
               return (
-                <Link
+                <Card
                   key={tenant.id}
-                  href={`/admin/tenants/${tenant.id}`}
-                  className="block"
+                  className="bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all"
                 >
-                  <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-slate-900 truncate">
-                            {tenant.name}
-                          </h3>
-                          <p className="text-sm text-slate-500 truncate">
-                            {tenant.slug}
-                          </p>
-                        </div>
-                        <Badge
-                          className={`${status.bgColor} ${status.color} border-0 shrink-0`}
-                        >
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {status.label}
-                        </Badge>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-slate-900 truncate">
+                          {tenant.name}
+                        </h3>
+                        <p className="text-sm text-slate-500 truncate">
+                          {tenant.slug}
+                        </p>
                       </div>
+                      <Badge
+                        className={`${status.bgColor} ${status.color} border-0 shrink-0`}
+                      >
+                        <StatusIcon className="h-3 w-3 mr-1" />
+                        {status.label}
+                      </Badge>
+                    </div>
 
-                      {tenant.owner && (
-                        <div className="mb-3 text-sm">
-                          <p className="text-slate-700">{tenant.owner.name}</p>
-                          <p className="text-slate-500 truncate">
-                            {tenant.owner.email}
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-100">
-                        <span>
-                          {tenant.usage.orders} OS • {tenant.usage.customers}{" "}
-                          clientes
-                        </span>
-                        <span>
-                          {formatDistanceToNow(new Date(tenant.createdAt), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
-                        </span>
+                    {tenant.owner && (
+                      <div className="mb-3 text-sm">
+                        <p className="text-slate-700">{tenant.owner.name}</p>
+                        <p className="text-slate-500 truncate">
+                          {tenant.owner.email}
+                        </p>
                       </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-100">
+                      <span>
+                        {tenant.usage.orders} OS • {tenant.usage.customers}{" "}
+                        clientes
+                      </span>
+                      <span>
+                        {formatDistanceToNow(new Date(tenant.createdAt), {
+                          addSuffix: true,
+                          locale: ptBR,
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-end mt-4 pt-4 border-t border-slate-100 gap-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8"
+                        onClick={() => {
+                          setTenantToDelete({
+                            id: tenant.id,
+                            name: tenant.name,
+                          });
+                          setDeleteConfirmation("");
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir
+                      </Button>
+                      <Link
+                        href={`/admin/tenants/${tenant.id}`}
+                        className="text-sm text-indigo-600 font-medium hover:underline flex items-center"
+                      >
+                        Ver detalhes <ExternalLink className="h-3 w-3 ml-1" />
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>

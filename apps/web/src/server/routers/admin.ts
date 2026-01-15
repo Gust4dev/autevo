@@ -380,6 +380,48 @@ export const adminRouter = router({
             };
         }),
 
+    // Delete tenant (SaaS Admin only)
+    deleteTenant: adminProcedure
+        .input(z.object({ tenantId: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            const { tenantId } = input;
+
+            const tenant = await ctx.db.tenant.findUnique({
+                where: { id: tenantId },
+                include: { users: { select: { clerkId: true } } }
+            });
+
+            if (!tenant) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant not found' });
+            }
+
+            // Delete users from Clerk
+            const clerk = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+            const usersToDelete = tenant.users.filter(u => u.clerkId);
+
+            await Promise.allSettled(
+                usersToDelete.map(u => clerk.users.deleteUser(u.clerkId!))
+            );
+
+            // Delete tenant (DB Cascade will handle the rest)
+            await ctx.db.tenant.delete({
+                where: { id: tenantId }
+            });
+
+            const { createAuditLog } = await import('@/lib/audit');
+            await createAuditLog({
+                tenantId: 'SYSTEM',
+                userId: ctx.user?.id,
+                action: 'ADMIN_DELETE_TENANT',
+                entityType: 'Tenant',
+                entityId: tenantId,
+                oldValue: { name: tenant.name, status: tenant.status },
+                newValue: null,
+            });
+
+            return { success: true };
+        }),
+
     // Suspend tenant
     suspendTenant: adminProcedure
         .input(
