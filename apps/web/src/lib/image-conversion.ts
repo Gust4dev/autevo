@@ -2,51 +2,250 @@ import heic2any from 'heic2any';
 
 /**
  * Detecta se o arquivo é HEIC/HEIF (formato padrão do iPhone)
+ * O iOS às vezes não envia o MIME type correto, então checamos também a extensão
  */
 function isHeicFile(file: File): boolean {
+    // Verifica MIME type
     const heicTypes = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
-    if (heicTypes.includes(file.type.toLowerCase())) return true;
+    if (file.type && heicTypes.includes(file.type.toLowerCase())) {
+        return true;
+    }
+
+    // Verifica extensão (fallback para quando iOS não envia MIME)
     const ext = file.name.toLowerCase().split('.').pop();
-    return ext === 'heic' || ext === 'heif';
+    if (ext === 'heic' || ext === 'heif') {
+        return true;
+    }
+
+    // Verifica se MIME está vazio mas tem padrão de nome de iPhone
+    // Às vezes o Safari envia "" como type para HEIC
+    if (!file.type || file.type === '' || file.type === 'application/octet-stream') {
+        const name = file.name.toLowerCase();
+        // Padrões comuns de nome de arquivo do iPhone
+        if (name.startsWith('img_') || name.startsWith('photo') || name.includes('image')) {
+            console.log('[isHeicFile] Empty MIME with iPhone-like filename, assuming HEIC');
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
  * Converte arquivo HEIC para Blob JPEG
  */
-async function convertHeicToBlob(file: File): Promise<Blob> {
-    const result = await heic2any({
-        blob: file,
-        toType: 'image/jpeg',
-        quality: 0.92,
-    });
-    return Array.isArray(result) ? result[0] : result;
+async function convertHeicToJpeg(file: File): Promise<Blob> {
+    try {
+        console.log('[convertHeicToJpeg] Starting conversion...', { name: file.name, size: file.size });
+        const result = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.92,
+        });
+        const blob = Array.isArray(result) ? result[0] : result;
+        console.log('[convertHeicToJpeg] Success, output size:', blob.size);
+        return blob;
+    } catch (error) {
+        console.error('[convertHeicToJpeg] Failed:', error);
+        throw new Error('Não foi possível converter a imagem HEIC. Tente tirar a foto novamente.');
+    }
 }
 
 /**
  * Pré-processa o arquivo, convertendo HEIC para JPEG se necessário
  */
 async function preprocessFile(file: File): Promise<File> {
+    console.log('[preprocessFile] Input:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+    });
+
+    // Se não é HEIC, retorna como está
     if (!isHeicFile(file)) {
+        console.log('[preprocessFile] Not HEIC, returning original');
         return file;
     }
 
-    const jpegBlob = await convertHeicToBlob(file);
-    const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
-    return new File([jpegBlob], newName, { type: 'image/jpeg' });
+    console.log('[preprocessFile] Detected HEIC, converting...');
+
+    try {
+        const jpegBlob = await convertHeicToJpeg(file);
+        const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg').replace(/\s/g, '_');
+        const newFile = new File([jpegBlob], newName, { type: 'image/jpeg' });
+        console.log('[preprocessFile] Conversion complete:', { newName, newSize: newFile.size });
+        return newFile;
+    } catch (error) {
+        // Se falhar a conversão HEIC, tenta usar o arquivo original
+        // Pode funcionar se for um JPEG disfarçado ou se o browser conseguir ler
+        console.warn('[preprocessFile] HEIC conversion failed, trying original file:', error);
+        return file;
+    }
 }
 
+/**
+ * Redimensiona imagem se necessário para evitar problemas de memória no iOS
+ */
+function getScaledDimensions(width: number, height: number, maxSize: number = 2048): { width: number; height: number } {
+    if (width <= maxSize && height <= maxSize) {
+        return { width, height };
+    }
+
+    if (width > height) {
+        return {
+            width: maxSize,
+            height: Math.round((height * maxSize) / width)
+        };
+    } else {
+        return {
+            width: Math.round((width * maxSize) / height),
+            height: maxSize
+        };
+    }
+}
+
+/**
+ * Converte imagem para base64
+ * Usa JPEG como fallback quando WebP falha (comum no Safari iOS)
+ */
+export async function convertFileToWebPBase64(file: File, quality = 0.8): Promise<string> {
+    console.log('[convertFileToWebPBase64] Starting...', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+    });
+
+    // Pré-processa (converte HEIC se necessário)
+    let processedFile: File;
+    try {
+        processedFile = await preprocessFile(file);
+    } catch (error) {
+        console.error('[convertFileToWebPBase64] Preprocessing failed:', error);
+        throw new Error('Erro ao processar a imagem. Tente novamente.');
+    }
+
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        // Timeout para evitar travamento no iOS
+        const timeout = setTimeout(() => {
+            console.error('[convertFileToWebPBase64] Timeout!');
+            reject(new Error('Timeout ao carregar imagem. Tente com uma foto menor.'));
+        }, 60000); // 60 segundos
+
+        reader.onload = () => {
+            const img = new Image();
+
+            img.onload = () => {
+                clearTimeout(timeout);
+
+                try {
+                    console.log('[convertFileToWebPBase64] Image loaded:', {
+                        width: img.width,
+                        height: img.height
+                    });
+
+                    const canvas = document.createElement('canvas');
+
+                    // Redimensiona se necessário
+                    const { width, height } = getScaledDimensions(img.width, img.height, 2048);
+                    console.log('[convertFileToWebPBase64] Scaled dimensions:', { width, height });
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+
+                    if (!ctx) {
+                        reject(new Error('Erro ao criar canvas. Tente novamente.'));
+                        return;
+                    }
+
+                    // Fundo branco para evitar transparência (importante para PNG -> JPEG)
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Tenta WebP primeiro
+                    let base64 = canvas.toDataURL('image/webp', quality);
+                    console.log('[convertFileToWebPBase64] WebP result length:', base64.length);
+
+                    // Se WebP falhou (Safari antigo ou iOS problemático), usa JPEG
+                    if (!base64 || base64 === 'data:,' || base64.length < 1000) {
+                        console.log('[convertFileToWebPBase64] WebP failed, falling back to JPEG');
+                        base64 = canvas.toDataURL('image/jpeg', quality);
+                        console.log('[convertFileToWebPBase64] JPEG result length:', base64.length);
+                    }
+
+                    // Verifica se o resultado é válido
+                    if (!base64 || base64 === 'data:,' || base64.length < 1000) {
+                        console.error('[convertFileToWebPBase64] Both WebP and JPEG failed');
+                        reject(new Error('Erro ao processar imagem. Tente com outra foto.'));
+                        return;
+                    }
+
+                    // Verifica se o base64 tem formato válido
+                    if (!base64.startsWith('data:image/')) {
+                        console.error('[convertFileToWebPBase64] Invalid base64 format:', base64.substring(0, 50));
+                        reject(new Error('Formato de imagem inválido. Tente novamente.'));
+                        return;
+                    }
+
+                    console.log('[convertFileToWebPBase64] Success! Output length:', base64.length);
+                    resolve(base64);
+                } catch (error) {
+                    console.error('[convertFileToWebPBase64] Canvas error:', error);
+                    reject(new Error('Erro ao converter imagem. Tente novamente.'));
+                }
+            };
+
+            img.onerror = (event) => {
+                clearTimeout(timeout);
+                console.error('[convertFileToWebPBase64] Image load error:', event);
+                reject(new Error('Não foi possível carregar a imagem. Verifique se é uma foto válida.'));
+            };
+
+            img.src = reader.result as string;
+        };
+
+        reader.onerror = (event) => {
+            clearTimeout(timeout);
+            console.error('[convertFileToWebPBase64] FileReader error:', event);
+            reject(new Error('Erro ao ler arquivo. Tente novamente.'));
+        };
+
+        reader.readAsDataURL(processedFile);
+    });
+}
+
+/**
+ * Converte arquivo para WebP File (para upload via FormData)
+ */
 export async function convertFileToWebP(file: File, quality = 0.8): Promise<File> {
+    console.log('[convertFileToWebP] Starting...', { name: file.name, type: file.type, size: file.size });
+
     const processedFile = await preprocessFile(file);
 
     return new Promise((resolve, reject) => {
         const img = new Image();
         const objectUrl = URL.createObjectURL(processedFile);
 
+        // Timeout
+        const timeout = setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('Timeout ao processar imagem.'));
+        }, 60000);
+
         img.onload = () => {
+            clearTimeout(timeout);
             try {
                 const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
+
+                // Redimensiona se necessário
+                const { width, height } = getScaledDimensions(img.width, img.height, 2048);
+
+                canvas.width = width;
+                canvas.height = height;
                 const ctx = canvas.getContext('2d');
 
                 if (!ctx) {
@@ -55,23 +254,37 @@ export async function convertFileToWebP(file: File, quality = 0.8): Promise<File
                     return;
                 }
 
-                if (processedFile.type === 'image/png') {
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                }
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, width, height);
 
-                ctx.drawImage(img, 0, 0);
-
+                // Tenta WebP primeiro
                 canvas.toBlob(
                     (blob) => {
-                        URL.revokeObjectURL(objectUrl);
-
-                        if (blob) {
-                            const newName = processedFile.name.replace(/\.[^/.]+$/, '') + '.webp';
+                        if (blob && blob.size > 0) {
+                            URL.revokeObjectURL(objectUrl);
+                            const newName = processedFile.name.replace(/\.[^/.]+$/, '').replace(/\s/g, '_') + '.webp';
                             const newFile = new File([blob], newName, { type: 'image/webp' });
+                            console.log('[convertFileToWebP] WebP success:', newFile.size);
                             resolve(newFile);
                         } else {
-                            reject(new Error('Falha na conversão para WebP. Tente com outro formato de imagem.'));
+                            // Fallback para JPEG
+                            console.log('[convertFileToWebP] WebP failed, trying JPEG');
+                            canvas.toBlob(
+                                (jpegBlob) => {
+                                    URL.revokeObjectURL(objectUrl);
+                                    if (jpegBlob && jpegBlob.size > 0) {
+                                        const newName = processedFile.name.replace(/\.[^/.]+$/, '').replace(/\s/g, '_') + '.jpg';
+                                        const newFile = new File([jpegBlob], newName, { type: 'image/jpeg' });
+                                        console.log('[convertFileToWebP] JPEG fallback success:', newFile.size);
+                                        resolve(newFile);
+                                    } else {
+                                        reject(new Error('Falha na conversão. Tente com outra imagem.'));
+                                    }
+                                },
+                                'image/jpeg',
+                                quality
+                            );
                         }
                     },
                     'image/webp',
@@ -84,84 +297,51 @@ export async function convertFileToWebP(file: File, quality = 0.8): Promise<File
         };
 
         img.onerror = () => {
+            clearTimeout(timeout);
             URL.revokeObjectURL(objectUrl);
-            reject(new Error('Não foi possível carregar a imagem. Verifique se o arquivo é válido.'));
+            reject(new Error('Não foi possível carregar a imagem.'));
         };
 
         img.src = objectUrl;
     });
 }
 
-export async function convertFileToWebPBase64(file: File, quality = 0.8): Promise<string> {
-    const processedFile = await preprocessFile(file);
-
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-
-        reader.onload = () => {
-            const img = new Image();
-
-            img.onload = () => {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-
-                    if (!ctx) {
-                        reject(new Error('Could not get canvas context'));
-                        return;
-                    }
-
-                    ctx.drawImage(img, 0, 0);
-                    const base64 = canvas.toDataURL('image/webp', quality);
-
-                    if (base64 === 'data:,') {
-                        const jpegBase64 = canvas.toDataURL('image/jpeg', quality);
-                        resolve(jpegBase64);
-                    } else {
-                        resolve(base64);
-                    }
-                } catch (error) {
-                    reject(error);
-                }
-            };
-
-            img.onerror = () => {
-                reject(new Error('Não foi possível carregar a imagem. Tente novamente.'));
-            };
-
-            img.src = reader.result as string;
-        };
-
-        reader.onerror = () => {
-            reject(new Error('Erro ao ler o arquivo. Tente novamente.'));
-        };
-
-        reader.readAsDataURL(processedFile);
-    });
-}
-
+/**
+ * Converte URL de imagem para base64 PNG
+ */
 export async function convertUrlToPngBase64(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = url;
+
+        const timeout = setTimeout(() => {
+            reject(new Error('Timeout ao carregar imagem.'));
+        }, 30000);
+
         img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                reject(new Error('Could not get canvas context'));
-                return;
+            clearTimeout(timeout);
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Could not get canvas context'));
+                    return;
+                }
+                ctx.drawImage(img, 0, 0);
+                const base64 = canvas.toDataURL('image/png');
+                resolve(base64);
+            } catch (error) {
+                reject(error);
             }
-            ctx.drawImage(img, 0, 0);
-            const base64 = canvas.toDataURL('image/png');
-            resolve(base64);
         };
+
         img.onerror = (e) => {
+            clearTimeout(timeout);
             reject(e);
         };
+
+        img.src = url;
     });
 }
