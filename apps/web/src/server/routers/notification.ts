@@ -1,5 +1,6 @@
 import { router, protectedProcedure } from '../trpc';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 
 export const notificationRouter = router({
     list: protectedProcedure
@@ -12,7 +13,7 @@ export const notificationRouter = router({
             const userRole = String(ctx.user?.role || '');
             const isAdmin = ["ADMIN_SAAS", "OWNER", "MANAGER", "ADMIN", "admin"].includes(userRole);
 
-            let whereClause: any = {
+            const whereClause: Prisma.NotificationLogWhereInput = {
                 tenantId: ctx.user?.tenantId!,
             };
 

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { router, protectedProcedure, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { sanitizeInput } from '@/lib/sanitize';
-import { OrderStatus as PrismaOrderStatus, PaymentMethod } from '@prisma/client';
+import { OrderStatus as PrismaOrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 
 const validTransitions: Record<string, string[]> = {
     AGENDADO: ['EM_VISTORIA', 'CANCELADO'],
@@ -182,7 +182,7 @@ export const orderRouter = router({
         .query(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
 
-            const where: any = {
+            const where: Prisma.ServiceOrderWhereInput = {
                 tenantId: ctx.tenantId!,
                 status: input.status && input.status.length > 0 ? { in: input.status } : undefined,
                 OR: input.search ? [
@@ -244,7 +244,7 @@ export const orderRouter = router({
         .query(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
 
-            const where: any = {
+            const where: Prisma.ServiceOrderWhereInput = {
                 tenantId: ctx.tenantId!,
                 status: input?.status && input.status.length > 0 ? { in: input.status } : undefined,
                 OR: input?.search ? [
@@ -281,7 +281,7 @@ export const orderRouter = router({
         .input(z.object({ id: z.string(), data: orderUpdateSchema }))
         .mutation(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
-            const where: any = { id: input.id, tenantId: ctx.tenantId! };
+            const where: Prisma.ServiceOrderWhereInput = { id: input.id, tenantId: ctx.tenantId! };
 
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
@@ -369,7 +369,7 @@ export const orderRouter = router({
         }))
         .mutation(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
-            const where: any = { id: input.id, tenantId: ctx.tenantId! };
+            const where: Prisma.ServiceOrderWhereInput = { id: input.id, tenantId: ctx.tenantId! };
 
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
@@ -439,7 +439,7 @@ export const orderRouter = router({
         .input(paymentSchema)
         .mutation(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
-            const where: any = { id: input.orderId, tenantId: ctx.tenantId! };
+            const where: Prisma.ServiceOrderWhereInput = { id: input.orderId, tenantId: ctx.tenantId! };
 
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
@@ -515,7 +515,7 @@ export const orderRouter = router({
     getStats: protectedProcedure
         .query(async ({ ctx }) => {
             const isMember = ctx.user?.role === 'MEMBER';
-            const baseWhere: any = {
+            const baseWhere: Prisma.ServiceOrderWhereInput = {
                 tenantId: ctx.tenantId!,
             };
 
@@ -564,7 +564,7 @@ export const orderRouter = router({
         .input(z.object({ limit: z.number().default(5) }))
         .query(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
-            const where: any = { tenantId: ctx.tenantId! };
+            const where: Prisma.ServiceOrderWhereInput = { tenantId: ctx.tenantId! };
             if (isMember) {
                 where.assignedToId = ctx.user!.id;
             }

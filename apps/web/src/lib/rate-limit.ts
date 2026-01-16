@@ -6,10 +6,10 @@ export const redis = new Redis({
     token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-// 20 requests per minute per user
+// 50 requests per minute per user
 export const rateLimiter = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(20, '1 m'),
+    limiter: Ratelimit.slidingWindow(50, '1 m'),
     analytics: true,
 });
 

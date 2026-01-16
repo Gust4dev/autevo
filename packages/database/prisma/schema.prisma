@@ -159,6 +159,7 @@ model Customer {
 
   @@index([tenantId, phone])
   @@index([tenantId, name])
+  @@index([tenantId, deletedAt])
 }
 
 model Vehicle {
@@ -412,6 +413,7 @@ model Payment {
   notes      String?
 
   @@index([orderId])
+  @@index([paidAt])
 }
 
 // Notifications
@@ -453,6 +455,7 @@ model AuditLog {
   @@index([tenantId])
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model MessageTemplate {
