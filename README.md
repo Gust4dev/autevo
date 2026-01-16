@@ -25,6 +25,7 @@
 - [Funcionalidades](#-funcionalidades)
 - [Tech Stack](#-tech-stack)
 - [Estrutura do Projeto](#-estrutura-do-projeto)
+- [Documentação](#-documentação)
 - [Pré-requisitos](#-pré-requisitos)
 - [Instalação](#-instalação)
 - [Variáveis de Ambiente](#-variáveis-de-ambiente)
@@ -85,14 +86,15 @@
 - **tRPC 11** — API type-safe end-to-end
 - **Prisma 6** — ORM para PostgreSQL
 - **Clerk** — Autenticação e gerenciamento de usuários
-- **Upstash Redis** — Rate limiting
-- **AWS S3** — Armazenamento de imagens
+- **Upstash Redis** — Rate limiting e cache
+- **Supabase Storage** — Armazenamento de imagens
 
 ### Infraestrutura
 
 - **Turborepo** — Monorepo tooling
 - **Docker** — Container para PostgreSQL local
 - **Vercel** — Deploy e hosting
+- **Neon** — PostgreSQL serverless (produção)
 - **Sentry** — Monitoramento de erros
 
 ---
@@ -130,11 +132,24 @@ autevo/
 │       └── src/
 │           └── index.ts        # Export do Prisma Client
 │
+├── docs/                       # Documentação do projeto
+│   ├── FEATURES.md             # Funcionalidades do sistema
+│   └── ROADMAP.md              # Roadmap de desenvolvimento
+│
 ├── docker-compose.yml          # PostgreSQL local
 ├── turbo.json                  # Configuração Turborepo
 ├── pnpm-workspace.yaml         # Workspaces pnpm
 └── package.json                # Scripts root
 ```
+
+---
+
+## 📚 Documentação
+
+| Documento                       | Descrição                                    |
+| ------------------------------- | -------------------------------------------- |
+| [FEATURES.md](docs/FEATURES.md) | Lista completa de funcionalidades do sistema |
+| [ROADMAP.md](docs/ROADMAP.md)   | Roadmap de 12 meses com metas e KPIs         |
 
 ---
 
@@ -218,19 +233,16 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
 
-# AWS S3 (Armazenamento de imagens)
-AWS_ACCESS_KEY_ID="..."
-AWS_SECRET_ACCESS_KEY="..."
-AWS_REGION="us-east-1"
-AWS_BUCKET_NAME="autevo-uploads"
-AWS_ENDPOINT="https://s3.us-east-1.amazonaws.com"
+# Supabase Storage (Armazenamento de imagens)
+NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
+SUPABASE_SERVICE_ROLE_KEY="eyJ..."
 
-# Upstash Redis (Rate Limiting)
+# Upstash Redis (Rate Limiting + Cache)
 UPSTASH_REDIS_REST_URL="https://..."
 UPSTASH_REDIS_REST_TOKEN="..."
 
 # Security
-ENCRYPTION_KEY="sua-chave-de-32-caracteres-min"
 ENCRYPTION_SALT="seu-salt-secreto"
 
 # Sentry (Opcional)
@@ -270,7 +282,7 @@ Execute na raiz do projeto:
 
 ### Banco de Dados
 
-Recomendamos [Neon](https://neon.tech/), [Supabase](https://supabase.com/) ou [Railway](https://railway.app/) para PostgreSQL em produção.
+Recomendamos [Neon](https://neon.tech/) para PostgreSQL serverless em produção.
 
 ---
 
