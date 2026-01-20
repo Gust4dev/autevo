@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import '@/lib/superjson-config';
 import { ZodError } from 'zod';
-import { prisma } from '@autevo/database';
+import { prisma, Prisma } from '@autevo/database';
 import type { User } from '@autevo/database';
 import { checkRateLimit, redis } from '@/lib/rate-limit';
 
@@ -15,8 +15,17 @@ export interface Context {
 const t = initTRPC.context<Context>().create({
     transformer: superjson,
     errorFormatter({ shape, error }) {
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        // Sanitize messages in production to avoid leaking DB internals
+        let message = shape.message;
+        if (isProduction && (error.code === 'INTERNAL_SERVER_ERROR' || error.cause instanceof Prisma.PrismaClientKnownRequestError)) {
+            message = 'Ocorreu um erro interno no servidor. Por favor, tente novamente mais tarde.';
+        }
+
         return {
             ...shape,
+            message,
             data: {
                 ...shape.data,
                 zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,

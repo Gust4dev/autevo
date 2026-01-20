@@ -135,6 +135,7 @@ model User {
 
   @@index([tenantId])
   @@index([clerkId])
+  @@index([email])
 }
 
 // Core Entities
@@ -159,6 +160,7 @@ model Customer {
 
   @@index([tenantId, phone])
   @@index([tenantId, name])
+  @@index([tenantId, email])
   @@index([tenantId, deletedAt])
 }
 

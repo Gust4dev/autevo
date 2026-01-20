@@ -17,4 +17,4 @@ if (process.env.NODE_ENV !== 'production') {
 prisma.$connect().catch(() => { });
 
 export * from '@prisma/client';
-export type { Prisma } from '@prisma/client';
+export { Prisma } from '@prisma/client';
