@@ -13,7 +13,8 @@
     "AWS_ENDPOINT",
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",
-    "ENCRYPTION_KEY"
+    "ENCRYPTION_KEY",
+    "SENTRY_AUTH_TOKEN"
   ],
   "tasks": {
     "build": {
