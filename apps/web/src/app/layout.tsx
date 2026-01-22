@@ -8,7 +8,13 @@ import "./globals.css";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { TutorialProvider } from "@/components/providers/TutorialProvider";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  preload: true,
+  adjustFontFallback: true,
+});
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://autevo.com.br";
 
@@ -100,8 +106,13 @@ export default function RootLayout({
       <html lang="pt-BR" suppressHydrationWarning>
         <head>
           <link
+            rel="dns-prefetch"
+            href="https://proven-labrador-86.clerk.accounts.dev"
+          />
+          <link
             rel="preconnect"
             href="https://proven-labrador-86.clerk.accounts.dev"
+            crossOrigin="anonymous"
           />
         </head>
         <body className={`${inter.variable} font-sans antialiased`}>

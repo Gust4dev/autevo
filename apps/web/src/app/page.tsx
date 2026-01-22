@@ -1,21 +1,69 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Lexend_Deca, Delius } from "next/font/google"; // Keep font imports
+import dynamic from "next/dynamic";
+import { Lexend_Deca, Delius } from "next/font/google";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { HeroSection } from "@/components/landing/HeroSection";
-import { FeaturesGrid } from "@/components/landing/FeaturesGrid";
-import { PricingSection } from "@/components/landing/PricingSection";
-import { ProblemAwareness } from "@/components/landing/ProblemAwareness";
-// FeatureOS removed
-import { FeatureVistoria } from "@/components/landing/FeatureVistoria";
-import { FeatureFinance } from "@/components/landing/FeatureFinance";
-import { FeatureWhatsapp } from "@/components/landing/FeatureWhatsapp";
-import { FAQSection } from "@/components/landing/FAQSection";
-import { FinalCTA } from "@/components/landing/FinalCTA";
 
-import { ScrollToTop } from "@/components/landing/ScrollToTop";
+// Below-fold components - lazy loaded for better initial bundle size
+const ProblemAwareness = dynamic(
+  () =>
+    import("@/components/landing/ProblemAwareness").then((m) => ({
+      default: m.ProblemAwareness,
+    })),
+  { ssr: true },
+);
+const FeaturesGrid = dynamic(
+  () =>
+    import("@/components/landing/FeaturesGrid").then((m) => ({
+      default: m.FeaturesGrid,
+    })),
+  { ssr: true },
+);
+const FeatureVistoria = dynamic(
+  () =>
+    import("@/components/landing/FeatureVistoria").then((m) => ({
+      default: m.FeatureVistoria,
+    })),
+  { ssr: true },
+);
+const FeatureFinance = dynamic(
+  () =>
+    import("@/components/landing/FeatureFinance").then((m) => ({
+      default: m.FeatureFinance,
+    })),
+  { ssr: true },
+);
+const FeatureWhatsapp = dynamic(
+  () =>
+    import("@/components/landing/FeatureWhatsapp").then((m) => ({
+      default: m.FeatureWhatsapp,
+    })),
+  { ssr: true },
+);
+const FAQSection = dynamic(
+  () =>
+    import("@/components/landing/FAQSection").then((m) => ({
+      default: m.FAQSection,
+    })),
+  { ssr: true },
+);
+const FinalCTA = dynamic(
+  () =>
+    import("@/components/landing/FinalCTA").then((m) => ({
+      default: m.FinalCTA,
+    })),
+  { ssr: true },
+);
+const ScrollToTop = dynamic(
+  () =>
+    import("@/components/landing/ScrollToTop").then((m) => ({
+      default: m.ScrollToTop,
+    })),
+  { ssr: true },
+);
 
 const lexendDeca = Lexend_Deca({
   subsets: ["latin"],
@@ -109,8 +157,6 @@ export default async function LandingPage() {
 
       <ProblemAwareness />
 
-      {/* FeatureOS removed */}
-
       <FeaturesGrid />
 
       <FeatureVistoria />
@@ -118,8 +164,6 @@ export default async function LandingPage() {
       <FeatureFinance />
 
       <FeatureWhatsapp />
-
-      {/* <PricingSection />  - Temporarily commented or removed as focus is on features/value now */}
 
       <FAQSection />
 

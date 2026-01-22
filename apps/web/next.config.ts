@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
             'framer-motion',
             'date-fns',
             '@tanstack/react-query',
+            '@clerk/nextjs',
         ],
     },
 
