@@ -87,10 +87,17 @@ jobs:
       - name: Build project
         run: pnpm build
         env:
-          # Required for Next.js build (Prisma schema generation)
+          # Required for Next.js build (Prisma schema generation and static analysis)
           DATABASE_URL: "postgresql://user:pass@localhost:5432/db"
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_Y2xlcmstYXV0ZXZvLTIyLmNsZXJrLmFjY291bnR0cy5kZXYk"
-          CLERK_SECRET_KEY: "sk_test_placeholder"
+          CLERK_SECRET_KEY: "sk_test_51MzS2ZKG8n9YREp8K8p8K8p8K8p8K8p8K8p8K8p8K8p8K8p8K8p8K8p8K8p8"
+          CLERK_WEBHOOK_SECRET: "whsec_placeholder"
           UPSTASH_REDIS_REST_URL: "https://placeholder.upstash.io"
           UPSTASH_REDIS_REST_TOKEN: "placeholder"
           ENCRYPTION_KEY: "placeholder-key-for-ci-build"
+          STRIPE_SECRET_KEY: "sk_test_placeholder"
+          STRIPE_WEBHOOK_SECRET: "whsec_placeholder"
+          STRIPE_PRICE_ID_STANDARD: "price_placeholder"
+          STRIPE_PRICE_ID_FOUNDER: "price_placeholder"
+          CRON_SECRET: "placeholder"
+          SENTRY_AUTH_TOKEN: "placeholder"

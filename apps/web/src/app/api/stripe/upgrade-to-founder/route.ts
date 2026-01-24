@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@autevo/database';
 import { stripe, STRIPE_PRICES, mapStripeStatus } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Upgrade subscription from Standard to Founder plan.
  * Checks if founder slots are available before processing.

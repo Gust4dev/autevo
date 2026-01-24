@@ -5,6 +5,8 @@ import { stripe, mapStripeStatus } from '@/lib/stripe';
 import { clerkClient } from '@clerk/nextjs/server';
 import type Stripe from 'stripe';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Fallback endpoint to sync subscription from Stripe when webhooks are not available.
  * This is especially useful for local development where Stripe CLI is not configured.

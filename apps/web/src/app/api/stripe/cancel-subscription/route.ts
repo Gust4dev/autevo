@@ -3,6 +3,8 @@ import { auth, clerkClient } from '@clerk/nextjs/server';
 import { prisma } from '@autevo/database';
 import { stripe } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Cancel subscription and permanently delete the account.
  * This is a destructive operation - all data will be lost.
