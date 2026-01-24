@@ -1015,4 +1015,207 @@ export const adminRouter = router({
             trialDaysStandard: Number(configMap.get('trial_days_standard') || '14'),
         };
     }),
+
+    // ==========================================
+    // PROMO CODES MANAGEMENT
+    // ==========================================
+
+    // List all promo codes
+    listPromoCodes: adminProcedure
+        .input(z.object({
+            page: z.number().min(1).default(1),
+            limit: z.number().min(1).max(50).default(20),
+            search: z.string().optional(),
+            isActive: z.boolean().optional(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { page, limit, search, isActive } = input;
+            const skip = (page - 1) * limit;
+
+            const where = {
+                ...(search && { code: { contains: search.toUpperCase(), mode: 'insensitive' as const } }),
+                ...(isActive !== undefined && { isActive }),
+            };
+
+            const [promoCodes, total] = await Promise.all([
+                ctx.db.promoCode.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        referrerTenant: {
+                            select: { id: true, name: true },
+                        },
+                        _count: {
+                            select: { usages: true, subscriptions: true },
+                        },
+                    },
+                }),
+                ctx.db.promoCode.count({ where }),
+            ]);
+
+            return {
+                promoCodes: promoCodes.map((pc) => ({
+                    id: pc.id,
+                    code: pc.code,
+                    discountPercent: pc.discountPercent,
+                    monthlyDuration: pc.monthlyDuration,
+                    yearlyDuration: pc.yearlyDuration,
+                    isActive: pc.isActive,
+                    maxUses: pc.maxUses,
+                    usedCount: pc.usedCount,
+                    expiresAt: pc.expiresAt,
+                    referrerTenant: pc.referrerTenant,
+                    usagesCount: pc._count.usages,
+                    subscriptionsCount: pc._count.subscriptions,
+                    createdAt: pc.createdAt,
+                })),
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit),
+                },
+            };
+        }),
+
+    // Create promo code for a tenant (referral)
+    createPromoCode: adminProcedure
+        .input(z.object({
+            code: z.string().min(3).max(20).transform(s => s.toUpperCase()),
+            referrerTenantId: z.string().optional(),
+            discountPercent: z.number().min(1).max(100).default(15),
+            monthlyDuration: z.number().min(1).max(12).default(1),
+            yearlyDuration: z.number().min(1).max(12).default(3),
+            maxUses: z.number().min(1).optional(),
+            expiresAt: z.date().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // Check if code already exists
+            const existing = await ctx.db.promoCode.findUnique({
+                where: { code: input.code },
+            });
+
+            if (existing) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: `Código ${input.code} já existe`,
+                });
+            }
+
+            // Verify tenant exists if provided
+            if (input.referrerTenantId) {
+                const tenant = await ctx.db.tenant.findUnique({
+                    where: { id: input.referrerTenantId },
+                });
+                if (!tenant) {
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Tenant não encontrado',
+                    });
+                }
+            }
+
+            const promoCode = await ctx.db.promoCode.create({
+                data: {
+                    code: input.code,
+                    referrerTenantId: input.referrerTenantId,
+                    discountPercent: input.discountPercent,
+                    monthlyDuration: input.monthlyDuration,
+                    yearlyDuration: input.yearlyDuration,
+                    maxUses: input.maxUses,
+                    expiresAt: input.expiresAt,
+                },
+            });
+
+            return { success: true, promoCode };
+        }),
+
+    // Update promo code
+    updatePromoCode: adminProcedure
+        .input(z.object({
+            id: z.string(),
+            isActive: z.boolean().optional(),
+            discountPercent: z.number().min(1).max(100).optional(),
+            monthlyDuration: z.number().min(1).max(12).optional(),
+            yearlyDuration: z.number().min(1).max(12).optional(),
+            maxUses: z.number().min(1).nullable().optional(),
+            expiresAt: z.date().nullable().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { id, ...data } = input;
+
+            const promoCode = await ctx.db.promoCode.update({
+                where: { id },
+                data,
+            });
+
+            return { success: true, promoCode };
+        }),
+
+    // Delete promo code
+    deletePromoCode: adminProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db.promoCode.delete({
+                where: { id: input.id },
+            });
+
+            return { success: true };
+        }),
+
+    // Generate promo code for tenant (auto-generates code based on tenant name)
+    generateTenantPromoCode: adminProcedure
+        .input(z.object({
+            tenantId: z.string(),
+            discountPercent: z.number().min(1).max(100).default(15),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const tenant = await ctx.db.tenant.findUnique({
+                where: { id: input.tenantId },
+                select: { name: true },
+            });
+
+            if (!tenant) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Tenant não encontrado',
+                });
+            }
+
+            // Generate code from tenant name: FILMTECH15, AUTOBRILHO15, etc.
+            const baseName = tenant.name
+                .toUpperCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 12);
+
+            const code = `${baseName}${input.discountPercent}`;
+
+            // Check if code already exists
+            const existing = await ctx.db.promoCode.findUnique({
+                where: { code },
+            });
+
+            if (existing) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: `Código ${code} já existe. Use um código personalizado.`,
+                });
+            }
+
+            const promoCode = await ctx.db.promoCode.create({
+                data: {
+                    code,
+                    referrerTenantId: input.tenantId,
+                    discountPercent: input.discountPercent,
+                    monthlyDuration: 1,
+                    yearlyDuration: 3,
+                },
+            });
+
+            return { success: true, promoCode };
+        }),
 });

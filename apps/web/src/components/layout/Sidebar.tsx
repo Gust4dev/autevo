@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   type LucideIcon,
   TrendingUp,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useTenantTheme } from "@/components/providers/TenantThemeProvider";
 import { FoundingMemberBadge } from "./FoundingMemberBadge";
+import { trpc } from "@/lib/trpc/client";
 
 type UserRole =
   | "ADMIN_SAAS"
@@ -86,6 +88,12 @@ const settingsNavItems: NavItem[] = [
     icon: Users,
     roles: ["ADMIN_SAAS", "OWNER", "MANAGER", "ADMIN", "admin"],
   },
+  {
+    href: "/dashboard/settings/pricing",
+    label: "Planos",
+    icon: CreditCard,
+    roles: ["ADMIN_SAAS", "OWNER", "MANAGER"],
+  },
 ];
 
 interface SidebarProps {
@@ -103,12 +111,23 @@ export function Sidebar({ isCollapsed, onToggle, userRole }: SidebarProps) {
   const effectiveRole =
     userRole || (user?.publicMetadata?.role as UserRole | undefined);
 
+  // Fallback check for founding member status via DB
+  const { data: subscription } = trpc.billing.getSubscription.useQuery(
+    undefined,
+    {
+      enabled: !!user,
+    },
+  );
+
+  const isFounder =
+    (user?.publicMetadata as any)?.isFoundingMember || subscription?.isFounder;
+
   return (
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/40 bg-card/80 backdrop-blur-xl transition-all duration-500 ease-out shadow-2xl",
-          isCollapsed ? "w-[68px]" : "w-[260px]"
+          isCollapsed ? "w-[68px]" : "w-[260px]",
         )}
       >
         {/* Logo */}
@@ -137,7 +156,7 @@ export function Sidebar({ isCollapsed, onToggle, userRole }: SidebarProps) {
         </div>
 
         {/* Founding Member Badge */}
-        {!isCollapsed && (user?.publicMetadata as any)?.isFoundingMember && (
+        {!isCollapsed && isFounder && (
           <div className="px-3 pt-3">
             <FoundingMemberBadge />
           </div>
@@ -184,7 +203,7 @@ export function Sidebar({ isCollapsed, onToggle, userRole }: SidebarProps) {
             <ChevronLeft
               className={cn(
                 "h-4 w-4 transition-transform duration-300",
-                isCollapsed && "rotate-180"
+                isCollapsed && "rotate-180",
               )}
             />
             <span className="sr-only">
@@ -257,7 +276,7 @@ function NavItem({
         isActive
           ? "bg-primary/15 text-primary shadow-sm font-semibold after:absolute after:left-0 after:top-1/2 after:-translate-y-1/2 after:h-8 after:w-1 after:bg-primary after:rounded-r-full after:animate-fade-in"
           : "text-muted-foreground",
-        isCollapsed && "justify-center px-2 hover:translate-x-0"
+        isCollapsed && "justify-center px-2 hover:translate-x-0",
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />

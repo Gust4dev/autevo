@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: "%s | Autevo",
   },
   description:
-    "Sistema completo de gestão para estéticas automotivas. Controle ordens de serviço, clientes, agendamentos, vistorias com fotos, financeiro e comissões. Evolua sua oficina.",
+    "Sistema completo de gestão para gestão automotiva. Controle ordens de serviço, clientes, agendamentos, vistorias com fotos, financeiro e comissões. Evolua sua oficina.",
   keywords: [
     "estética automotiva",
     "polimento automotivo",
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     siteName: "Autevo",
     title: "Autevo - Sistema de Gestão para Estética Automotiva",
     description:
-      "Sistema completo de gestão para estéticas automotivas. Controle ordens de serviço, clientes, agendamentos, vistorias e financeiro.",
+      "Sistema completo para gestão automotiva. Controle ordens de serviço, clientes, agendamentos, vistorias e financeiro.",
     images: [
       {
         url: "/branding/ogImage.png",
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Autevo - Sistema de Gestão para Estética Automotiva",
     description:
-      "Sistema completo de gestão para estéticas automotivas. Evolua sua oficina.",
+      "Sistema completo para gestão automotiva. Evolua sua oficina.",
     images: ["/branding/ogImage.png"],
   },
   icons: {

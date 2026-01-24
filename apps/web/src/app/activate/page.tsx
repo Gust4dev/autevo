@@ -25,6 +25,7 @@ import {
   Star,
   Sparkles,
   RefreshCw,
+  CreditCard,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -101,39 +102,46 @@ export default function ActivatePage() {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  const handleStripeCheckout = async () => {
+    setIsCheckingOut(true);
+    try {
+      const response = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          billingInterval: "monthly",
+          isFounder: true,
+          successUrl: `${window.location.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&founder=true`,
+          cancelUrl: `${window.location.origin}/activate?canceled=true`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || "Erro ao criar sessão de pagamento");
+        setIsCheckingOut(false);
+      }
+    } catch {
+      toast.error("Erro ao processar pagamento");
+      setIsCheckingOut(false);
+    }
+  };
 
   const { data: founderStats, isLoading: isLoadingStats } =
     trpc.admin.getFoundingMemberStats.useQuery();
   const activateFreeTrial = trpc.settings.activateFreeTrial.useMutation({
     onSuccess: async () => {
-      toast.success("Trial solicitado! Verificando ativação...");
-
-      const checkStatusAndRedirect = async (attempts = 0) => {
-        try {
-          await user?.reload();
-          const status = (user?.publicMetadata as any)?.tenantStatus;
-
-          if (status === "TRIAL") {
-            toast.success("Confirmado! Redirecionando para o Setup...");
-            window.location.href = "/setup";
-            return;
-          }
-
-          if (attempts > 15) {
-            // 7.5 seconds
-            toast.error(
-              "A ativação está demorando. Por favor, recarregue a página manualmente."
-            );
-            return;
-          }
-
-          setTimeout(() => checkStatusAndRedirect(attempts + 1), 500);
-        } catch (e) {
-          console.error("Polling error", e);
-        }
-      };
-
-      checkStatusAndRedirect();
+      toast.success("Trial ativado com sucesso!");
+      // Force redirect to setup without waiting for metadata sync
+      // The setup page will handle any remaining sync
+      setTimeout(() => {
+        window.location.href = "/setup";
+      }, 500);
     },
     onError: (err) => {
       console.error("Failed to activate trial:", err);
@@ -184,7 +192,7 @@ export default function ActivatePage() {
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
     `Olá! Acabei de criar minha conta no Autevo e fiz o Pix de R$ ${FOUNDER_PRICE} para garantir minha vaga de Membro Fundador. Meu email: ${
       user?.emailAddresses?.[0]?.emailAddress || "N/A"
-    }`
+    }`,
   )}`;
 
   if (!isLoaded || isLoadingStats) {
@@ -192,7 +200,7 @@ export default function ActivatePage() {
       <div
         className={cn(
           "min-h-screen bg-[#0A0A0B] text-white flex items-center justify-center",
-          lexendDeca.className
+          lexendDeca.className,
         )}
       >
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
@@ -204,7 +212,7 @@ export default function ActivatePage() {
     <div
       className={cn(
         "min-h-screen bg-[#0A0A0B] text-white",
-        lexendDeca.className
+        lexendDeca.className,
       )}
     >
       {/* Animated Background */}
@@ -445,7 +453,7 @@ export default function ActivatePage() {
                     onClick={handleCopyPix}
                     className={cn(
                       "shrink-0 transition-all h-8 w-8 p-0",
-                      copied && "text-emerald-400"
+                      copied && "text-emerald-400",
                     )}
                   >
                     {copied ? (
@@ -463,8 +471,30 @@ export default function ActivatePage() {
                   className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold px-6 py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/25 mb-3"
                 >
                   <MessageCircle className="h-5 w-5" />
-                  Já paguei! Liberar meu acesso
+                  Já paguei via Pix! Liberar acesso
                 </a>
+
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-zinc-700"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-zinc-900 px-2 text-zinc-500">ou</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleStripeCheckout}
+                  disabled={isCheckingOut}
+                  className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold px-6 py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/25 mb-3"
+                >
+                  {isCheckingOut ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-5 w-5" />
+                  )}
+                  Pagar com Cartão de Crédito
+                </button>
 
                 <button
                   onClick={handleVerifyPayment}

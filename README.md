@@ -248,6 +248,12 @@ ENCRYPTION_SALT="seu-salt-secreto"
 # Sentry (Opcional)
 SENTRY_AUTH_TOKEN="..."
 NEXT_PUBLIC_SENTRY_DSN="..."
+
+# Stripe (Billing)
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+STRIPE_PRICE_ID_STANDARD="price_..."
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
 ```
 
 ---

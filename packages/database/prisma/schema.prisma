@@ -98,6 +98,10 @@ model Tenant {
   settlements      CommissionSettlement[]
   notifications    NotificationLog[]
   messageTemplates MessageTemplate[]
+  
+  // Billing relations
+  subscription     Subscription?
+  promoCodes       PromoCode[]      @relation("PromoCodeOwner")
 }
 
 enum UserStatus {
@@ -486,4 +490,160 @@ model SystemConfig {
   type      String   @default("string") // string, number, boolean, json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// BILLING & SUBSCRIPTION MODELS
+// ==========================================
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  INCOMPLETE
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  tenantId             String             @unique
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stripeCustomerId     String             @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  status               SubscriptionStatus @default(INCOMPLETE)
+  billingInterval      BillingInterval    @default(MONTHLY)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  
+  // Custom pricing (enterprise/promos)
+  customMonthlyPrice   Decimal?           @db.Decimal(10, 2)
+  
+  // Founder tracking
+  isFounder            Boolean            @default(false)
+  founderExpiresAt     DateTime?
+  
+  // Promo code used at signup
+  promoCodeId          String?
+  promoCode            PromoCode?         @relation(fields: [promoCodeId], references: [id])
+  promoDiscountApplied Boolean            @default(false)
+  promoMonthsRemaining Int                @default(0) // For yearly: 3 months, for monthly: 1 month
+  
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  payments SubscriptionPayment[]
+
+  @@index([status])
+  @@index([promoCodeId])
+}
+
+model SubscriptionPayment {
+  id                    String       @id @default(cuid())
+  subscriptionId        String
+  subscription          Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  stripePaymentIntentId String?      @unique
+  stripeInvoiceId       String?      @unique
+  amount                Decimal      @db.Decimal(10, 2)
+  currency              String       @default("brl")
+  status                String       @default("pending") // succeeded, failed, pending
+  paidAt                DateTime?
+  createdAt             DateTime     @default(now())
+
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+// ==========================================
+// PROMO CODES & REFERRAL SYSTEM
+// ==========================================
+
+model PromoCode {
+  id                String           @id @default(cuid())
+  code              String           @unique // e.g., "FILMTECH15"
+  
+  // Referral: which tenant created this code
+  referrerTenantId  String?
+  referrerTenant    Tenant?          @relation("PromoCodeOwner", fields: [referrerTenantId], references: [id], onDelete: SetNull)
+  
+  // Discount configuration
+  discountPercent   Int              @default(15) // 15%
+  
+  // Duration: how many months the discount applies
+  // Monthly subscription: 1 month
+  // Yearly subscription: 3 months
+  monthlyDuration   Int              @default(1)
+  yearlyDuration    Int              @default(3)
+  
+  // Validity
+  isActive          Boolean          @default(true)
+  maxUses           Int?             // null = unlimited
+  usedCount         Int              @default(0)
+  expiresAt         DateTime?
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  usages            PromoCodeUsage[]
+  subscriptions     Subscription[]
+
+  @@index([code])
+  @@index([referrerTenantId])
+  @@index([isActive])
+}
+
+model PromoCodeUsage {
+  id          String    @id @default(cuid())
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  
+  // Who used it
+  usedByTenantId String
+  
+  // Discount applied
+  discountAmount Decimal   @db.Decimal(10, 2)
+  originalAmount Decimal   @db.Decimal(10, 2)
+  
+  usedAt      DateTime  @default(now())
+
+  @@index([promoCodeId])
+  @@index([usedByTenantId])
+}
+
+// ==========================================
+// FOUNDER SLOTS CONTROL
+// ==========================================
+
+model FounderSlot {
+  id         String   @id @default(cuid())
+  totalSlots Int      @default(15)
+  usedSlots  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+// ==========================================
+// WEBHOOK LOGS (for debugging & retry)
+// ==========================================
+
+model WebhookLog {
+  id            String   @id @default(cuid())
+  source        String   @default("stripe") // stripe, clerk, etc.
+  event         String
+  externalId    String   @unique // stripeEventId, etc.
+  status        String   @default("pending") // pending, success, failed
+  payload       Json
+  errorMessage  String?
+  attempts      Int      @default(1)
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([source, event])
+  @@index([status])
+  @@index([createdAt])
 }

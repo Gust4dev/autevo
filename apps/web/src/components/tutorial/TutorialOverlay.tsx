@@ -133,8 +133,8 @@ export function TutorialOverlay() {
             description={
               <div className="space-y-2">
                 <p>
-                  Este é o seu <strong>sistema completo</strong> de gestão para
-                  estéticas automotivas.
+                  Este é o seu <strong>sistema completo</strong> de gestão
+                  automotiva.
                 </p>
                 <p>
                   Vamos configurar seu <strong>primeiro serviço</strong> juntos

@@ -16,6 +16,7 @@ import { backupRouter } from './backup';
 import { notificationRouter } from './notification';
 import { tenantRouter } from './tenant';
 import { benchmarkRouter } from './benchmarks';
+import { billingRouter } from './billing';
 
 export const appRouter = router({
     admin: adminRouter,
@@ -35,6 +36,7 @@ export const appRouter = router({
     report: reportRouter,
     backup: backupRouter,
     benchmark: benchmarkRouter,
+    billing: billingRouter,
 });
 
 

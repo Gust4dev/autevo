@@ -1,6 +1,8 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import {
   ClipboardList,
   Calendar,
@@ -13,6 +15,8 @@ import {
   Link as LinkIcon,
   Copy,
   ExternalLink,
+  Crown,
+  PartyPopper,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -32,12 +36,64 @@ import { useState } from "react";
 
 export default function DashboardPage() {
   const { user, isLoaded: isUserLoaded } = useUser();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Detect payment success
+  const paymentSuccess = searchParams.get("payment") === "success";
+
+  // Get subscription info
+  const { data: subscription } = trpc.billing.getSubscription.useQuery();
+  const isFounder =
+    subscription?.isFounder || (user?.publicMetadata as any)?.isFoundingMember;
+
+  // Show payment success toast
+  useEffect(() => {
+    if (paymentSuccess) {
+      // Remove query param from URL
+      router.replace("/dashboard", { scroll: false });
+
+      // Show appropriate celebration toast
+      setTimeout(() => {
+        if (isFounder) {
+          toast.success(
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold">
+                <Crown className="h-5 w-5 text-amber-500" />
+                Parabéns, Membro Fundador!
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Você garantiu acesso vitalício ao plano Premium pelo preço do
+                Standard (R$ 140/mês). Obrigado por acreditar no Autevo desde o
+                início!
+              </p>
+            </div>,
+            { duration: 8000 },
+          );
+        } else {
+          toast.success(
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold">
+                <PartyPopper className="h-5 w-5 text-primary" />
+                Pagamento Confirmado!
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Sua assinatura está ativa. Aproveite todos os recursos do
+                Autevo!
+              </p>
+            </div>,
+            { duration: 6000 },
+          );
+        }
+      }, 500);
+    }
+  }, [paymentSuccess, isFounder, router]);
 
   const dashboardQuery = trpc.dashboard.getDashboardOverview.useQuery(
     undefined,
     {
       refetchInterval: 30000,
-    }
+    },
   );
 
   // Destructure data with fallbacks
@@ -105,9 +161,17 @@ export default function DashboardPage() {
         className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
       >
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Olá, {user?.firstName || "Usuário"} 👋
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+              Olá, {user?.firstName || "Usuário"} 👋
+            </h1>
+            {isFounder && (
+              <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-sm">
+                <Crown className="h-3 w-3 mr-1" />
+                Fundador
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">Aqui está o resumo do seu dia</p>
         </div>
         <div className="flex gap-2">
@@ -302,22 +366,22 @@ function StatCard({
     variant === "warning"
       ? "bg-orange-500/10"
       : highlight
-      ? "bg-green-500/10"
-      : "bg-primary/10";
+        ? "bg-green-500/10"
+        : "bg-primary/10";
 
   const iconTextClass =
     variant === "warning"
       ? "text-orange-500"
       : highlight
-      ? "text-green-500"
-      : "text-primary";
+        ? "text-green-500"
+        : "text-primary";
 
   const valueClass =
     variant === "warning"
       ? "text-orange-600"
       : highlight
-      ? "text-green-600"
-      : "";
+        ? "text-green-600"
+        : "";
 
   return (
     <Card
@@ -326,8 +390,8 @@ function StatCard({
         highlight
           ? "border-green-500/30 bg-green-500/5"
           : variant === "warning"
-          ? "border-orange-500/30 bg-orange-500/5"
-          : "bg-card/50 backdrop-blur-sm"
+            ? "border-orange-500/30 bg-orange-500/5"
+            : "bg-card/50 backdrop-blur-sm",
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
