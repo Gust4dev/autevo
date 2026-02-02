@@ -132,10 +132,12 @@ model User {
   isActive                 Boolean    @default(true)
   createdAt                DateTime   @default(now())
 
-  assignedOrders ServiceOrder[]          @relation("AssignedTo")
-  createdOrders  ServiceOrder[]          @relation("CreatedBy")
-  commissions    OrderItemCommission[]
-  auditLogs      AuditLog[]
+  assignedOrders          ServiceOrder[]          @relation("AssignedTo")
+  createdOrders           ServiceOrder[]          @relation("CreatedBy")
+  commissions             OrderItemCommission[]
+  auditLogs               AuditLog[]
+  pushSubscriptions       PushSubscription[]
+  notificationPreferences NotificationPreferences?
 
   @@index([tenantId])
   @@index([clerkId])
@@ -646,4 +648,39 @@ model WebhookLog {
   @@index([source, event])
   @@index([status])
   @@index([createdAt])
+}
+
+// ==========================================
+// PWA PUSH NOTIFICATIONS
+// ==========================================
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model NotificationPreferences {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Owner/Manager notifications
+  onNewOrder          Boolean @default(true)
+  onNewCustomer       Boolean @default(true)
+  onOrderCompleted    Boolean @default(true)
+  
+  // Member notifications
+  onAssignedToMe        Boolean @default(true)
+  onMyOrderStatusChange Boolean @default(true)
+  dailyReminder         Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

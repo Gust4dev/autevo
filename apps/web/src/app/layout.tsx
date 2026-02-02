@@ -74,8 +74,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Autevo - Sistema de Gestão para Estética Automotiva",
-    description:
-      "Sistema completo para gestão automotiva. Evolua sua oficina.",
+    description: "Sistema completo para gestão automotiva. Evolua sua oficina.",
     images: ["/branding/ogImage.png"],
   },
   icons: {
@@ -105,6 +104,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="pt-BR" suppressHydrationWarning>
         <head>
+          <link rel="apple-touch-icon" href="/branding/icon-192x192.png" />
           <link
             rel="dns-prefetch"
             href="https://proven-labrador-86.clerk.accounts.dev"

@@ -17,6 +17,7 @@ import {
   Input,
   Label,
   Skeleton,
+  DateInput,
 } from "@/components/ui";
 import { trpc } from "@/lib/trpc/provider";
 import { toast } from "sonner";
@@ -85,7 +86,13 @@ export default function EditCustomerPage({ params }: PageProps) {
         email: customer.email || "",
         document: customer.document || "",
         birthDate: customer.birthDate
-          ? new Date(customer.birthDate).toISOString().split("T")[0]
+          ? (() => {
+              const d = new Date(customer.birthDate);
+              const year = d.getUTCFullYear();
+              const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+              const day = String(d.getUTCDate()).padStart(2, "0");
+              return `${year}-${month}-${day}`;
+            })()
           : "",
         notes: customer.notes || "",
         whatsappOptIn: customer.whatsappOptIn,
@@ -101,7 +108,12 @@ export default function EditCustomerPage({ params }: PageProps) {
         phone: data.phone.replace(/\D/g, ""),
         email: data.email || undefined,
         document: data.document || undefined,
-        birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
+        birthDate: data.birthDate
+          ? (() => {
+              const [year, month, day] = data.birthDate.split("-").map(Number);
+              return new Date(year, month - 1, day);
+            })()
+          : undefined,
         notes: data.notes || undefined,
         whatsappOptIn: data.whatsappOptIn,
       },
@@ -116,12 +128,12 @@ export default function EditCustomerPage({ params }: PageProps) {
       return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
     if (numbers.length <= 11) {
       return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(
-        7
+        7,
       )}`;
     }
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(
       7,
-      11
+      11,
     )}`;
   };
 
@@ -135,11 +147,11 @@ export default function EditCustomerPage({ params }: PageProps) {
         return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
       if (numbers.length <= 9)
         return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(
-          6
+          6,
         )}`;
       return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(
         6,
-        9
+        9,
       )}-${numbers.slice(9)}`;
     } else {
       // CNPJ
@@ -148,16 +160,16 @@ export default function EditCustomerPage({ params }: PageProps) {
         return `${numbers.slice(0, 2)}.${numbers.slice(2)}`;
       if (numbers.length <= 8)
         return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(
-          5
+          5,
         )}`;
       if (numbers.length <= 12)
         return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(
           5,
-          8
+          8,
         )}/${numbers.slice(8)}`;
       return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(
         5,
-        8
+        8,
       )}/${numbers.slice(8, 12)}-${numbers.slice(12, 14)}`;
     }
   };
@@ -303,10 +315,10 @@ export default function EditCustomerPage({ params }: PageProps) {
             {/* Birth Date */}
             <div className="space-y-2">
               <Label htmlFor="birthDate">Data de Nascimento</Label>
-              <Input
+              <DateInput
                 id="birthDate"
-                type="date"
-                {...register("birthDate")}
+                value={watch("birthDate")}
+                onChange={(value) => setValue("birthDate", value)}
                 error={errors.birthDate?.message}
               />
             </div>

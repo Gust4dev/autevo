@@ -3,6 +3,7 @@ import { router, protectedProcedure, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { sanitizeInput } from '@/lib/sanitize';
 import { OrderStatus as PrismaOrderStatus, PaymentMethod, Prisma } from '@prisma/client';
+import { sendPushToOwners, sendPushToMember } from '@/lib/push-notifications';
 
 const validTransitions: Record<string, string[]> = {
     AGENDADO: ['EM_VISTORIA', 'CANCELADO'],
@@ -123,6 +124,16 @@ export const orderRouter = router({
                     message: `Nova OS #${order.code} criada para ${vehicle.plate}`,
                     status: 'pending',
                 }
+            });
+
+            // Push notification para owners/managers
+            sendPushToOwners(ctx.tenantId!, {
+                title: '🆕 Nova OS Criada',
+                body: `OS #${order.code} - ${vehicle.plate}`,
+                url: `/dashboard/orders/${order.id}`,
+                tag: `new-order-${order.id}`,
+            }, 'onNewOrder').catch(() => {
+                // Silently fail - push is non-critical
             });
 
             return order;
@@ -359,6 +370,18 @@ export const orderRouter = router({
                 },
             });
 
+            // Notificar membro se foi (re)atribuído
+            if (input.data.assignedToId && input.data.assignedToId !== existing.assignedToId) {
+                sendPushToMember(input.data.assignedToId, {
+                    title: '📋 OS Atribuída a Você',
+                    body: `OS #${order.code} foi atribuída a você`,
+                    url: `/dashboard/orders/${order.id}`,
+                    tag: `assigned-${order.id}`,
+                }, 'onAssignedToMe').catch(() => {
+                    // Silently fail
+                });
+            }
+
             return order;
         }),
 
@@ -430,6 +453,37 @@ export const orderRouter = router({
                     ...timestamps,
                 },
             });
+
+            // Notificar owners quando OS é concluída
+            if (input.status === 'CONCLUIDO') {
+                sendPushToOwners(ctx.tenantId!, {
+                    title: '✅ OS Concluída',
+                    body: `OS #${order.code} foi finalizada`,
+                    url: `/dashboard/orders/${order.id}`,
+                    tag: `completed-${order.id}`,
+                }, 'onOrderCompleted').catch(() => {
+                    // Silently fail
+                });
+            }
+
+            // Notificar membro atribuído sobre mudança de status
+            if (existing.assignedToId && existing.assignedToId !== ctx.user?.id) {
+                const statusLabels: Record<string, string> = {
+                    EM_VISTORIA: 'Em Vistoria',
+                    EM_EXECUCAO: 'Em Execução',
+                    AGUARDANDO_PAGAMENTO: 'Aguardando Pagamento',
+                    CONCLUIDO: 'Concluída',
+                    CANCELADO: 'Cancelada',
+                };
+                sendPushToMember(existing.assignedToId, {
+                    title: '🔄 Status Alterado',
+                    body: `OS #${order.code}: ${statusLabels[input.status] || input.status}`,
+                    url: `/dashboard/orders/${order.id}`,
+                    tag: `status-${order.id}`,
+                }, 'onMyOrderStatusChange').catch(() => {
+                    // Silently fail
+                });
+            }
 
             return order;
         }),

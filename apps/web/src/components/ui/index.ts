@@ -72,4 +72,5 @@ export {
     TableCell,
     TableCaption,
 } from './table';
+export { DateInput } from './date-input';
 

@@ -22,6 +22,7 @@ import {
   Wrench,
   Globe,
   Database,
+  Bell,
 } from "lucide-react";
 import { exportToExcel, formatFilenameDate } from "@/lib/export";
 import Link from "next/link";
@@ -44,6 +45,7 @@ import {
 import { trpc } from "@/lib/trpc/provider";
 import { toast } from "sonner";
 import { convertFileToWebP } from "@/lib/image-conversion";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 
 const settingsSchema = z.object({
   name: z.string().min(2, "Nome muito curto").optional(),
@@ -113,7 +115,7 @@ export default function SettingsPage() {
     }
 
     return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(
-      l * 100
+      l * 100,
     )}%`;
   };
 
@@ -805,11 +807,29 @@ export default function SettingsPage() {
             </div>
           </TabsContent>
 
-          {/* TAB SISTEMA: Privacidade e Backup */}
+          {/* TAB SISTEMA: Notificações, Privacidade e Backup */}
           <TabsContent
             value="sistema"
             className="space-y-6 animate-in fade-in-50 slide-in-from-left-2 duration-300"
           >
+            {/* Notificações Push */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-primary" />
+                  Notificações Push
+                </CardTitle>
+                <CardDescription>
+                  Receba alertas em tempo real sobre novas ordens e atualizações
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-xl border bg-background p-4">
+                  <PushNotificationToggle />
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -873,7 +893,7 @@ function InfoIcon({ className }: { className?: string }) {
 function BackupButton() {
   const { refetch, isFetching } = trpc.backup.exportAllData.useQuery(
     undefined,
-    { enabled: false }
+    { enabled: false },
   );
 
   const handleBackup = async () => {

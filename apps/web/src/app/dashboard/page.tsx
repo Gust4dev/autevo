@@ -186,7 +186,7 @@ export default function DashboardPage() {
 
       {/* Booking Quick Access */}
       <Card className="border-primary/20 bg-primary/5 pb-0">
-        <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+        <CardContent className="p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 p-2 rounded-lg">
               <LinkIcon className="h-5 w-5 text-primary" />
@@ -201,29 +201,31 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="bg-background border rounded-md px-3 py-2 text-xs font-mono flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+            <div className="bg-background border rounded-md px-3 py-2 text-xs font-mono truncate max-w-full sm:max-w-xs lg:max-w-md">
               {bookingUrl}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyToClipboard}
-              className="shrink-0"
-            >
-              {isCopying ? "Copiado!" : <Copy className="h-4 w-4" />}
-            </Button>
-            <Button size="sm" asChild className="shrink-0">
-              <Link href={`/booking/${tenantSlug}`} target="_blank">
-                <ExternalLink className="h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyToClipboard}
+                className="flex-1 sm:flex-none"
+              >
+                {isCopying ? "Copiado!" : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button size="sm" asChild className="flex-1 sm:flex-none">
+                <Link href={`/booking/${tenantSlug}`} target="_blank">
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Stats Grid - 3 columns on lg/xl */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Agendamentos Hoje"
           value={stats?.todayOrders.toString() || "0"}
@@ -313,7 +315,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <QuickActionCard
           href="/dashboard/customers/new"
           title="Novo Cliente"

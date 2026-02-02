@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Cake, Gift, Loader2 } from "lucide-react";
-import { format, isSameDay } from "date-fns";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Cake,
+  Gift,
+  Loader2,
+  Clock,
+} from "lucide-react";
 import { ptBR } from "date-fns/locale";
 import {
   Button,
@@ -15,6 +21,27 @@ import {
 import { WhatsAppButton } from "@/components/whatsapp";
 import { trpc } from "@/lib/trpc/provider";
 import { DEFAULT_TEMPLATES, replaceTemplateVariables } from "@/lib/whatsapp";
+
+// Helper para formatar data usando UTC (evita bug de timezone)
+function formatBirthdayDate(date: Date): string {
+  const months = [
+    "janeiro",
+    "fevereiro",
+    "março",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
+  ];
+  const day = new Date(date).getUTCDate();
+  const month = months[new Date(date).getUTCMonth()];
+  return `${day} de ${month}`;
+}
 
 export function BirthdaySidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -31,9 +58,11 @@ export function BirthdaySidebar() {
     });
   };
 
-  const isToday = (date: Date) => {
-    return isSameDay(new Date(date), new Date());
-  };
+  // Separar por status
+  const todayBirthdays = birthdays?.filter((b) => b.status === "today") || [];
+  const upcomingBirthdays =
+    birthdays?.filter((b) => b.status === "upcoming") || [];
+  const passedBirthdays = birthdays?.filter((b) => b.status === "passed") || [];
 
   if (isCollapsed) {
     return (
@@ -60,6 +89,69 @@ export function BirthdaySidebar() {
       </div>
     );
   }
+
+  const renderBirthdayCard = (
+    customer: NonNullable<typeof birthdays>[number],
+  ) => {
+    const statusStyles = {
+      today:
+        "bg-pink-50 border-pink-200 dark:bg-pink-950/20 dark:border-pink-900/50",
+      upcoming: "bg-muted/50 border-transparent",
+      passed:
+        "bg-amber-50/50 border-amber-200/50 dark:bg-amber-950/10 dark:border-amber-900/30",
+    };
+
+    return (
+      <div
+        key={customer.id}
+        className={`flex items-center justify-between p-3 rounded-lg border ${statusStyles[customer.status]}`}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="font-medium truncate">{customer.name}</p>
+            {customer.status === "today" && (
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                HOJE!
+              </Badge>
+            )}
+            {customer.status === "passed" && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300"
+              >
+                Passou
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {formatBirthdayDate(customer.birthDate)}
+            {customer.status === "upcoming" &&
+              customer.daysFromToday === 1 &&
+              " (amanhã)"}
+            {customer.status === "upcoming" &&
+              customer.daysFromToday > 1 &&
+              ` (em ${customer.daysFromToday} dias)`}
+            {customer.status === "passed" &&
+              customer.daysFromToday === -1 &&
+              " (ontem)"}
+            {customer.status === "passed" &&
+              customer.daysFromToday < -1 &&
+              ` (há ${Math.abs(customer.daysFromToday)} dias)`}
+          </p>
+        </div>
+        <WhatsAppButton
+          phone={customer.phone}
+          message={getBirthdayMessage(customer.name)}
+          whatsappOptIn={customer.whatsappOptIn}
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+        >
+          <Gift className="h-4 w-4 text-green-600" />
+        </WhatsAppButton>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed right-0 top-20 z-40 w-80 max-h-[calc(100vh-6rem)] overflow-hidden">
@@ -97,46 +189,34 @@ export function BirthdaySidebar() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {birthdays.map((customer) => (
-                <div
-                  key={customer.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    isToday(customer.birthDate!)
-                      ? "bg-pink-50 border-pink-200 dark:bg-pink-950/20 dark:border-pink-900/50"
-                      : "bg-muted/50 border-transparent"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium truncate">{customer.name}</p>
-                      {isToday(customer.birthDate!) && (
-                        <Badge
-                          variant="destructive"
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          HOJE!
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(customer.birthDate!), "d 'de' MMMM", {
-                        locale: ptBR,
-                      })}
-                    </p>
-                  </div>
-                  <WhatsAppButton
-                    phone={customer.phone}
-                    message={getBirthdayMessage(customer.name)}
-                    whatsappOptIn={customer.whatsappOptIn}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                  >
-                    <Gift className="h-4 w-4 text-green-600" />
-                  </WhatsAppButton>
+            <div className="space-y-4">
+              {/* Aniversariantes de Hoje */}
+              {todayBirthdays.length > 0 && (
+                <div className="space-y-2">
+                  {todayBirthdays.map(renderBirthdayCard)}
                 </div>
-              ))}
+              )}
+
+              {/* Próximos Aniversariantes */}
+              {upcomingBirthdays.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Próximos
+                  </p>
+                  {upcomingBirthdays.map(renderBirthdayCard)}
+                </div>
+              )}
+
+              {/* Aniversários que passaram */}
+              {passedBirthdays.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-amber-600 uppercase tracking-wide flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Últimos dias
+                  </p>
+                  {passedBirthdays.map(renderBirthdayCard)}
+                </div>
+              )}
             </div>
           )}
         </CardContent>

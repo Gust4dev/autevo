@@ -11,6 +11,7 @@ import {
   Label,
   Separator,
   Badge,
+  DateInput,
 } from "@/components/ui";
 import {
   Calendar as CalendarIcon,
@@ -30,6 +31,10 @@ import {
   X,
   Smartphone,
   Info,
+  UserCheck,
+  UserPlus,
+  Search,
+  Sparkles,
 } from "lucide-react";
 import {
   format,
@@ -42,19 +47,54 @@ import {
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import Image from "next/image";
+import { isValidCPF, formatCPF, cleanCPF } from "@/lib/cpf-validator";
 
 interface BookingPageProps {
   params: Promise<{ slug: string }>;
 }
 
-type Step = "service" | "date" | "info" | "success";
+type Step = "welcome" | "identify" | "service" | "date" | "info" | "success";
+
+// Tipo para veículo do cliente existente
+interface ExistingVehicle {
+  id: string;
+  plate: string;
+  brand: string;
+  model: string;
+  color: string;
+}
+
+// Tipo para cliente existente
+interface ExistingCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  birthDate: Date | null;
+  vehicles: ExistingVehicle[];
+}
 
 export default function PublicBookingPage({ params }: BookingPageProps) {
   const { slug } = use(params);
-  const [step, setStep] = useState<Step>("service");
+  const [step, setStep] = useState<Step>("welcome");
   const [selectedService, setSelectedService] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Estados para identificação
+  const [isReturningCustomer, setIsReturningCustomer] = useState<
+    boolean | null
+  >(null);
+  const [cpfInput, setCpfInput] = useState("");
+  const [cpfError, setCpfError] = useState("");
+  const [existingCustomer, setExistingCustomer] =
+    useState<ExistingCustomer | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
+    null,
+  );
+  const [useNewVehicle, setUseNewVehicle] = useState(false);
+
   const [formData, setFormData] = useState({
+    document: "",
     name: "",
     phone: "",
     email: "",
@@ -72,8 +112,65 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
   const { data: availableDates, isLoading: loadingDates } =
     trpc.schedule.getAvailableDates.useQuery(
       { tenantId: tenant?.id! },
-      { enabled: !!tenant?.id }
+      { enabled: !!tenant?.id },
     );
+
+  // Lookup de cliente por CPF - usando refetch manual
+  const lookupCustomerQuery = trpc.schedule.lookupCustomerByDocument.useQuery(
+    { tenantId: tenant?.id!, document: cleanCPF(cpfInput) },
+    {
+      enabled: false, // Desabilitado por padrão, acionado manualmente
+    },
+  );
+
+  // Handler para buscar cliente por CPF
+  const handleCpfLookup = async () => {
+    const cleanedCpf = cleanCPF(cpfInput);
+
+    if (cleanedCpf.length !== 11) {
+      setCpfError("CPF deve ter 11 dígitos");
+      return;
+    }
+
+    if (!isValidCPF(cleanedCpf)) {
+      setCpfError("CPF inválido. Verifique o número digitado.");
+      return;
+    }
+
+    setCpfError("");
+
+    try {
+      const result = await lookupCustomerQuery.refetch();
+
+      if (result.data) {
+        // Cliente encontrado
+        const customerData = result.data;
+        setExistingCustomer(customerData);
+        setFormData((prev) => ({
+          ...prev,
+          document: cleanedCpf,
+          name: customerData.name,
+          phone: customerData.phone,
+          email: customerData.email || "",
+          birthDate: customerData.birthDate
+            ? new Date(customerData.birthDate).toISOString().split("T")[0]
+            : "",
+        }));
+
+        if (customerData.vehicles.length > 0) {
+          setSelectedVehicleId(customerData.vehicles[0].id);
+        }
+      } else {
+        // Cliente não encontrado - avança para cadastro
+        setExistingCustomer(null);
+        setFormData((prev) => ({ ...prev, document: cleanedCpf }));
+      }
+
+      setStep("service");
+    } catch (error: any) {
+      setCpfError(error.message || "Erro ao buscar cliente");
+    }
+  };
 
   // Mutation
   const bookingMutation = trpc.schedule.createPublicBooking.useMutation({
@@ -142,30 +239,52 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
   };
 
   const handleBack = () => {
-    if (step === "date") setStep("service");
-    else if (step === "info") setStep("date");
+    if (step === "identify") {
+      setStep("welcome");
+      setIsReturningCustomer(null);
+    } else if (step === "service") {
+      // Se cliente é novo, volta pro welcome. Se é existente, volta pro identify
+      if (isReturningCustomer) {
+        setStep("identify");
+      } else {
+        setStep("welcome");
+        setIsReturningCustomer(null);
+      }
+    } else if (step === "date") {
+      setStep("service");
+    } else if (step === "info") {
+      setStep("date");
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService || !selectedDate) return;
 
+    // Determinar se usa veículo existente ou novo
+    const useExistingVehicle =
+      existingCustomer && selectedVehicleId && !useNewVehicle;
+
     bookingMutation.mutate({
       tenantId: tenant.id,
       serviceId: selectedService.id,
       scheduledAt: selectedDate,
+      existingVehicleId: useExistingVehicle ? selectedVehicleId : undefined,
       customer: {
+        document: formData.document,
         name: formData.name,
         phone: formData.phone,
         email: formData.email || undefined,
         birthDate: formData.birthDate || undefined,
       },
-      vehicle: {
-        plate: formData.plate,
-        model: formData.model,
-        brand: formData.brand,
-        color: formData.color,
-      },
+      vehicle: useExistingVehicle
+        ? undefined
+        : {
+            plate: formData.plate,
+            model: formData.model,
+            brand: formData.brand,
+            color: formData.color,
+          },
     });
   };
 
@@ -220,23 +339,25 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
               </div>
             </div>
 
-            {/* Progress Stepper */}
-            {step !== "success" && (
-              <div className="flex items-center justify-center gap-2 mt-8">
-                {[
-                  { id: "service", label: "Serviço" },
-                  { id: "date", label: "Data" },
-                  { id: "info", label: "Dados" },
-                ].map((s, idx) => {
-                  const isActive = s.id === step;
-                  const isCompleted =
-                    (step === "date" && idx === 0) ||
-                    (step === "info" && idx <= 1);
+            {/* Progress Stepper - só mostra após identificação */}
+            {step !== "success" &&
+              step !== "welcome" &&
+              step !== "identify" && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  {[
+                    { id: "service", label: "Serviço" },
+                    { id: "date", label: "Data" },
+                    { id: "info", label: "Dados" },
+                  ].map((s, idx) => {
+                    const stepOrder = ["service", "date", "info"];
+                    const currentIdx = stepOrder.indexOf(step);
+                    const isActive = s.id === step;
+                    const isCompleted = idx < currentIdx;
 
-                  return (
-                    <div key={s.id} className="flex items-center">
-                      <div
-                        className={`
+                    return (
+                      <div key={s.id} className="flex items-center">
+                        <div
+                          className={`
                                         h-2.5 w-8 rounded-full transition-all duration-500 
                                         ${
                                           isActive || isCompleted
@@ -244,23 +365,206 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                                             : "scale-75 opacity-30"
                                         }
                                     `}
-                        style={{
-                          backgroundColor:
-                            isActive || isCompleted ? primaryColor : "#E5E7EB",
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                          style={{
+                            backgroundColor:
+                              isActive || isCompleted
+                                ? primaryColor
+                                : "#E5E7EB",
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
           </div>
         </div>
 
         {/* Main Content Area */}
         <div className="flex-1 px-6 py-8 bg-white relative overflow-hidden">
           <AnimatePresence mode="wait">
-            {/* STEP 1: SERVICE SELECTION */}
+            {/* STEP WELCOME: Boas-vindas */}
+            {step === "welcome" && (
+              <motion.div
+                key="welcome"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-8"
+              >
+                <div className="space-y-4 text-center">
+                  <div className="flex justify-center">
+                    <Sparkles className="h-12 w-12 text-amber-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Bem-vindo(a)! 👋
+                  </h2>
+                  <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                    Estamos felizes em ter você aqui. Vamos agendar seu serviço
+                    rapidamente!
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-center font-semibold text-gray-800">
+                    Você já é cliente da {tenant.name}?
+                  </p>
+
+                  <div className="grid gap-4">
+                    {/* Botão SIM */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setIsReturningCustomer(true);
+                        setStep("identify");
+                      }}
+                      className="flex items-center gap-4 p-5 rounded-2xl border-2 border-gray-100 hover:border-gray-200 hover:shadow-md transition-all bg-white"
+                    >
+                      <div
+                        className="h-12 w-12 rounded-xl flex items-center justify-center text-white"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        <UserCheck className="h-6 w-6" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <h3 className="font-bold text-gray-900">
+                          Sim, já sou cliente
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Vou informar meu CPF para agilizar
+                        </p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-400" />
+                    </motion.button>
+
+                    {/* Botão NÃO */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setIsReturningCustomer(false);
+                        setExistingCustomer(null);
+                        setStep("service");
+                      }}
+                      className="flex items-center gap-4 p-5 rounded-2xl border-2 border-gray-100 hover:border-gray-200 hover:shadow-md transition-all bg-white"
+                    >
+                      <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-gray-100 text-gray-600">
+                        <UserPlus className="h-6 w-6" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <h3 className="font-bold text-gray-900">
+                          Não, é minha primeira vez
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Vou criar meu cadastro agora
+                        </p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-400" />
+                    </motion.button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP IDENTIFY: Verificação CPF */}
+            {step === "identify" && (
+              <motion.div
+                key="identify"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-8"
+              >
+                <div className="flex items-center gap-2 -ml-2 mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBack}
+                    className="rounded-full hover:bg-gray-100 text-gray-500"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                    <span className="sr-only">Voltar</span>
+                  </Button>
+                  <span className="text-sm font-medium text-gray-400">
+                    Voltar
+                  </span>
+                </div>
+
+                <div className="space-y-4 text-center">
+                  <div className="flex justify-center">
+                    <div
+                      className="h-16 w-16 rounded-2xl flex items-center justify-center text-white"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      <Search className="h-8 w-8" />
+                    </div>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Informe seu CPF
+                  </h2>
+                  <p className="text-gray-500 text-sm">
+                    Vamos buscar seu cadastro para agilizar o agendamento
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="cpf"
+                      className="text-xs font-bold uppercase text-gray-500"
+                    >
+                      CPF
+                    </Label>
+                    <Input
+                      id="cpf"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      value={cpfInput}
+                      onChange={(e) => {
+                        // Formatar CPF enquanto digita
+                        const value = e.target.value.replace(/\D/g, "");
+                        if (value.length <= 11) {
+                          setCpfInput(formatCPF(value));
+                          setCpfError("");
+                        }
+                      }}
+                      className={`h-14 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all text-center text-xl font-mono tracking-wider ${cpfError ? "border-red-500" : ""}`}
+                    />
+                    {cpfError && (
+                      <p className="text-sm text-red-500 text-center">
+                        {cpfError}
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    className="w-full h-14 text-lg font-bold rounded-2xl shadow-xl shadow-gray-200 hover:shadow-2xl hover:scale-[1.01] transition-all"
+                    style={{ backgroundColor: primaryColor }}
+                    disabled={
+                      cleanCPF(cpfInput).length !== 11 ||
+                      lookupCustomerQuery.isFetching
+                    }
+                    onClick={handleCpfLookup}
+                  >
+                    {lookupCustomerQuery.isFetching ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Buscando...
+                      </>
+                    ) : (
+                      <>
+                        Verificar
+                        <ChevronRight className="ml-2 h-5 w-5" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP SERVICE SELECTION */}
             {step === "service" && (
               <motion.div
                 key="service"
@@ -269,9 +573,50 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
+                {/* Saudação personalizada com botão voltar */}
+                <div className="flex items-center gap-2 -ml-2 mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBack}
+                    className="rounded-full hover:bg-gray-100 text-gray-500"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                    <span className="sr-only">Voltar</span>
+                  </Button>
+                  <span className="text-sm font-medium text-gray-400">
+                    Voltar
+                  </span>
+                </div>
+
+                {/* Card de cliente encontrado */}
+                {existingCustomer && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-4 rounded-2xl border-2 border-green-200 bg-green-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center">
+                        <CheckCircle2 className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-green-800">
+                          Olá, {existingCustomer.name}!
+                        </p>
+                        <p className="text-sm text-green-600">
+                          Encontramos seu cadastro 🎉
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="space-y-2 text-center">
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Olá! 👋 <br /> O que seu carro precisa?
+                    {existingCustomer ? "O que vamos fazer hoje?" : "Olá! 👋"}
+                    <br />
+                    {!existingCustomer && "O que seu carro precisa?"}
                   </h2>
                   <p className="text-gray-500 text-sm">
                     Escolha um dos nossos serviços premium abaixo
@@ -419,7 +764,7 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                           isSameDay(selectedDate, new Date(item.date));
                         const isToday = isSameDay(
                           new Date(),
-                          new Date(item.date)
+                          new Date(item.date),
                         );
                         const date = new Date(item.date);
 
@@ -456,7 +801,7 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                               {format(date, "EEE", { locale: ptBR }).replace(
                                 ".",
-                                ""
+                                "",
                               )}
                             </span>
                             <span
@@ -577,22 +922,56 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                         <User className="h-4 w-4" />
                       </div>
                       <h3 className="font-bold text-gray-900">Seus Dados</h3>
+                      <span className="ml-auto text-xs text-gray-400">
+                        <span className="text-red-500">*</span> Obrigatório
+                      </span>
                     </div>
 
                     <div className="grid gap-4">
+                      {/* Campo CPF */}
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="cpfForm"
+                          className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
+                        >
+                          CPF <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="cpfForm"
+                          required
+                          inputMode="numeric"
+                          className={`h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all ${existingCustomer ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                          placeholder="000.000.000-00"
+                          value={formatCPF(formData.document)}
+                          disabled={!!existingCustomer}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            if (value.length <= 11) {
+                              setFormData({ ...formData, document: value });
+                            }
+                          }}
+                        />
+                        {existingCustomer && (
+                          <p className="text-xs text-green-600">
+                            CPF já verificado ✓
+                          </p>
+                        )}
+                      </div>
+
                       <div className="space-y-2">
                         <Label
                           htmlFor="name"
-                          className="text-xs font-bold uppercase text-gray-500"
+                          className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
                         >
-                          Nome Completo
+                          Nome Completo <span className="text-red-500">*</span>
                         </Label>
                         <Input
                           id="name"
                           required
-                          className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
+                          className={`h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all ${existingCustomer ? "bg-gray-100" : ""}`}
                           placeholder="Digite seu nome"
                           value={formData.name}
+                          readOnly={!!existingCustomer}
                           onChange={(e) =>
                             setFormData({ ...formData, name: e.target.value })
                           }
@@ -607,15 +986,14 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                           >
                             Nascimento
                           </Label>
-                          <Input
+                          <DateInput
                             id="birthDate"
-                            type="date"
                             className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
-                            value={formData.birthDate}
-                            onChange={(e) =>
+                            value={formData.birthDate || ""}
+                            onChange={(value) =>
                               setFormData({
                                 ...formData,
-                                birthDate: e.target.value,
+                                birthDate: value,
                               })
                             }
                           />
@@ -623,16 +1001,17 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                         <div className="space-y-2">
                           <Label
                             htmlFor="phone"
-                            className="text-xs font-bold uppercase text-gray-500"
+                            className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
                           >
-                            WhatsApp
+                            WhatsApp <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id="phone"
                             required
-                            className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
+                            className={`h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all ${existingCustomer ? "bg-gray-100" : ""}`}
                             placeholder="(00) 00000-0000"
                             value={formData.phone}
+                            readOnly={!!existingCustomer}
                             onChange={(e) =>
                               setFormData({
                                 ...formData,
@@ -671,100 +1050,207 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                         <Car className="h-4 w-4" />
                       </div>
                       <h3 className="font-bold text-gray-900">O Veículo</h3>
+                      <span className="ml-auto text-xs text-gray-400">
+                        <span className="text-red-500">*</span> Obrigatório
+                      </span>
                     </div>
 
-                    <div className="grid gap-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="plate"
-                            className="text-xs font-bold uppercase text-gray-500"
-                          >
-                            Placa
-                          </Label>
-                          <Input
-                            id="plate"
-                            required
-                            className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all font-mono uppercase"
-                            placeholder="ABC-1234"
-                            maxLength={7}
-                            value={formData.plate}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                plate: e.target.value.toUpperCase(),
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="color"
-                            className="text-xs font-bold uppercase text-gray-500"
-                          >
-                            Cor
-                          </Label>
-                          <Input
-                            id="color"
-                            required
-                            className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
-                            placeholder="Prata"
-                            value={formData.color}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                color: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
+                    {/* Veículos Existentes */}
+                    {existingCustomer &&
+                      existingCustomer.vehicles.length > 0 &&
+                      !useNewVehicle && (
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-600">
+                            Selecione um dos seus veículos:
+                          </p>
+                          <div className="grid gap-3">
+                            {existingCustomer.vehicles.map((vehicle) => (
+                              <motion.button
+                                key={vehicle.id}
+                                type="button"
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                                onClick={() => setSelectedVehicleId(vehicle.id)}
+                                className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                                  selectedVehicleId === vehicle.id
+                                    ? "bg-gray-50 shadow-md"
+                                    : "border-gray-100 hover:border-gray-200"
+                                }`}
+                                style={{
+                                  borderColor:
+                                    selectedVehicleId === vehicle.id
+                                      ? primaryColor
+                                      : undefined,
+                                }}
+                              >
+                                <div
+                                  className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                                    selectedVehicleId === vehicle.id
+                                      ? "text-white"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
+                                  style={{
+                                    backgroundColor:
+                                      selectedVehicleId === vehicle.id
+                                        ? primaryColor
+                                        : undefined,
+                                  }}
+                                >
+                                  <Car className="h-6 w-6" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-bold text-gray-900 font-mono">
+                                    {vehicle.plate}
+                                  </p>
+                                  <p className="text-sm text-gray-500">
+                                    {vehicle.brand} {vehicle.model} •{" "}
+                                    {vehicle.color}
+                                  </p>
+                                </div>
+                                {selectedVehicleId === vehicle.id && (
+                                  <CheckCircle2
+                                    className="h-5 w-5"
+                                    style={{ color: primaryColor }}
+                                  />
+                                )}
+                              </motion.button>
+                            ))}
+                          </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="brand"
-                            className="text-xs font-bold uppercase text-gray-500"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUseNewVehicle(true);
+                              setSelectedVehicleId(null);
+                            }}
+                            className="w-full py-3 text-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
                           >
-                            Marca
-                          </Label>
-                          <Input
-                            id="brand"
-                            required
-                            className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
-                            placeholder="Toyota"
-                            value={formData.brand}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                brand: e.target.value,
-                              })
-                            }
-                          />
+                            + Adicionar novo veículo
+                          </button>
                         </div>
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="model"
-                            className="text-xs font-bold uppercase text-gray-500"
-                          >
-                            Modelo
-                          </Label>
-                          <Input
-                            id="model"
-                            required
-                            className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
-                            placeholder="Corolla"
-                            value={formData.model}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                model: e.target.value,
-                              })
-                            }
-                          />
+                      )}
+
+                    {/* Formulário de Novo Veículo */}
+                    {(!existingCustomer ||
+                      existingCustomer.vehicles.length === 0 ||
+                      useNewVehicle) && (
+                      <>
+                        {useNewVehicle && existingCustomer && (
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="text-sm font-medium text-gray-600">
+                              Novo veículo
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUseNewVehicle(false);
+                                if (existingCustomer.vehicles.length > 0) {
+                                  setSelectedVehicleId(
+                                    existingCustomer.vehicles[0].id,
+                                  );
+                                }
+                              }}
+                              className="text-sm text-gray-500 hover:text-gray-700"
+                            >
+                              ← Usar existente
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="grid gap-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="plate"
+                                className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
+                              >
+                                Placa <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id="plate"
+                                required
+                                className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all font-mono uppercase"
+                                placeholder="ABC-1234"
+                                maxLength={7}
+                                value={formData.plate}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    plate: e.target.value.toUpperCase(),
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="color"
+                                className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
+                              >
+                                Cor <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id="color"
+                                required
+                                className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
+                                placeholder="Prata"
+                                value={formData.color}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    color: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="brand"
+                                className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
+                              >
+                                Marca <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id="brand"
+                                required
+                                className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
+                                placeholder="Toyota"
+                                value={formData.brand}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    brand: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor="model"
+                                className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"
+                              >
+                                Modelo <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id="model"
+                                required
+                                className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-all"
+                                placeholder="Corolla"
+                                value={formData.model}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    model: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-8 pb-4">

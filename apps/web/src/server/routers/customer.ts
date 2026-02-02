@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { router, protectedProcedure, managerProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { sanitizeInput } from '@/lib/sanitize';
+import { sendPushToOwners } from '@/lib/push-notifications';
 
 // Input validation schemas
 const customerCreateSchema = z.object({
@@ -196,6 +197,17 @@ export const customerRouter = router({
                         } : undefined,
                     },
                 });
+
+                // Notificar owners sobre novo cliente
+                sendPushToOwners(ctx.tenantId!, {
+                    title: '👤 Novo Cliente',
+                    body: `${customer.name} foi cadastrado`,
+                    url: `/dashboard/customers/${customer.id}`,
+                    tag: `new-customer-${customer.id}`,
+                }, 'onNewCustomer').catch(() => {
+                    // Silently fail
+                });
+
                 return customer;
             } catch (error: any) {
                 // Handle duplicate vehicle plate error
@@ -364,22 +376,59 @@ export const customerRouter = router({
         });
 
         const today = new Date();
-        const todayMonth = today.getMonth();
         const todayDay = today.getDate();
+        const todayMonth = today.getMonth();
+        const todayYear = today.getFullYear();
 
-        return customers.filter((customer) => {
-            if (!customer.birthDate) return false;
-            const bMonth = customer.birthDate.getMonth();
-            const bDay = customer.birthDate.getDate();
+        type BirthdayStatus = 'passed' | 'today' | 'upcoming';
 
-            for (let i = 0; i < 7; i++) {
-                const checkDate = new Date(today);
-                checkDate.setDate(todayDay + i);
+        const results: Array<{
+            id: string;
+            name: string;
+            phone: string;
+            birthDate: Date;
+            whatsappOptIn: boolean;
+            status: BirthdayStatus;
+            daysFromToday: number;
+        }> = [];
+
+        customers.forEach((customer) => {
+            if (!customer.birthDate) return;
+
+            // Usar métodos UTC para evitar bug de timezone
+            const bMonth = customer.birthDate.getUTCMonth();
+            const bDay = customer.birthDate.getUTCDate();
+
+            // Verificar de -2 dias (passados) até +10 dias (futuros)
+            for (let i = -2; i <= 10; i++) {
+                const checkDate = new Date(todayYear, todayMonth, todayDay + i);
                 if (checkDate.getMonth() === bMonth && checkDate.getDate() === bDay) {
-                    return true;
+                    let status: BirthdayStatus;
+                    if (i < 0) status = 'passed';
+                    else if (i === 0) status = 'today';
+                    else status = 'upcoming';
+
+                    results.push({
+                        id: customer.id,
+                        name: customer.name,
+                        phone: customer.phone,
+                        birthDate: customer.birthDate,
+                        whatsappOptIn: customer.whatsappOptIn,
+                        status,
+                        daysFromToday: i,
+                    });
+                    break;
                 }
             }
-            return false;
+        });
+
+        // Ordenar: hoje primeiro, depois futuros por proximidade, depois passados
+        return results.sort((a, b) => {
+            if (a.status === 'today' && b.status !== 'today') return -1;
+            if (b.status === 'today' && a.status !== 'today') return 1;
+            if (a.status === 'upcoming' && b.status === 'passed') return -1;
+            if (b.status === 'upcoming' && a.status === 'passed') return 1;
+            return a.daysFromToday - b.daysFromToday;
         });
     }),
 });

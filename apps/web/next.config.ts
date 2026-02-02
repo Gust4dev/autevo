@@ -1,5 +1,52 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
+import withPWAInit from '@ducanh2912/next-pwa';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const withPWA = withPWAInit({
+    dest: 'public',
+    disable: process.env.NODE_ENV === 'development',
+    register: true,
+    skipWaiting: true,
+    cacheOnFrontEndNav: true,
+    workboxOptions: {
+        disableDevLogs: true,
+        runtimeCaching: [
+            {
+                urlPattern: /^https:\/\/.*\.clerk\..*$/,
+                handler: 'NetworkFirst',
+                options: {
+                    cacheName: 'clerk-cache',
+                    expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 },
+                },
+            },
+            {
+                urlPattern: /\/api\/trpc\/.*/,
+                handler: 'NetworkFirst',
+                options: {
+                    cacheName: 'api-cache',
+                    expiration: { maxEntries: 100, maxAgeSeconds: 60 * 5 },
+                },
+            },
+            {
+                urlPattern: /\/_next\/static\/.*/,
+                handler: 'CacheFirst',
+                options: {
+                    cacheName: 'static-cache',
+                    expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                },
+            },
+            {
+                urlPattern: /\/_next\/image\?.*/,
+                handler: 'CacheFirst',
+                options: {
+                    cacheName: 'image-cache',
+                    expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+                },
+            },
+        ],
+    },
+} as Parameters<typeof withPWAInit>[0]);
 
 const nextConfig: NextConfig = {
     reactStrictMode: true,
@@ -47,39 +94,15 @@ const nextConfig: NextConfig = {
     },
 };
 
-export default withSentryConfig(nextConfig, {
-    // For all available options, see:
-    // https://www.npmjs.com/package/@sentry/webpack-plugin#options
-
+export default withSentryConfig(withPWA(nextConfig), {
     org: "gusta-dev",
-
     project: "javascript-nextjs",
-
-    // Only print logs for uploading source maps in CI
     silent: !process.env.CI,
-
-    // For all available options, see:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-    // Upload a larger set of source maps for prettier stack traces (increases build time)
     widenClientFileUpload: true,
-
-    // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-    // This can increase your server load as well as your hosting bill.
-    // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-    // side errors will fail.
     tunnelRoute: "/monitoring",
-
     webpack: {
-        // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-        // See the following for more information:
-        // https://docs.sentry.io/product/crons/
-        // https://vercel.com/docs/cron-jobs
         automaticVercelMonitors: true,
-
-        // Tree-shaking options for reducing bundle size
         treeshake: {
-            // Automatically tree-shake Sentry logger statements to reduce bundle size
             removeDebugLogging: true,
         },
     },
