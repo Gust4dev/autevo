@@ -105,15 +105,6 @@ export default function RootLayout({
       <html lang="pt-BR" suppressHydrationWarning>
         <head>
           <link rel="apple-touch-icon" href="/branding/icon-192x192.png" />
-          <link
-            rel="dns-prefetch"
-            href="https://proven-labrador-86.clerk.accounts.dev"
-          />
-          <link
-            rel="preconnect"
-            href="https://proven-labrador-86.clerk.accounts.dev"
-            crossOrigin="anonymous"
-          />
         </head>
         <body className={`${inter.variable} font-sans antialiased`}>
           <TRPCProvider>
