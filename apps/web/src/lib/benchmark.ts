@@ -29,7 +29,7 @@ export async function benchmark<T>(
         if (samples.length > 100) samples.shift();
         results.set(name, samples);
 
-        console.log(`[PERF] ${name}: ${duration.toFixed(2)}ms`);
+
     }
 
     return { result, duration };

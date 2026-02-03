@@ -20,14 +20,14 @@ export async function POST(request: Request) {
         const body = await request.json().catch(() => ({}));
         const { confirmationText } = body;
 
-        // Require explicit confirmation
+
         if (confirmationText !== 'CANCELAR ASSINATURA') {
             return NextResponse.json({
                 error: 'Confirmação inválida. Digite "CANCELAR ASSINATURA" para confirmar.'
             }, { status: 400 });
         }
 
-        // Get user and tenant
+
         const user = await prisma.user.findFirst({
             where: { clerkId: session.userId },
             include: { tenant: true },
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
             where: { tenantId },
         });
 
-        // Cancel Stripe subscription if exists
+
         if (subscription?.stripeSubscriptionId) {
             try {
                 await stripe.subscriptions.cancel(subscription.stripeSubscriptionId, {
@@ -54,25 +54,24 @@ export async function POST(request: Request) {
                 });
             } catch (stripeError) {
                 console.error('[Cancel] Stripe cancellation error:', stripeError);
-                // Continue with deletion even if Stripe fails
+
             }
         }
 
-        // Get all users from this tenant to delete from Clerk
+
         const tenantUsers = await prisma.user.findMany({
             where: { tenantId },
             select: { clerkId: true },
         });
 
-        // Delete tenant and all related data
-        // Explicitly delete models that don't have onDelete: Cascade in schema
+
         await prisma.$transaction(async (tx) => {
-            // 1. Delete data related to ServiceOrder that doesn't cascade
+
             await tx.payment.deleteMany({
                 where: { order: { tenantId } },
             });
 
-            // 2. Delete Inspection data (it doesn't cascade from ServiceOrder in current schema)
+
             await tx.inspectionItem.deleteMany({
                 where: { inspection: { order: { tenantId } } },
             });
@@ -83,13 +82,12 @@ export async function POST(request: Request) {
                 where: { order: { tenantId } },
             });
 
-            // 3. Delete AuditLogs and other tenant-specific data
+
             await tx.auditLog.deleteMany({
                 where: { tenantId },
             });
 
-            // 4. Delete Subscription and Payments if not handled by cascade
-            // Although cascade is in schema, explicit deletion ensures data integrity during this flow
+
             if (subscription) {
                 await tx.subscriptionPayment.deleteMany({
                     where: { subscriptionId: subscription.id },
@@ -99,16 +97,13 @@ export async function POST(request: Request) {
                 });
             }
 
-            // 5. Finally delete the Tenant
-            // This will trigger Cascade delete for:
-            // - User, Customer, Vehicle, Service, Product, ServiceOrder,
-            // - CommissionSettlement, NotificationLog, MessageTemplate
+
             await tx.tenant.delete({
                 where: { id: tenantId },
             });
         });
 
-        // Delete users from Clerk
+
         const clerk = await clerkClient();
         for (const tenantUser of tenantUsers) {
             if (tenantUser.clerkId) {
@@ -116,12 +111,12 @@ export async function POST(request: Request) {
                     await clerk.users.deleteUser(tenantUser.clerkId);
                 } catch (clerkError) {
                     console.error('[Cancel] Clerk user deletion error:', clerkError);
-                    // Continue even if Clerk deletion fails
+
                 }
             }
         }
 
-        // Decrement founder slots if was founder
+
         if (subscription?.isFounder) {
             await prisma.founderSlot.updateMany({
                 data: { usedSlots: { decrement: 1 } },

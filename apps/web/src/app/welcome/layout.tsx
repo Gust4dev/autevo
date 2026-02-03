@@ -21,12 +21,9 @@ export default async function WelcomeLayout({
     },
   });
 
-  // Waiting for invite - redirect to awaiting page
   if (user?.status === "INVITED") redirect("/awaiting-invite");
 
-  // User has tenant - they shouldn't be on welcome page
   if (user?.tenantId) {
-    // Check if setup is complete (OWNER/ADMIN needs jobTitle)
     const needsSetup =
       (user.role === "OWNER" || user.role === "ADMIN_SAAS") && !user.jobTitle;
 
@@ -34,14 +31,12 @@ export default async function WelcomeLayout({
       redirect("/setup");
     }
 
-    // Ensure Clerk metadata is synced to prevent future loops
     const clerkUser = await currentUser();
     const metadata = clerkUser?.publicMetadata as
       | { needsOnboarding?: boolean }
       | undefined;
 
     if (metadata?.needsOnboarding === true) {
-      // Update Clerk to remove needsOnboarding flag
       try {
         const clerk = await clerkClient();
         await clerk.users.updateUser(userId, {
