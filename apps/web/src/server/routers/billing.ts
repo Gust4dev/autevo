@@ -6,35 +6,45 @@ export const billingRouter = router({
     getSubscription: protectedProcedure.query(async ({ ctx }) => {
         if (!ctx.tenantId) return null;
 
-        const subscription = await ctx.db.subscription.findUnique({
-            where: { tenantId: ctx.tenantId },
-            include: {
-                promoCode: {
-                    select: {
-                        code: true,
-                        discountPercent: true,
+        const [subscription, tenant] = await Promise.all([
+            ctx.db.subscription.findUnique({
+                where: { tenantId: ctx.tenantId },
+                include: {
+                    promoCode: {
+                        select: {
+                            code: true,
+                            discountPercent: true,
+                        },
                     },
                 },
-            },
-        });
-
-        if (!subscription) {
-            return null;
-        }
+            }),
+            ctx.db.tenant.findUnique({
+                where: { id: ctx.tenantId },
+                select: {
+                    status: true,
+                    trialEndsAt: true,
+                    trialStartedAt: true,
+                    isFoundingMember: true,
+                },
+            }),
+        ]);
 
         return {
-            id: subscription.id,
-            status: subscription.status,
-            billingInterval: subscription.billingInterval,
-            currentPeriodStart: subscription.currentPeriodStart,
-            currentPeriodEnd: subscription.currentPeriodEnd,
-            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-            customMonthlyPrice: subscription.customMonthlyPrice ? Number(subscription.customMonthlyPrice) : null,
-            isFounder: subscription.isFounder,
-            founderExpiresAt: subscription.founderExpiresAt,
-            promoDiscountApplied: subscription.promoDiscountApplied,
-            promoMonthsRemaining: subscription.promoMonthsRemaining,
-            promoCode: subscription.promoCode,
+            id: subscription?.id ?? null,
+            status: subscription?.status ?? null,
+            billingInterval: subscription?.billingInterval ?? null,
+            currentPeriodStart: subscription?.currentPeriodStart ?? null,
+            currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
+            cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+            customMonthlyPrice: subscription?.customMonthlyPrice ? Number(subscription.customMonthlyPrice) : null,
+            isFounder: subscription?.isFounder ?? tenant?.isFoundingMember ?? false,
+            founderExpiresAt: subscription?.founderExpiresAt ?? null,
+            promoDiscountApplied: subscription?.promoDiscountApplied ?? false,
+            promoMonthsRemaining: subscription?.promoMonthsRemaining ?? 0,
+            promoCode: subscription?.promoCode ?? null,
+            tenantStatus: tenant?.status ?? null,
+            trialEndsAt: tenant?.trialEndsAt ?? null,
+            trialStartedAt: tenant?.trialStartedAt ?? null,
         };
     }),
 

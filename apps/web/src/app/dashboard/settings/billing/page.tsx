@@ -14,21 +14,155 @@ import {
   ExternalLink,
   Crown,
   Receipt,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { format } from "date-fns";
+import { format, differenceInDays, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PlanSelectionModal } from "@/components/billing/PlanSelectionModal";
 
 const lexendDeca = Lexend_Deca({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
+function TrialCountdownBanner({
+  trialEndsAt,
+  isFounder,
+}: {
+  trialEndsAt: Date | string | null;
+  isFounder: boolean;
+}) {
+  if (!trialEndsAt) return null;
+
+  const endDate = new Date(trialEndsAt);
+  const now = new Date();
+  const daysRemaining = differenceInDays(endDate, now);
+  const hoursRemaining = differenceInHours(endDate, now) % 24;
+
+  if (daysRemaining < 0) {
+    return (
+      <Card className="p-4 bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-red-800 dark:text-red-200">
+              Período de teste encerrado
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Assine agora para continuar usando todas as funcionalidades
+            </p>
+          </div>
+          <Button size="sm" className="bg-red-600 hover:bg-red-700">
+            Assinar Agora
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  if (isFounder) {
+    return (
+      <Card className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 dark:from-amber-950/20 dark:to-yellow-950/20 dark:border-amber-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <Crown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-amber-800 dark:text-amber-200">
+              Membro Fundador - Acesso Vitalício
+            </p>
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              Você possui benefícios exclusivos permanentes
+            </p>
+          </div>
+          <Badge className="bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200">
+            <Sparkles className="h-3 w-3 mr-1" />
+            Fundador
+          </Badge>
+        </div>
+      </Card>
+    );
+  }
+
+  const urgency =
+    daysRemaining <= 3 ? "high" : daysRemaining <= 7 ? "medium" : "low";
+
+  const bgClass = {
+    high: "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 dark:from-red-950/20 dark:to-orange-950/20 dark:border-red-800",
+    medium:
+      "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 dark:from-amber-950/20 dark:to-yellow-950/20 dark:border-amber-800",
+    low: "bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200 dark:from-indigo-950/20 dark:to-purple-950/20 dark:border-indigo-800",
+  }[urgency];
+
+  const iconBgClass = {
+    high: "bg-red-100 dark:bg-red-900/30",
+    medium: "bg-amber-100 dark:bg-amber-900/30",
+    low: "bg-indigo-100 dark:bg-indigo-900/30",
+  }[urgency];
+
+  const iconClass = {
+    high: "text-red-600 dark:text-red-400",
+    medium: "text-amber-600 dark:text-amber-400",
+    low: "text-indigo-600 dark:text-indigo-400",
+  }[urgency];
+
+  const textClass = {
+    high: "text-red-800 dark:text-red-200",
+    medium: "text-amber-800 dark:text-amber-200",
+    low: "text-indigo-800 dark:text-indigo-200",
+  }[urgency];
+
+  const subtextClass = {
+    high: "text-red-600 dark:text-red-400",
+    medium: "text-amber-600 dark:text-amber-400",
+    low: "text-indigo-600 dark:text-indigo-400",
+  }[urgency];
+
+  return (
+    <Card className={cn("p-4", bgClass)}>
+      <div className="flex items-center gap-3">
+        <div className={cn("p-2 rounded-full", iconBgClass)}>
+          <Clock className={cn("h-5 w-5", iconClass)} />
+        </div>
+        <div className="flex-1">
+          <p className={cn("font-semibold", textClass)}>
+            Plano Atual: <span className="font-bold">Período de Teste</span>
+          </p>
+          <p className={cn("text-sm", subtextClass)}>
+            {daysRemaining === 0
+              ? `Expira em ${hoursRemaining}h`
+              : daysRemaining === 1
+                ? "Expira amanhã"
+                : `${daysRemaining} dias restantes`}
+            {" • "}
+            Até {format(endDate, "dd 'de' MMMM", { locale: ptBR })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={cn("text-2xl font-bold", textClass)}>
+            {daysRemaining}
+          </div>
+          <div className={cn("text-xs leading-tight", subtextClass)}>
+            dias
+            <br />
+            restantes
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function BillingSettingsPage() {
   const router = useRouter();
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
 
   const { data: subscription, isLoading } =
     trpc.billing.getSubscription.useQuery();
@@ -61,6 +195,7 @@ export default function BillingSettingsPage() {
     > = {
       ACTIVE: { label: "Ativo", variant: "default" },
       TRIALING: { label: "Trial", variant: "secondary" },
+      TRIAL: { label: "Trial", variant: "secondary" },
       PAST_DUE: { label: "Pagamento Pendente", variant: "destructive" },
       CANCELED: { label: "Cancelado", variant: "outline" },
       INCOMPLETE: { label: "Incompleto", variant: "outline" },
@@ -85,6 +220,12 @@ export default function BillingSettingsPage() {
     );
   }
 
+  const isTrial =
+    subscription?.tenantStatus === "TRIAL" ||
+    (subscription?.trialEndsAt && !subscription?.status);
+
+  const showTrialBanner = isTrial && subscription?.trialEndsAt;
+
   return (
     <div className={cn("space-y-6", lexendDeca.className)}>
       <div>
@@ -93,6 +234,14 @@ export default function BillingSettingsPage() {
           Gerencie sua assinatura e métodos de pagamento
         </p>
       </div>
+
+      {/* Trial Status Banner */}
+      {showTrialBanner && (
+        <TrialCountdownBanner
+          trialEndsAt={subscription.trialEndsAt}
+          isFounder={subscription.isFounder}
+        />
+      )}
 
       {/* Current Plan */}
       <Card className="p-6">
@@ -109,7 +258,7 @@ export default function BillingSettingsPage() {
                   Fundador
                 </Badge>
               )}
-              {subscription && getStatusBadge(subscription.status)}
+              {subscription?.status && getStatusBadge(subscription.status)}
             </div>
             <p className="text-muted-foreground text-sm">
               {subscription?.billingInterval === "YEARLY"
@@ -198,15 +347,22 @@ export default function BillingSettingsPage() {
 
         {/* Actions */}
         <div className="mt-6 flex gap-3">
-          <Button onClick={openCustomerPortal} disabled={isLoadingPortal}>
-            {isLoadingPortal ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
+          {isTrial ? (
+            <Button onClick={() => setShowPlanModal(true)}>
               <CreditCard className="h-4 w-4 mr-2" />
-            )}
-            Gerenciar Assinatura
-            <ExternalLink className="h-3 w-3 ml-2" />
-          </Button>
+              Escolher Plano
+            </Button>
+          ) : (
+            <Button onClick={openCustomerPortal} disabled={isLoadingPortal}>
+              {isLoadingPortal ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <CreditCard className="h-4 w-4 mr-2" />
+              )}
+              Gerenciar Assinatura
+              <ExternalLink className="h-3 w-3 ml-2" />
+            </Button>
+          )}
         </div>
       </Card>
 
@@ -260,6 +416,12 @@ export default function BillingSettingsPage() {
           </p>
         )}
       </Card>
+
+      {/* Plan Selection Modal */}
+      <PlanSelectionModal
+        isOpen={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+      />
     </div>
   );
 }

@@ -160,40 +160,49 @@ export const settingsRouter = router({
 
         const tenant = await ctx.db.tenant.findUnique({
             where: { id: ctx.user.tenantId },
-            select: { status: true },
+            select: { status: true, trialEndsAt: true },
         });
 
-        if (tenant?.status !== 'PENDING_ACTIVATION') {
+        let trialEndsAt: Date;
+
+        if (tenant?.status === 'PENDING_ACTIVATION') {
+            const config = await ctx.db.systemConfig.findUnique({
+                where: { key: 'trial_days_standard' },
+            });
+
+            const trialDays = config?.value ? parseInt(config.value) : 14;
+            const now = new Date();
+            trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
+            await ctx.db.tenant.update({
+                where: { id: ctx.user.tenantId },
+                data: {
+                    status: 'TRIAL',
+                    trialStartedAt: now,
+                    trialEndsAt,
+                    isFoundingMember: false,
+                },
+            });
+
+            const { createAuditLog } = await import('@/lib/audit');
+            await createAuditLog({
+                tenantId: ctx.user.tenantId,
+                userId: ctx.user.id,
+                action: 'ACTIVATE_FREE_TRIAL',
+                entityType: 'Tenant',
+                entityId: ctx.user.tenantId,
+                oldValue: { status: tenant.status },
+                newValue: { status: 'TRIAL', trialDays },
+            });
+        } else if (tenant?.status === 'TRIAL' || tenant?.status === 'ACTIVE') {
+            trialEndsAt = tenant.trialEndsAt ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+        } else {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Tenant not pending activation' });
         }
 
-        const config = await ctx.db.systemConfig.findUnique({
-            where: { key: 'trial_days_standard' },
-        });
-
-        const trialDays = config?.value ? parseInt(config.value) : 14;
-        const now = new Date();
-        const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
-
-        await ctx.db.tenant.update({
-            where: { id: ctx.user.tenantId },
-            data: {
-                status: 'TRIAL',
-                trialStartedAt: now,
-                trialEndsAt,
-                isFoundingMember: false,
-            },
-        });
-
-        const { createAuditLog } = await import('@/lib/audit');
-        await createAuditLog({
-            tenantId: ctx.user.tenantId,
-            userId: ctx.user.id,
-            action: 'ACTIVATE_FREE_TRIAL',
-            entityType: 'Tenant',
-            entityId: ctx.user.tenantId,
-            oldValue: { status: tenant.status },
-            newValue: { status: 'TRIAL', trialDays },
+        const currentUser = await ctx.db.user.findUnique({
+            where: { id: ctx.user.id },
+            select: { role: true }
         });
 
         const clerk = await import('@clerk/nextjs/server').then((m) => m.clerkClient());
@@ -201,9 +210,9 @@ export const settingsRouter = router({
             await clerk.users.updateUser(ctx.user.clerkId, {
                 publicMetadata: {
                     tenantId: ctx.user.tenantId,
-                    role: ctx.user.role,
+                    role: currentUser?.role || ctx.user.role,
                     dbUserId: ctx.user.id,
-                    tenantStatus: 'TRIAL',
+                    tenantStatus: tenant?.status === 'ACTIVE' ? 'ACTIVE' : 'TRIAL',
                     trialEndsAt: trialEndsAt.toISOString(),
                     isFoundingMember: false,
                 },
@@ -213,3 +222,4 @@ export const settingsRouter = router({
         return { success: true };
     }),
 });
+

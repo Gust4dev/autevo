@@ -10,12 +10,6 @@ export default async function SetupLayout({
   if (!userId) redirect("/sign-in");
 
   const clerkUser = await currentUser();
-  const metadata = clerkUser?.publicMetadata as
-    | { needsOnboarding?: boolean }
-    | undefined;
-
-  if (metadata?.needsOnboarding) redirect("/welcome");
-
   const { prisma } = await import("@autevo/database");
 
   let user = await prisma.user.findUnique({
@@ -26,10 +20,12 @@ export default async function SetupLayout({
       role: true,
       jobTitle: true,
       status: true,
+      tenant: {
+        select: { name: true, slug: true, status: true },
+      },
     },
   });
 
-  // Link user by email if not found
   if (!user) {
     const email = clerkUser?.emailAddresses[0]?.emailAddress;
     if (email) {
@@ -41,6 +37,9 @@ export default async function SetupLayout({
           role: true,
           jobTitle: true,
           status: true,
+          tenant: {
+            select: { name: true, slug: true, status: true },
+          },
         },
       });
 
@@ -54,16 +53,22 @@ export default async function SetupLayout({
     }
   }
 
-  // Only first user can access setup directly
   if (!user) {
     const userCount = await prisma.user.count();
-    if (userCount > 0) redirect("/welcome");
+    if (userCount > 0) redirect("/awaiting-invite");
   }
 
   if (user?.tenantId) {
     const isOwnerOrAdmin = user.role === "OWNER" || user.role === "ADMIN_SAAS";
     if (!isOwnerOrAdmin) redirect("/dashboard");
-    if (user.jobTitle) redirect("/dashboard");
+
+    const tenantName = user.tenant?.name || "";
+    const isDefaultName = tenantName.startsWith("Estética de");
+    const hasJobTitle = !!user.jobTitle;
+
+    if (hasJobTitle && !isDefaultName) {
+      redirect("/dashboard");
+    }
   }
 
   return (

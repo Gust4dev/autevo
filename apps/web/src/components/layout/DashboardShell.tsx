@@ -87,13 +87,17 @@ export function DashboardShell({
         </div>
 
         {/* Mobile Navigation */}
-        <MobileNav isOpen={isMobileNavOpen} onClose={handleMobileMenuClose} />
+        <MobileNav
+          isOpen={isMobileNavOpen}
+          onClose={handleMobileMenuClose}
+          userRole={userRole}
+        />
 
         {/* Main Content Area */}
         <div
           className={cn(
             "flex flex-1 flex-col transition-all duration-300",
-            isSidebarCollapsed ? "lg:ml-[68px]" : "lg:ml-[240px]"
+            isSidebarCollapsed ? "lg:ml-[68px]" : "lg:ml-[240px]",
           )}
         >
           {/* Header */}

@@ -25,7 +25,7 @@ const getTenantSettings = unstable_cache(
     return tenant;
   },
   ["tenant-settings"],
-  { revalidate: 300, tags: ["tenant-settings"] }
+  { revalidate: 300, tags: ["tenant-settings"] },
 );
 
 const getQuickStats = unstable_cache(
@@ -34,7 +34,6 @@ const getQuickStats = unstable_cache(
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const baseWhere: Record<string, unknown> = { tenantId };
     if (role === "MEMBER" && userId) {
@@ -56,7 +55,7 @@ const getQuickStats = unstable_cache(
     return { todayOrders, inProgress, pendingPayments };
   },
   ["quick-stats"],
-  { revalidate: 60, tags: ["quick-stats"] }
+  { revalidate: 60, tags: ["quick-stats"] },
 );
 
 export default async function DashboardLayout({

@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Wrench,
   Package,
+  CreditCard,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/cn";
@@ -56,13 +57,21 @@ const navItems = [
 interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
+  userRole?: string;
 }
 
-export function MobileNav({ isOpen, onClose }: MobileNavProps) {
+export function MobileNav({
+  isOpen,
+  onClose,
+  userRole: propUserRole,
+}: MobileNavProps) {
   const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
-  const userRole = user?.publicMetadata?.role as string | undefined;
+
+  // Use prop role (server-side/layout) or fallback to client metadata
+  const userRole =
+    propUserRole || (user?.publicMetadata?.role as string | undefined);
 
   // Close sheet on route change
   useEffect(() => {
@@ -113,7 +122,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted"
+                    : "text-muted-foreground hover:bg-muted",
                 )}
               >
                 <Icon className="h-5 w-5" />
@@ -124,20 +133,58 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
 
           <Separator className="my-2" />
 
+          <Separator className="my-2" />
+
           {showSettings && (
-            <Link
-              href="/dashboard/settings"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                pathname.startsWith("/dashboard/settings")
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted"
+            <>
+              <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Configurações
+              </div>
+
+              <Link
+                href="/dashboard/settings"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                  pathname === "/dashboard/settings"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Settings className="h-5 w-5" />
+                Geral
+              </Link>
+
+              <Link
+                href="/dashboard/settings/team"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                  pathname.startsWith("/dashboard/settings/team")
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Users className="h-5 w-5" />
+                Equipe
+              </Link>
+
+              {["ADMIN_SAAS", "OWNER", "MANAGER"].includes(userRole || "") && (
+                <Link
+                  href="/dashboard/settings/pricing"
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    pathname.startsWith("/dashboard/settings/pricing")
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  Planos
+                </Link>
               )}
-            >
-              <Settings className="h-5 w-5" />
-              Configurações
-            </Link>
+            </>
           )}
         </nav>
 

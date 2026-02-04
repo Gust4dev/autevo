@@ -19,6 +19,8 @@ import {
   Rocket,
   Trash2,
   ArrowUp,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,8 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { CancelSubscriptionModal } from "@/components/billing/CancelSubscriptionModal";
 import { FounderUpgradeModal } from "@/components/billing/FounderUpgradeModal";
+import { differenceInDays, differenceInHours, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const lexendDeca = Lexend_Deca({
   subsets: ["latin"],
@@ -64,6 +68,100 @@ const PREMIUM_FEATURES = [
   "Recursos exclusivos em desenvolvimento",
 ];
 
+function TrialCountdownBanner({
+  trialEndsAt,
+}: {
+  trialEndsAt: Date | string | null;
+}) {
+  if (!trialEndsAt) return null;
+
+  const endDate = new Date(trialEndsAt);
+  const now = new Date();
+  const daysRemaining = differenceInDays(endDate, now);
+  const hoursRemaining = differenceInHours(endDate, now) % 24;
+
+  if (daysRemaining < 0) {
+    return (
+      <Card className="p-4 bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-red-800 dark:text-red-200">
+              Período de teste encerrado
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Assine agora para continuar usando todas as funcionalidades
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const urgency =
+    daysRemaining <= 3 ? "high" : daysRemaining <= 7 ? "medium" : "low";
+
+  const styles = {
+    high: {
+      bg: "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 dark:from-red-950/20 dark:to-orange-950/20 dark:border-red-800",
+      iconBg: "bg-red-100 dark:bg-red-900/30",
+      icon: "text-red-600 dark:text-red-400",
+      text: "text-red-800 dark:text-red-200",
+      subtext: "text-red-600 dark:text-red-400",
+    },
+    medium: {
+      bg: "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 dark:from-amber-950/20 dark:to-yellow-950/20 dark:border-amber-800",
+      iconBg: "bg-amber-100 dark:bg-amber-900/30",
+      icon: "text-amber-600 dark:text-amber-400",
+      text: "text-amber-800 dark:text-amber-200",
+      subtext: "text-amber-600 dark:text-amber-400",
+    },
+    low: {
+      bg: "bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200 dark:from-indigo-950/20 dark:to-purple-950/20 dark:border-indigo-800",
+      iconBg: "bg-indigo-100 dark:bg-indigo-900/30",
+      icon: "text-indigo-600 dark:text-indigo-400",
+      text: "text-indigo-800 dark:text-indigo-200",
+      subtext: "text-indigo-600 dark:text-indigo-400",
+    },
+  }[urgency];
+
+  return (
+    <Card className={cn("p-4", styles.bg)}>
+      <div className="flex items-center gap-3">
+        <div className={cn("p-2 rounded-full", styles.iconBg)}>
+          <Clock className={cn("h-5 w-5", styles.icon)} />
+        </div>
+        <div className="flex-1">
+          <p className={cn("font-semibold", styles.text)}>
+            Plano Atual: <span className="font-bold">Período de Teste</span>
+          </p>
+          <p className={cn("text-sm", styles.subtext)}>
+            {daysRemaining === 0
+              ? `Expira em ${hoursRemaining}h`
+              : daysRemaining === 1
+                ? "Expira amanhã"
+                : `${daysRemaining} dias restantes`}
+            {" • "}
+            Até {format(endDate, "dd 'de' MMMM", { locale: ptBR })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={cn("text-2xl font-bold", styles.text)}>
+            {daysRemaining}
+          </div>
+          <div className={cn("text-xs leading-tight", styles.subtext)}>
+            dias
+            <br />
+            restantes
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function PricingPage() {
   const { user } = useUser();
   const [isLoadingFounder, setIsLoadingFounder] = useState(false);
@@ -86,7 +184,8 @@ export default function PricingPage() {
   const slotsExhausted = remainingSlots === 0;
 
   const hasActiveSubscription =
-    subscription && ["ACTIVE", "TRIALING"].includes(subscription.status);
+    subscription?.status &&
+    ["ACTIVE", "TRIALING"].includes(subscription.status);
   const isFounder =
     subscription?.isFounder || (user?.publicMetadata as any)?.isFoundingMember;
   const isStandardSubscriber = hasActiveSubscription && !isFounder;
@@ -296,6 +395,9 @@ export default function PricingPage() {
   }
 
   // Regular view with plans
+  const isTrial =
+    subscription?.tenantStatus === "TRIAL" && !hasActiveSubscription;
+
   return (
     <div className={cn("space-y-8", lexendDeca.className)}>
       <div>
@@ -304,6 +406,11 @@ export default function PricingPage() {
           Conheça os planos disponíveis e suas funcionalidades
         </p>
       </div>
+
+      {/* Trial Status Banner */}
+      {isTrial && subscription?.trialEndsAt && (
+        <TrialCountdownBanner trialEndsAt={subscription.trialEndsAt} />
+      )}
 
       {/* Active Subscription Notice */}
       {hasActiveSubscription && !isFounder && (

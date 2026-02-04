@@ -812,6 +812,28 @@ export default function SettingsPage() {
             value="sistema"
             className="space-y-6 animate-in fade-in-50 slide-in-from-left-2 duration-300"
           >
+            {/* Gerenciar Assinatura */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Assinatura
+                </CardTitle>
+                <CardDescription>
+                  Gerencie sua assinatura, veja histórico de pagamentos e altere
+                  método de pagamento
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/dashboard/settings/billing">
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Gerenciar Assinatura
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
             {/* Notificações Push */}
             <Card>
               <CardHeader>

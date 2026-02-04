@@ -135,17 +135,23 @@ export default function ActivatePage() {
   const { data: founderStats, isLoading: isLoadingStats } =
     trpc.admin.getFoundingMemberStats.useQuery();
   const activateFreeTrial = trpc.settings.activateFreeTrial.useMutation({
+    onMutate: () => {
+      toast.loading("Ativando sua conta de teste...", { id: "activate-trial" });
+    },
     onSuccess: async () => {
-      toast.success("Trial ativado com sucesso!");
-      // Force redirect to setup without waiting for metadata sync
-      // The setup page will handle any remaining sync
-      setTimeout(() => {
+      toast.success("Conta ativada! Redirecionando...", {
+        id: "activate-trial",
+      });
+      setTimeout(async () => {
+        await user?.reload();
         window.location.href = "/setup";
       }, 500);
     },
     onError: (err) => {
       console.error("Failed to activate trial:", err);
-      toast.error(`Erro ao ativar trial: ${err.message}`);
+      toast.error(`Erro ao ativar trial: ${err.message}`, {
+        id: "activate-trial",
+      });
     },
   });
 

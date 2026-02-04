@@ -149,6 +149,7 @@ export async function POST(req: Request) {
             })
 
         } catch (error) {
+            console.error('[ClerkWebhook] Error:', error);
             return new Response('Error creating user in database', { status: 500 })
         }
     }
