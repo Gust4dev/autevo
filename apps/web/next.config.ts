@@ -9,6 +9,7 @@ const withPWA = withPWAInit({
     register: true,
     skipWaiting: true,
     cacheOnFrontEndNav: true,
+    cacheStartUrl: false,
     workboxOptions: {
         disableDevLogs: true,
         runtimeCaching: [
