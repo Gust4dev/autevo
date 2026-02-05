@@ -5,6 +5,7 @@ import { stripe, STRIPE_PRICES } from '@/lib/stripe';
 
 interface CheckoutRequestBody {
     promoCode?: string;
+    partnerCode?: string; // Partner referral code
     billingInterval?: 'monthly' | 'yearly';
     successUrl?: string;
     cancelUrl?: string;
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
         }
 
         const body: CheckoutRequestBody = await request.json().catch(() => ({}));
-        const { promoCode, billingInterval = 'monthly', successUrl, cancelUrl, isFounder = false } = body;
+        const { promoCode, partnerCode, billingInterval = 'monthly', successUrl, cancelUrl, isFounder = false } = body;
 
         // Get tenant info
         const tenant = await prisma.tenant.findUnique({
@@ -86,6 +87,22 @@ export async function POST(request: Request) {
 
             if (!promoCodeRecord) {
                 return NextResponse.json({ error: 'Código promocional inválido ou expirado' }, { status: 400 });
+            }
+        }
+
+        // Validate partner code if provided
+        let partnerTenant = null;
+        if (partnerCode) {
+            partnerTenant = await prisma.tenant.findFirst({
+                where: {
+                    partnerCode: partnerCode.toUpperCase(),
+                },
+                select: { id: true, name: true },
+            });
+
+            // Cannot use own partner code
+            if (partnerTenant && partnerTenant.id === tenantId) {
+                partnerTenant = null;
             }
         }
 
@@ -166,6 +183,7 @@ export async function POST(request: Request) {
                 tenantId,
                 userId: user.id,
                 promoCodeId: promoCodeRecord?.id || '',
+                partnerTenantId: partnerTenant?.id || '',
                 isFounder: isFounder ? 'true' : 'false',
             },
             success_url: successUrl || `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&founder=${isFounder}`,

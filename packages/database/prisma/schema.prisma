@@ -102,6 +102,15 @@ model Tenant {
   // Billing relations
   subscription     Subscription?
   promoCodes       PromoCode[]      @relation("PromoCodeOwner")
+  
+  // Partnership / Referral fields
+  partnerCode           String?    @unique // Código único do parceiro, ex: "FILMTECH"
+  referredByTenantId    String?    // Quem indicou este tenant
+  referredByTenant      Tenant?    @relation("TenantReferrals", fields: [referredByTenantId], references: [id])
+  referredTenants       Tenant[]   @relation("TenantReferrals")
+  partnerReferrals      PartnerReferral[] @relation("PartnerOwner")
+  receivedReferrals     PartnerReferral[] @relation("ReferredTenant")
+  partnerCommissions    PartnerCommission[]
 }
 
 enum UserStatus {
@@ -683,4 +692,67 @@ model NotificationPreferences {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// PARTNERSHIP / REFERRAL SYSTEM
+// ==========================================
+
+enum PartnerReferralStatus {
+  PENDING           // Indicado ainda não pagou
+  ACTIVE            // Indicado está ativo e pagando
+  CHURNED           // Indicado cancelou
+}
+
+// Tracking de indicações entre parceiros
+model PartnerReferral {
+  id                    String   @id @default(cuid())
+  partnerTenantId       String   // Quem indicou
+  partnerTenant         Tenant   @relation("PartnerOwner", fields: [partnerTenantId], references: [id])
+  referredTenantId      String   // Quem foi indicado
+  referredTenant        Tenant   @relation("ReferredTenant", fields: [referredTenantId], references: [id])
+  
+  // Status tracking
+  status                PartnerReferralStatus @default(PENDING)
+  firstPaymentAt        DateTime? // Data do primeiro pagamento
+  commissionStartsAt    DateTime? // Data que comissão começa (1 mês após firstPaymentAt)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  commissions           PartnerCommission[]
+  
+  @@unique([partnerTenantId, referredTenantId])
+  @@index([partnerTenantId])
+  @@index([referredTenantId])
+  @@index([status])
+}
+
+enum PartnerCommissionStatus {
+  PENDING   // Aguardando pagamento
+  PAID      // Pago via PIX
+  CANCELLED // Cancelado (ex: churn)
+}
+
+// Histórico de comissões pagas aos parceiros
+model PartnerCommission {
+  id                    String   @id @default(cuid())
+  tenantId              String   // Parceiro que recebe
+  tenant                Tenant   @relation(fields: [tenantId], references: [id])
+  referralId            String
+  referral              PartnerReferral @relation(fields: [referralId], references: [id])
+  
+  amount                Decimal  @db.Decimal(10, 2) // R$ 42 (30% de R$ 140)
+  periodStart           DateTime // Início do período
+  periodEnd             DateTime // Fim do período
+  status                PartnerCommissionStatus @default(PENDING)
+  paidAt                DateTime?
+  pixTransactionId      String?  // ID da transação PIX (manual)
+  
+  createdAt             DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([referralId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
 }

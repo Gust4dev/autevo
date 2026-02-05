@@ -37,6 +37,7 @@ async function logWebhook(
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     const tenantId = session.metadata?.tenantId;
     const promoCodeId = session.metadata?.promoCodeId;
+    const partnerTenantId = session.metadata?.partnerTenantId;
     const isFounder = session.metadata?.isFounder === 'true';
 
     if (!tenantId) {
@@ -121,6 +122,33 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         await prisma.founderSlot.updateMany({
             data: { usedSlots: { increment: 1 } },
         });
+    }
+
+    // Process partner referral if applicable
+    if (partnerTenantId) {
+        // Update tenant with referrer
+        await prisma.tenant.update({
+            where: { id: tenantId },
+            data: { referredByTenantId: partnerTenantId },
+        });
+
+        // Create PartnerReferral record
+        await prisma.partnerReferral.upsert({
+            where: {
+                partnerTenantId_referredTenantId: {
+                    partnerTenantId,
+                    referredTenantId: tenantId,
+                },
+            },
+            create: {
+                partnerTenantId,
+                referredTenantId: tenantId,
+                status: 'PENDING', // Will become ACTIVE after first payment
+            },
+            update: {}, // Already exists, no update needed
+        });
+
+        console.log(`[Webhook] Partner referral created: ${partnerTenantId} -> ${tenantId}`);
     }
 
     // Update Clerk metadata
@@ -240,6 +268,63 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         where: { id: dbSubscription.tenantId },
         data: { status: 'ACTIVE' },
     });
+
+    // Process partner referral commission
+    const COMMISSION_AMOUNT = 42; // 30% of R$ 140
+
+    // Check if this tenant was referred
+    const referral = await prisma.partnerReferral.findFirst({
+        where: { referredTenantId: dbSubscription.tenantId },
+    });
+
+    if (referral) {
+        const now = new Date();
+
+        if (!referral.firstPaymentAt) {
+            // First payment - set dates and activate referral
+            const commissionStartsAt = new Date(now);
+            commissionStartsAt.setMonth(commissionStartsAt.getMonth() + 1); // 1 month delay
+
+            await prisma.partnerReferral.update({
+                where: { id: referral.id },
+                data: {
+                    status: 'ACTIVE',
+                    firstPaymentAt: now,
+                    commissionStartsAt,
+                },
+            });
+
+            console.log(`[Webhook] Partner referral activated: ${referral.id}, commission starts at ${commissionStartsAt.toISOString()}`);
+        } else if (referral.commissionStartsAt && now >= referral.commissionStartsAt) {
+            // After grace period - generate commission
+            const periodStart = new Date(inv.period_start * 1000);
+            const periodEnd = new Date(inv.period_end * 1000);
+
+            // Check if commission already exists for this period
+            const existingCommission = await prisma.partnerCommission.findFirst({
+                where: {
+                    referralId: referral.id,
+                    periodStart,
+                    periodEnd,
+                },
+            });
+
+            if (!existingCommission) {
+                await prisma.partnerCommission.create({
+                    data: {
+                        tenantId: referral.partnerTenantId,
+                        referralId: referral.id,
+                        amount: COMMISSION_AMOUNT,
+                        periodStart,
+                        periodEnd,
+                        status: 'PENDING',
+                    },
+                });
+
+                console.log(`[Webhook] Partner commission created: R$ ${COMMISSION_AMOUNT} for referral ${referral.id}`);
+            }
+        }
+    }
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {

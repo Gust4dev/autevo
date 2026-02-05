@@ -17,6 +17,7 @@ import {
   Wrench,
   Package,
   CreditCard,
+  Handshake,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/cn";
@@ -182,6 +183,22 @@ export function MobileNav({
                 >
                   <CreditCard className="h-5 w-5" />
                   Planos
+                </Link>
+              )}
+
+              {["ADMIN_SAAS", "OWNER", "MANAGER"].includes(userRole || "") && (
+                <Link
+                  href="/dashboard/settings/partnership"
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    pathname.startsWith("/dashboard/settings/partnership")
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <Handshake className="h-5 w-5" />
+                  Parceria
                 </Link>
               )}
             </>

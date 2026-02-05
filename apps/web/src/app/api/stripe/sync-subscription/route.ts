@@ -143,6 +143,42 @@ export async function POST(request: Request) {
             include: { users: { where: { role: 'OWNER' } } },
         });
 
+        // Process partner referral if applicable (as a fallback for webhooks)
+        const partnerTenantId = checkoutSession.metadata?.partnerTenantId;
+        if (partnerTenantId && tenant) {
+            const now = new Date();
+            const commissionStartsAt = new Date(now);
+            commissionStartsAt.setMonth(commissionStartsAt.getMonth() + 1);
+
+            // Update tenant with referrer
+            await prisma.tenant.update({
+                where: { id: tenantId },
+                data: { referredByTenantId: partnerTenantId },
+            });
+
+            // Create PartnerReferral record
+            await prisma.partnerReferral.upsert({
+                where: {
+                    partnerTenantId_referredTenantId: {
+                        partnerTenantId,
+                        referredTenantId: tenantId,
+                    },
+                },
+                create: {
+                    partnerTenantId,
+                    referredTenantId: tenantId,
+                    status: 'ACTIVE',
+                    firstPaymentAt: now,
+                    commissionStartsAt,
+                },
+                update: {
+                    status: 'ACTIVE',
+                    firstPaymentAt: now,
+                    commissionStartsAt,
+                },
+            });
+        }
+
         if (tenant?.users[0]?.clerkId) {
             const clerk = await clerkClient();
             await clerk.users.updateUser(tenant.users[0].clerkId, {

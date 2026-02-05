@@ -21,11 +21,14 @@ import {
   ArrowUp,
   Clock,
   AlertTriangle,
+  Users,
+  Tag,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { CancelSubscriptionModal } from "@/components/billing/CancelSubscriptionModal";
 import { FounderUpgradeModal } from "@/components/billing/FounderUpgradeModal";
@@ -169,6 +172,13 @@ export default function PricingPage() {
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [partnerCode, setPartnerCode] = useState("");
+  const [isValidatingPartner, setIsValidatingPartner] = useState(false);
+  const [partnerValidation, setPartnerValidation] = useState<{
+    valid: boolean;
+    partnerName?: string;
+    error?: string;
+  } | null>(null);
 
   const { data: founderStats, refetch: refetchFounderStats } =
     trpc.admin.getFoundingMemberStats.useQuery();
@@ -190,6 +200,29 @@ export default function PricingPage() {
     subscription?.isFounder || (user?.publicMetadata as any)?.isFoundingMember;
   const isStandardSubscriber = hasActiveSubscription && !isFounder;
 
+  const validatePartnerCode = async () => {
+    if (!partnerCode.trim()) return;
+    setIsValidatingPartner(true);
+    try {
+      const response = await fetch("/api/stripe/validate-partner-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: partnerCode }),
+      });
+      const data = await response.json();
+      setPartnerValidation(data);
+      if (data.valid) {
+        toast.success(`Código de ${data.partnerName} aplicado!`);
+      } else if (data.error) {
+        toast.error(data.error);
+      }
+    } catch {
+      toast.error("Erro ao validar código");
+    } finally {
+      setIsValidatingPartner(false);
+    }
+  };
+
   const handleCheckout = async (isFounderPlan: boolean) => {
     if (isFounderPlan) {
       setIsLoadingFounder(true);
@@ -204,6 +237,7 @@ export default function PricingPage() {
         body: JSON.stringify({
           billingInterval: "monthly",
           isFounder: isFounderPlan,
+          partnerCode: partnerValidation?.valid ? partnerCode : undefined,
           successUrl: `${window.location.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&founder=${isFounderPlan}`,
           cancelUrl: `${window.location.origin}/dashboard/settings/pricing?canceled=true`,
         }),
@@ -442,6 +476,55 @@ export default function PricingPage() {
             <span className="font-bold text-amber-600">{remainingSlots}</span>{" "}
             vagas com preço vitalício garantido.
           </p>
+        </Card>
+      )}
+
+      {/* Partner Referral Code - Only show if no subscription */}
+      {!hasActiveSubscription && (
+        <Card className="p-4 border-indigo-500/30 bg-gradient-to-r from-indigo-500/5 to-transparent">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-5 w-5 text-indigo-500" />
+            <h3 className="font-semibold">Recebeu uma indicação?</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Se alguém te indicou, coloque o código abaixo. Você ajuda o parceiro
+            e ele ganha uma comissão!
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={partnerCode}
+                onChange={(e) => setPartnerCode(e.target.value.toUpperCase())}
+                placeholder="Ex: FILMTECH"
+                className="pl-10"
+                disabled={partnerValidation?.valid}
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={validatePartnerCode}
+              disabled={
+                !partnerCode.trim() ||
+                isValidatingPartner ||
+                partnerValidation?.valid
+              }
+            >
+              {isValidatingPartner ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : partnerValidation?.valid ? (
+                <Check className="h-4 w-4 text-emerald-500" />
+              ) : (
+                "Aplicar"
+              )}
+            </Button>
+          </div>
+          {partnerValidation?.valid && (
+            <p className="text-sm text-emerald-600 mt-2 flex items-center gap-2">
+              <Check className="h-4 w-4" />
+              Indicado por <strong>{partnerValidation.partnerName}</strong>
+            </p>
+          )}
         </Card>
       )}
 

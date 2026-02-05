@@ -16,6 +16,7 @@ import {
   type LucideIcon,
   TrendingUp,
   CreditCard,
+  Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,12 @@ const settingsNavItems: NavItem[] = [
     href: "/dashboard/settings/pricing",
     label: "Planos",
     icon: CreditCard,
+    roles: ["ADMIN_SAAS", "OWNER", "MANAGER"],
+  },
+  {
+    href: "/dashboard/settings/partnership",
+    label: "Parceria",
+    icon: Handshake,
     roles: ["ADMIN_SAAS", "OWNER", "MANAGER"],
   },
 ];
