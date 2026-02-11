@@ -431,4 +431,88 @@ export const customerRouter = router({
             return a.daysFromToday - b.daysFromToday;
         });
     }),
+
+    getInactive: protectedProcedure.query(async ({ ctx }) => {
+        const tenant = await ctx.db.tenant.findUnique({
+            where: { id: ctx.tenantId! },
+            select: { customerInactivityDays: true },
+        });
+
+        const inactivityDays = tenant?.customerInactivityDays ?? 30;
+        const nearDays = Math.floor(inactivityDays * 0.8);
+
+        const thresholdDate = new Date();
+        thresholdDate.setDate(thresholdDate.getDate() - nearDays);
+
+        const customers = await ctx.db.customer.findMany({
+            where: {
+                tenantId: ctx.tenantId!,
+                deletedAt: null,
+                orders: {
+                    some: {
+                        status: 'CONCLUIDO',
+                        OR: [
+                            { completedAt: { lte: thresholdDate } },
+                            { completedAt: null, updatedAt: { lte: thresholdDate } }
+                        ]
+                    }
+                }
+            },
+            select: {
+                id: true,
+                name: true,
+                phone: true,
+                whatsappOptIn: true,
+                orders: {
+                    where: {
+                        status: { not: 'CANCELADO' }
+                    },
+                    orderBy: { updatedAt: 'desc' },
+                    include: {
+                        vehicle: {
+                            select: {
+                                brand: true,
+                                model: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        const now = new Date();
+        const results = customers
+            .map((customer) => {
+                const hasOpenOrder = customer.orders.some(o =>
+                    !['CONCLUIDO', 'CANCELADO'].includes(o.status)
+                );
+                if (hasOpenOrder) return null;
+
+                const lastCompletedOrder = customer.orders.find(o => o.status === 'CONCLUIDO');
+
+                if (!lastCompletedOrder) return null;
+
+                const completionDate = lastCompletedOrder.completedAt || lastCompletedOrder.updatedAt;
+
+                const diffTime = now.getTime() - completionDate.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays < nearDays) return null;
+
+                return {
+                    id: customer.id,
+                    name: customer.name,
+                    phone: customer.phone,
+                    whatsappOptIn: customer.whatsappOptIn,
+                    lastServiceAt: completionDate,
+                    daysSinceLastService: diffDays,
+                    vehicleName: `${lastCompletedOrder.vehicle.brand} ${lastCompletedOrder.vehicle.model}`,
+                    status: (diffDays >= inactivityDays ? 'inactive' : 'near') as 'inactive' | 'near',
+                };
+            })
+            .filter((c): c is NonNullable<typeof c> => c !== null)
+            .sort((a, b) => b.daysSinceLastService - a.daysSinceLastService);
+
+        return results;
+    }),
 });

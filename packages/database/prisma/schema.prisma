@@ -86,6 +86,10 @@ model Tenant {
   businessHours    String?      @db.Text
   inspectionRequired   String   @default("NONE")
   inspectionSignature  Boolean  @default(true)
+  
+  customerInactivityDays    Int       @default(30)
+  inactivityReminderEnabled Boolean   @default(false)
+  
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -166,9 +170,10 @@ model Customer {
   whatsappOptIn Boolean   @default(true)
   tenantId      String
   tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+  lastReminderSentAt DateTime?
 
   vehicles Vehicle[]
   orders   ServiceOrder[]

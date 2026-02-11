@@ -417,23 +417,32 @@ export const orderRouter = router({
                 });
             }
 
-            // 🔒 BLOQUEIO: Verificar vistoria de saída antes de concluir
+            // 🔒 BLOQUEIO: Verificar vistoria de saída antes de concluir (respeitando configuração do Tenant)
             if (input.status === 'CONCLUIDO') {
-                const exitInspection = await ctx.db.inspection.findUnique({
-                    where: {
-                        orderId_type: {
-                            orderId: input.id,
-                            type: 'final',
-                        },
-                    },
-                    select: { id: true, status: true },
+                const tenant = await ctx.db.tenant.findUnique({
+                    where: { id: ctx.tenantId! },
+                    select: { inspectionRequired: true }
                 });
 
-                if (!exitInspection || exitInspection.status !== 'concluida') {
-                    throw new TRPCError({
-                        code: 'BAD_REQUEST',
-                        message: 'A OS só pode ser concluída após finalizar a Vistoria de Saída. Complete todos os itens obrigatórios da vistoria antes de concluir.',
+                const isExitRequired = tenant?.inspectionRequired === 'EXIT' || tenant?.inspectionRequired === 'BOTH';
+
+                if (isExitRequired) {
+                    const exitInspection = await ctx.db.inspection.findUnique({
+                        where: {
+                            orderId_type: {
+                                orderId: input.id,
+                                type: 'final',
+                            },
+                        },
+                        select: { id: true, status: true },
                     });
+
+                    if (!exitInspection || exitInspection.status !== 'concluida') {
+                        throw new TRPCError({
+                            code: 'BAD_REQUEST',
+                            message: 'A OS só pode ser concluída após finalizar a Vistoria de Saída. Complete todos os itens obrigatórios da vistoria antes de concluir.',
+                        });
+                    }
                 }
             }
 
@@ -542,17 +551,30 @@ export const orderRouter = router({
             const remaining = orderTotal - newTotalPaid;
 
             if (remaining < EPSILON) {
-                const exitInspection = await ctx.db.inspection.findUnique({
-                    where: {
-                        orderId_type: {
-                            orderId: input.orderId,
-                            type: 'final',
-                        },
-                    },
-                    select: { status: true },
+                const tenant = await ctx.db.tenant.findUnique({
+                    where: { id: ctx.tenantId! },
+                    select: { inspectionRequired: true }
                 });
 
-                if (exitInspection?.status === 'concluida') {
+                const isExitRequired = tenant?.inspectionRequired === 'EXIT' || tenant?.inspectionRequired === 'BOTH';
+                let canComplete = !isExitRequired;
+
+                if (isExitRequired) {
+                    const exitInspection = await ctx.db.inspection.findUnique({
+                        where: {
+                            orderId_type: {
+                                orderId: input.orderId,
+                                type: 'final',
+                            },
+                        },
+                        select: { status: true },
+                    });
+                    if (exitInspection?.status === 'concluida') {
+                        canComplete = true;
+                    }
+                }
+
+                if (canComplete) {
                     await ctx.db.serviceOrder.update({
                         where: { id: input.orderId },
                         data: {

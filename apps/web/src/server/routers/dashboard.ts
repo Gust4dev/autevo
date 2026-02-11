@@ -226,7 +226,7 @@ export const dashboardRouter = router({
                 }),
                 ctx.db.tenant.findUnique({
                     where: { id: ctx.tenantId! },
-                    select: { slug: true },
+                    select: { slug: true, name: true },
                 }),
             ]);
 
@@ -241,6 +241,7 @@ export const dashboardRouter = router({
                 recentOrders,
                 todaySchedule,
                 tenantSlug: tenant?.slug,
+                tenantName: tenant?.name,
             };
         }),
 

@@ -17,8 +17,12 @@ import {
   ExternalLink,
   Crown,
   PartyPopper,
+  MessageSquare,
+  AlertTriangle,
+  History,
 } from "lucide-react";
 import Link from "next/link";
+import { openWhatsApp } from "@/lib/whatsapp";
 import {
   Card,
   CardContent,
@@ -102,6 +106,11 @@ export default function DashboardPage() {
   const recentOrders = dashboardQuery.data?.recentOrders ?? [];
   const todaySchedule = dashboardQuery.data?.todaySchedule ?? [];
   const tenantSlug = dashboardQuery.data?.tenantSlug;
+
+  const inactiveQuery = trpc.customer.getInactive.useQuery(undefined, {
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+  const inactiveCustomers = inactiveQuery.data ?? [];
 
   const [isCopying, setIsCopying] = useState(false);
 
@@ -309,6 +318,57 @@ export default function DashboardPage() {
                   status={order.status}
                 />
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Inactive Customers Alert */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <History className="h-5 w-5 text-orange-500" />
+                Clientes Ausentes
+              </CardTitle>
+              <CardDescription>
+                Clientes que não retornam há algum tempo
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="text-xs font-normal">
+              {inactiveCustomers.length} alerta
+              {inactiveCustomers.length !== 1 ? "s" : ""}
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            {inactiveQuery.isLoading ? (
+              <div className="space-y-2 py-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : !inactiveCustomers.length ? (
+              <p className="text-sm text-muted-foreground py-8 text-center italic">
+                Nenhum cliente ausente ou próximo do retorno no momento.
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {inactiveCustomers.slice(0, 6).map((customer) => (
+                  <InactiveCustomerItem
+                    key={customer.id}
+                    customer={customer}
+                    tenantName={
+                      dashboardQuery.data?.tenantName || "nossa oficina"
+                    }
+                  />
+                ))}
+              </div>
+            )}
+            {inactiveCustomers.length > 6 && (
+              <div className="mt-4 pt-4 border-t text-center">
+                <p className="text-xs text-muted-foreground">
+                  E mais {inactiveCustomers.length - 6} clientes aguardando
+                  contato.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -534,5 +594,65 @@ function QuickActionCard({
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function InactiveCustomerItem({
+  customer,
+  tenantName,
+}: {
+  customer: any;
+  tenantName: string;
+}) {
+  const handleContact = () => {
+    const lastDate = new Intl.DateTimeFormat("pt-BR").format(
+      new Date(customer.lastServiceAt),
+    );
+    const message = `Olá ${customer.name}! Tudo bem?\n\nAqui é da ${tenantName}. Notamos que faz cerca de ${customer.daysSinceLastService} dias que você trouxe seu ${customer.vehicleName} para o último serviço (em ${lastDate}).\n\nQue tal agendar uma revisão para garantir que está tudo certo com seu carro?`;
+
+    openWhatsApp(customer.phone, message);
+  };
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-xl border border-border/50 bg-card/20 hover:bg-card/50 transition-colors group">
+      <div className="flex-1 min-w-0 mr-2">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-semibold truncate">{customer.name}</span>
+          {customer.status === "inactive" ? (
+            <Badge
+              variant="destructive"
+              className="h-4 px-1 text-[8px] uppercase font-black"
+            >
+              Crítico
+            </Badge>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="h-4 px-1 text-[8px] uppercase font-black bg-orange-100 text-orange-700 border-orange-200"
+            >
+              Próximo
+            </Badge>
+          )}
+        </div>
+        <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5">
+          <span className="truncate">
+            {customer.vehicleName} • {customer.daysSinceLastService} dias
+            ausente
+          </span>
+          <span className="truncate italic">
+            Último:{" "}
+            {new Date(customer.lastServiceAt).toLocaleDateString("pt-BR")}
+          </span>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 w-8 p-0 rounded-full shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-all"
+        onClick={handleContact}
+      >
+        <MessageSquare className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }

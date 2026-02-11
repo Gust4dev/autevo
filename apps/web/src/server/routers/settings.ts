@@ -52,6 +52,8 @@ const updateSettingsSchema = z.object({
         .max(50, 'Link muito longo')
         .regex(/^[a-z0-9-]+$/, 'O link deve conter apenas letras minúsculas, números e hífens')
         .optional(),
+    customerInactivityDays: z.number().min(7).max(365).optional(),
+    inactivityReminderEnabled: z.boolean().optional(),
 });
 
 export const settingsRouter = router({
@@ -78,6 +80,8 @@ export const settingsRouter = router({
                 inspectionSignature: true,
                 status: true,
                 plan: true,
+                customerInactivityDays: true,
+                inactivityReminderEnabled: true,
             },
         });
 
@@ -136,6 +140,8 @@ export const settingsRouter = router({
                     inspectionRequired: input.inspectionRequired,
                     inspectionSignature: input.inspectionSignature,
                     slug: input.slug,
+                    customerInactivityDays: input.customerInactivityDays,
+                    inactivityReminderEnabled: input.inactivityReminderEnabled,
                 },
             });
 

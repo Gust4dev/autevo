@@ -69,6 +69,8 @@ const settingsSchema = z.object({
     .string()
     .min(3, "Link muito curto")
     .regex(/^[a-z0-9-]+$/, "Use apenas letras, números e hífens"),
+  customerInactivityDays: z.number().min(7).max(365).optional(),
+  inactivityReminderEnabled: z.boolean().optional(),
 });
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
@@ -82,6 +84,9 @@ export default function SettingsPage() {
     "NONE" | "ENTRY" | "EXIT" | "BOTH"
   >("NONE");
   const [inspectionSignature, setInspectionSignature] = useState(true);
+  const [inactivityReminderEnabled, setInactivityReminderEnabled] =
+    useState(false);
+  const [customerInactivityDays, setCustomerInactivityDays] = useState(30);
 
   const { data: settings, isLoading } = trpc.settings.get.useQuery();
 
@@ -197,6 +202,10 @@ export default function SettingsPage() {
 
       setInspectionRequired((settings as any).inspectionRequired || "NONE");
       setInspectionSignature((settings as any).inspectionSignature ?? true);
+      setInactivityReminderEnabled(
+        (settings as any).inactivityReminderEnabled ?? false,
+      );
+      setCustomerInactivityDays((settings as any).customerInactivityDays ?? 30);
     }
   }, [settings, reset]);
 
@@ -263,6 +272,11 @@ export default function SettingsPage() {
       slug: data.slug,
       inspectionRequired: inspectionRequired,
       inspectionSignature: inspectionSignature,
+      customerInactivityDays: Math.max(
+        7,
+        Math.min(365, customerInactivityDays || 30),
+      ),
+      inactivityReminderEnabled: inactivityReminderEnabled,
     } as any);
   };
 
@@ -752,6 +766,73 @@ export default function SettingsPage() {
                       agendamento online.
                     </p>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Lembrete de Retorno */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-primary" />
+                    Lembrete de Retorno
+                  </CardTitle>
+                  <CardDescription>
+                    Receba alertas quando clientes não voltam após um período
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/20">
+                    <div className="space-y-0.5">
+                      <Label>Ativar lembretes de inatividade</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Você será notificado sobre clientes que não retornam.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={inactivityReminderEnabled}
+                      onClick={() =>
+                        setInactivityReminderEnabled(!inactivityReminderEnabled)
+                      }
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        inactivityReminderEnabled ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          inactivityReminderEnabled
+                            ? "translate-x-6"
+                            : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {inactivityReminderEnabled && (
+                    <div className="space-y-2">
+                      <Label htmlFor="customerInactivityDays">
+                        Dias sem retorno para alertar
+                      </Label>
+                      <Input
+                        id="customerInactivityDays"
+                        type="number"
+                        min={7}
+                        max={365}
+                        value={customerInactivityDays}
+                        onChange={(e) =>
+                          setCustomerInactivityDays(
+                            parseInt(e.target.value) || 0,
+                          )
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Clientes que não fecham serviço há mais de{" "}
+                        <strong>{customerInactivityDays} dias</strong>{" "}
+                        aparecerão no alerta diário.
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
