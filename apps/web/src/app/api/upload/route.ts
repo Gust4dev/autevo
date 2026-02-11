@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         const timestamp = Date.now();
         const safeName = sanitizeFilename(file.name).replace(/\.[^/.]+$/, '');
         const filename = `${timestamp}-${safeName}.webp`;
-        const contentType = file.type || 'image/webp';
+        const contentType = 'image/webp';
 
         const publicUrl = await uploadFile(buffer, filename, contentType);
 

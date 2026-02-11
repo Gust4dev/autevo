@@ -18,6 +18,7 @@ import {
   Package,
   CreditCard,
   Handshake,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/cn";
@@ -31,7 +32,22 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 
-const navItems = [
+type UserRole =
+  | "ADMIN_SAAS"
+  | "OWNER"
+  | "MANAGER"
+  | "MEMBER"
+  | "ADMIN"
+  | "admin";
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  roles?: UserRole[];
+}
+
+const mainNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   {
     href: "/dashboard/financial",
@@ -47,6 +63,9 @@ const navItems = [
   { href: "/dashboard/scheduling", label: "Agendamentos", icon: Calendar },
   { href: "/dashboard/customers", label: "Clientes", icon: Users },
   { href: "/dashboard/vehicles", label: "Veículos", icon: Car },
+];
+
+const catalogNavItems: NavItem[] = [
   {
     href: "/dashboard/services",
     label: "Serviços",
@@ -71,17 +90,24 @@ export function MobileNav({
   const { user } = useUser();
 
   // Use prop role (server-side/layout) or fallback to client metadata
-  const userRole =
-    propUserRole || (user?.publicMetadata?.role as string | undefined);
+  const userRole = (propUserRole ||
+    (user?.publicMetadata?.role as string | undefined)) as UserRole | undefined;
 
   // Close sheet on route change
   useEffect(() => {
     onClose();
   }, [pathname, onClose]);
 
-  const filteredNavItems = navItems.filter((item) => {
+  const filteredMainItems = mainNavItems.filter((item) => {
     if (!item.roles) return true;
-    return item.roles.includes(userRole || "");
+    if (!userRole) return false;
+    return item.roles.includes(userRole);
+  });
+
+  const filteredCatalogItems = catalogNavItems.filter((item) => {
+    if (!item.roles) return true;
+    if (!userRole) return false;
+    return item.roles.includes(userRole);
   });
 
   const showSettings = [
@@ -108,7 +134,7 @@ export function MobileNav({
         </SheetHeader>
 
         <nav className="flex-1 flex flex-col gap-2 mt-8 overflow-y-auto">
-          {filteredNavItems.map((item) => {
+          {filteredMainItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||
@@ -133,6 +159,34 @@ export function MobileNav({
           })}
 
           <Separator className="my-2" />
+
+          <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Catálogo
+          </div>
+
+          {filteredCatalogItems.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            );
+          })}
 
           <Separator className="my-2" />
 

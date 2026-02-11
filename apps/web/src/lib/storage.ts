@@ -47,7 +47,11 @@ export async function uploadFile(
         ContentType: contentType,
     });
 
-    await s3Client.send(command);
+    try {
+        await s3Client.send(command);
+    } catch (error: any) {
+        throw error;
+    }
 
     let publicUrl: string;
 
