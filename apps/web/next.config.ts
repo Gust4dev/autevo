@@ -12,6 +12,7 @@ const withPWA = withPWAInit({
     cacheStartUrl: false,
     dynamicStartUrl: false,
     dynamicStartUrlRedirect: undefined,
+    customWorkerSrc: 'worker',
     workboxOptions: {
         disableDevLogs: true,
         runtimeCaching: [

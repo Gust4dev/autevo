@@ -484,67 +484,64 @@ export default function SettingsPage() {
                     </Tabs>
                   </div>
 
-                  {/* Colors */}
                   <div className="grid gap-4 sm:grid-cols-2 pt-2">
                     <div className="space-y-2">
-                      <Label htmlFor="primaryColor">Cor Primária</Label>
+                      <Label>Cor Primária</Label>
                       <div className="flex gap-2">
-                        <div
-                          className="h-10 w-12 rounded-lg border shadow-sm"
+                        <label
+                          htmlFor="primaryColor-picker"
+                          className="relative h-10 w-12 rounded-lg border shadow-sm cursor-pointer overflow-hidden shrink-0"
                           style={{ backgroundColor: primaryColor || "#DC2626" }}
-                        />
-                        <input
-                          type="color"
-                          id="primaryColor"
-                          className="sr-only"
-                          value={primaryColor || "#DC2626"}
-                          onChange={(e) =>
-                            setValue("primaryColor", e.target.value, {
-                              shouldDirty: true,
-                            })
-                          }
-                        />
+                        >
+                          <input
+                            type="color"
+                            id="primaryColor-picker"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            value={primaryColor || "#DC2626"}
+                            onChange={(e) =>
+                              setValue("primaryColor", e.target.value, {
+                                shouldDirty: true,
+                              })
+                            }
+                          />
+                        </label>
                         <Input
                           {...register("primaryColor")}
                           placeholder="#DC2626"
                           className="flex-1 font-mono uppercase"
                           error={errors.primaryColor?.message}
-                          onClick={() =>
-                            document.getElementById("primaryColor")?.click()
-                          }
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="secondaryColor">Cor Secundária</Label>
+                      <Label>Cor Secundária</Label>
                       <div className="flex gap-2">
-                        <div
-                          className="h-10 w-12 rounded-lg border shadow-sm"
+                        <label
+                          htmlFor="secondaryColor-picker"
+                          className="relative h-10 w-12 rounded-lg border shadow-sm cursor-pointer overflow-hidden shrink-0"
                           style={{
                             backgroundColor:
                               watch("secondaryColor") || "#1F2937",
                           }}
-                        />
-                        <input
-                          type="color"
-                          id="secondaryColor"
-                          className="sr-only"
-                          value={watch("secondaryColor") || "#1F2937"}
-                          onChange={(e) =>
-                            setValue("secondaryColor", e.target.value, {
-                              shouldDirty: true,
-                            })
-                          }
-                        />
+                        >
+                          <input
+                            type="color"
+                            id="secondaryColor-picker"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            value={watch("secondaryColor") || "#1F2937"}
+                            onChange={(e) =>
+                              setValue("secondaryColor", e.target.value, {
+                                shouldDirty: true,
+                              })
+                            }
+                          />
+                        </label>
                         <Input
                           {...register("secondaryColor")}
                           placeholder="#1F2937"
                           className="flex-1 font-mono uppercase"
                           error={errors.secondaryColor?.message}
-                          onClick={() =>
-                            document.getElementById("secondaryColor")?.click()
-                          }
                         />
                       </div>
                     </div>
