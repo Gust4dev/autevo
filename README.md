@@ -36,7 +36,7 @@
 
 ## 🚀 Sobre o Projeto
 
-**Autevo** é uma plataforma SaaS completa para gerenciamento de estéticas automotivas. O sistema oferece controle total sobre ordens de serviço, clientes, veículos, agendamentos, vistorias com fotos, comissionamento de funcionários, relatórios financeiros e muito mais.
+**Autevo** é uma plataforma SaaS completa para gerenciamento estratégico de negócios automotivos (oficinas, estéticas, centros de detalhamento e mecânicas). O sistema oferece controle total sobre ordens de serviço, clientes, veículos, agendamentos, vistorias digitais, financeiro e comissionamento.
 
 ### Destaques
 

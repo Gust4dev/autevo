@@ -80,10 +80,10 @@ export function FeaturesGrid() {
   return (
     <section
       id="funcionalidades"
-      className="py-24 px-6 relative bg-slate-50 text-slate-900 overflow-hidden"
+      className="py-24 px-6 relative bg-[#050505] text-white overflow-hidden"
     >
       {/* Decorative Red Orb */}
-      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-red-500/5 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-red-600/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
@@ -91,7 +91,7 @@ export function FeaturesGrid() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-3xl md:text-4xl font-bold mb-6 tracking-tight text-slate-900"
+            className="text-3xl md:text-4xl font-bold mb-6 tracking-tight text-white"
           >
             Uma plataforma completa,
             <br />
@@ -102,7 +102,7 @@ export function FeaturesGrid() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-slate-600 max-w-2xl mx-auto text-lg leading-relaxed"
+            className="text-zinc-500 max-w-2xl mx-auto text-lg leading-relaxed"
           >
             Cada funcionalidade foi pensada para eliminar o caos da sua oficina
             e colocar dinheiro no seu bolso.
@@ -120,17 +120,17 @@ export function FeaturesGrid() {
             <motion.div
               key={i}
               variants={item}
-              className="group p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              className="group p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-red-600/30 transition-all duration-300 hover:-translate-y-1"
             >
               <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-colors ${feature.bg}`}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-colors bg-white/[0.05]`}
               >
                 <feature.icon className={`w-6 h-6 ${feature.color}`} />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-red-600 transition-colors">
+              <h3 className="text-xl font-bold text-white mb-3 group-hover:text-red-500 transition-colors">
                 {feature.title}
               </h3>
-              <p className="text-slate-600 leading-relaxed font-medium">
+              <p className="text-zinc-500 leading-relaxed font-medium">
                 {feature.description}
               </p>
             </motion.div>

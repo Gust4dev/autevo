@@ -4,6 +4,16 @@ import { Lexend_Deca, Delius } from "next/font/google";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { HeroSection } from "@/components/landing/HeroSection";
+import { Logo } from "@/components/landing/Logo";
+
+const SectionSkeleton = ({ height = "400px" }: { height?: string }) => (
+  <div
+    style={{ height }}
+    className="w-full bg-[#050505] animate-pulse flex items-center justify-center"
+  >
+    <div className="w-24 h-2 bg-white/5 rounded-full" />
+  </div>
+);
 
 // Below-fold components - lazy loaded for better initial bundle size
 const ProblemAwareness = dynamic(
@@ -11,49 +21,84 @@ const ProblemAwareness = dynamic(
     import("@/components/landing/ProblemAwareness").then((m) => ({
       default: m.ProblemAwareness,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="600px" /> },
 );
 const FeaturesGrid = dynamic(
   () =>
     import("@/components/landing/FeaturesGrid").then((m) => ({
       default: m.FeaturesGrid,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="800px" /> },
 );
 const FeatureVistoria = dynamic(
   () =>
     import("@/components/landing/FeatureVistoria").then((m) => ({
       default: m.FeatureVistoria,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="700px" /> },
 );
 const FeatureFinance = dynamic(
   () =>
     import("@/components/landing/FeatureFinance").then((m) => ({
       default: m.FeatureFinance,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="600px" /> },
 );
 const FeatureWhatsapp = dynamic(
   () =>
     import("@/components/landing/FeatureWhatsapp").then((m) => ({
       default: m.FeatureWhatsapp,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="800px" /> },
 );
 const FAQSection = dynamic(
   () =>
     import("@/components/landing/FAQSection").then((m) => ({
       default: m.FAQSection,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="500px" /> },
+);
+const PricingSection = dynamic(
+  () =>
+    import("@/components/landing/PricingSection").then((m) => ({
+      default: m.PricingSection,
+    })),
+  { ssr: true, loading: () => <SectionSkeleton height="900px" /> },
+);
+const FeatureComparison = dynamic(
+  () =>
+    import("@/components/landing/FeatureComparison").then((m) => ({
+      default: m.FeatureComparison,
+    })),
+  { ssr: true, loading: () => <SectionSkeleton height="700px" /> },
+);
+const SystemPreviewSection = dynamic(
+  () =>
+    import("@/components/landing/SystemPreviewSection").then((m) => ({
+      default: m.SystemPreviewSection,
+    })),
+  { ssr: true, loading: () => <SectionSkeleton height="800px" /> },
+);
+const RetentionSection = dynamic(
+  () =>
+    import("@/components/landing/RetentionSection").then((m) => ({
+      default: m.RetentionSection,
+    })),
+  { ssr: true, loading: () => <SectionSkeleton height="600px" /> },
+);
+const DocumentExportSection = dynamic(
+  () =>
+    import("@/components/landing/DocumentExportSection").then((m) => ({
+      default: m.DocumentExportSection,
+    })),
+  { ssr: true, loading: () => <SectionSkeleton height="700px" /> },
 );
 const FinalCTA = dynamic(
   () =>
     import("@/components/landing/FinalCTA").then((m) => ({
       default: m.FinalCTA,
     })),
-  { ssr: true },
+  { ssr: true, loading: () => <SectionSkeleton height="400px" /> },
 );
 const ScrollToTop = dynamic(
   () =>
@@ -89,12 +134,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="#hero" className="flex items-center gap-2 group">
             <div className="h-9 w-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 bg-white/5 border border-white/10 group-hover:border-white/20">
-              <img
-                src="/icon.svg"
-                alt="Autevo Logo"
-                className="w-full h-full object-contain p-1.5"
-                loading="eager"
-              />
+              <Logo className="w-6 h-6 p-1 text-white" />
             </div>
             <span
               className={cn(
@@ -119,10 +159,10 @@ export default function LandingPage() {
               Vistoria
             </Link>
             <Link
-              href="#financeiro"
+              href="#pricing"
               className="hover:text-white transition-colors"
             >
-              Financeiro
+              Preços
             </Link>
           </div>
           <div className="flex items-center gap-6">
@@ -135,9 +175,9 @@ export default function LandingPage() {
             <Link href="/sign-up">
               <Button
                 size="sm"
-                className="bg-white text-black hover:bg-zinc-200 border-none font-bold text-xs h-9 px-5 rounded-full shadow-[0_8px_20px_-8px_rgba(255,255,255,0.3)] transition-all active:scale-95"
+                className="bg-red-600 text-white hover:bg-red-700 border-none font-bold text-xs h-9 px-5 rounded-full shadow-[0_8px_20px_-8px_rgba(220,38,38,0.5)] transition-all active:scale-95"
               >
-                Evoluir Agora
+                Começar Teste Grátis
               </Button>
             </Link>
           </div>
@@ -149,6 +189,8 @@ export default function LandingPage() {
 
       <ProblemAwareness />
 
+      <FeatureComparison />
+
       <FeaturesGrid />
 
       <FeatureVistoria />
@@ -156,6 +198,8 @@ export default function LandingPage() {
       <FeatureFinance />
 
       <FeatureWhatsapp />
+
+      <PricingSection />
 
       <FAQSection />
 
@@ -167,11 +211,7 @@ export default function LandingPage() {
           <div className="flex flex-col gap-4 max-w-sm">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 flex items-center justify-center">
-                <img
-                  src="/icon.svg"
-                  alt="Autevo Logo"
-                  className="w-full h-full object-contain"
-                />
+                <Logo className="text-white" />
               </div>
               <span className="font-bold text-xl text-white">Autevo</span>
             </div>
