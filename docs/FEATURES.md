@@ -1,304 +1,118 @@
-# 📋 Funcionalidades do Sistema Autevo
+# 📋 Autevo System Features
 
-> **Última atualização:** 16/01/2026  
-> **Versão:** 1.0.0
-
----
-
-## 🏗️ Arquitetura do Sistema
-
-| Componente           | Tecnologia                                 |
-| -------------------- | ------------------------------------------ |
-| **Frontend**         | Next.js 14 (App Router), React, TypeScript |
-| **Backend**          | tRPC (18 routers), Prisma                  |
-| **Banco de Dados**   | PostgreSQL (Neon)                          |
-| **Autenticação**     | Clerk (multi-tenant com publicMetadata)    |
-| **Storage**          | Supabase Storage                           |
-| **Cache/Rate Limit** | Upstash Redis                              |
-| **Monitoramento**    | Sentry                                     |
-| **UI**               | shadcn/ui, Tailwind CSS                    |
+> **Last Update:** February 12, 2026  
+> **Version:** 1.2.0 (Next.js 15 Ready)
 
 ---
 
-## 🏢 Multi-Tenancy & Billing
+## 🏗️ System Architecture
 
-### Gerenciamento de Tenants
-
-- Criação de tenant no signup com status `PENDING_ACTIVATION`
-- Ciclo de vida: `PENDING_ACTIVATION` → `TRIAL` → `ACTIVE` / `SUSPENDED` / `CANCELED`
-- Customização visual por tenant (cores, logo)
-- Slug único para URL de agendamento público (`/booking/{slug}`)
-- Configuração de capacidade máxima diária
-- Configuração de horário de funcionamento (JSON)
-
-### Sistema de Billing
-
-- **Founding Members** (15 vagas): Trial extendido (60 dias), preço customizado
-- Preço mensal configurável por tenant (`customMonthlyPrice`)
-- Configurações globais via `SystemConfig`:
-  - `pro_monthly_price`: Preço base do plano Pro
-  - `trial_days_standard`: Dias de trial padrão (14)
-  - `trial_days_founder`: Dias de trial para fundadores (60)
-- Integração preparada para Stripe (campo `stripeCustomerId`)
-
-### Roles e Permissões
-
-| Role         | Nível de Acesso                              |
-| ------------ | -------------------------------------------- |
-| `ADMIN_SAAS` | Super admin (Painel administrativo completo) |
-| `OWNER`      | Proprietário do tenant                       |
-| `MANAGER`    | Gerente (acesso a relatórios, configurações) |
-| `MEMBER`     | Funcionário (acesso limitado às próprias OS) |
+| Component            | Technology                                          |
+| -------------------- | --------------------------------------------------- |
+| **Frontend**         | Next.js 15.1 (App Router), React 19, TypeScript 5.7 |
+| **Backend**          | tRPC v11 (20+ domain routers), Prisma 6             |
+| **Database**         | PostgreSQL (Neon / Docker)                          |
+| **Authentication**   | Clerk (Multi-tenant with publicMetadata & JWT)      |
+| **Storage**          | Supabase S3 Storage                                 |
+| **Cache/Rate Limit** | Upstash Redis (Edge compatible)                     |
+| **Monitoring**       | Sentry / Vercel Analytics                           |
+| **UI System**        | shadcn/ui, Tailwind CSS 3.4, Framer Motion          |
 
 ---
 
-## 👥 Gestão de Clientes
+## 🏢 Multi-Tenancy & Lifecycle
 
-- Cadastro com: nome, telefone, email, documento (CPF/CNPJ), data de nascimento, Instagram, observações
-- Opt-in para WhatsApp
-- Soft delete (`deletedAt`)
-- Busca por nome/telefone
-- Paginação e ordenação
-- Visualização de veículos do cliente
-- Total gasto histórico por cliente
-- Histórico de ordens de serviço
+### Tenant Management
 
----
+- **Signup Workflow**: Instant tenant creation with `PENDING_ACTIVATION` status.
+- **Founding Member Program**: First 15 members get 60 days trial and special pricing (R$ 97).
+- **Status Machine**: `PENDING` → `TRIAL` → `ACTIVE` / `PAST_DUE` / `SUSPENDED` / `CANCELED`.
+- **Custom Branding**: Tenant-specific primary/secondary colors and logos applied globally via `TenantThemeProvider`.
+- **Dynamic Configuration**: Business hours (JSON), max daily capacity, and digital signature requirements.
 
-## 🚗 Gestão de Veículos
+### Inactivity Management (Smart Retention)
 
-- Placa (única por tenant), marca, modelo, cor, ano
-- Vinculação a cliente (opcional)
-- Soft delete
-- Busca por placa
-- Histórico de OS por veículo
-- Contagem de ordens
+- **Automatic Tracking**: Monitors customer engagement intervals.
+- **Configurable Thresholds**: Each tenant defines `customerInactivityDays`.
+- **Proactive Reminders**: Automated follow-up triggers when a customer crosses the inactivity threshold.
 
 ---
 
-## 🔧 Catálogo de Serviços
+## 🤝 Partnership & Referral System
 
-- Nome, descrição, preço base, tempo estimado
-- Dias para retorno (lembrete ao cliente)
-- Ativo/Inativo (toggle)
-- Comissão padrão (percentual ou valor fixo)
-- Não permite excluir serviço com ordens vinculadas
+### Affiliate Infrastructure
 
----
-
-## 📦 Controle de Estoque (Produtos)
-
-- Nome, descrição, SKU, unidade
-- Preço de custo e preço de venda
-- Estoque atual e estoque mínimo
-- Alertas de estoque baixo
-- Movimentações: `ENTRADA`, `SAIDA_OS`, `AJUSTE`
-- Histórico de movimentações por produto
+- **Partner Codes**: Unique codes (e.g., `FILMTECH`) for tracking origin.
+- **Tiered Commissions**: Strategic partnership tracking with automated commission calculation (e.g., 30% recurring).
+- **Referral Lifecycle**: `PENDING` → `ACTIVE` (after first payment) → `CHURNED`.
+- **Promo Codes**: Integrated discount codes applied at subscription, with configurable duration (e.g., 15% for 3 months).
 
 ---
 
-## 📋 Ordens de Serviço (OS)
+## 📋 Service Order (OS) Engine
 
-### Criação e Gestão
+### Lifecycle & Status
 
-- Código sequencial por tenant
-- Vinculação a: veículo, cliente, responsável
-- Múltiplos itens de serviço
-- Produtos consumidos
-- Agendamento (data/hora)
-- Atribuição de responsável (load balancing automático no booking público)
-
-### Status Workflow
-
-```
-AGENDADO → EM_VISTORIA → EM_EXECUCAO → AGUARDANDO_PAGAMENTO → CONCLUIDO
-                                                              ↓
-                                                          CANCELADO
+```mermaid
+stateDiagram-v2
+    [*] --> AGENDADO
+    AGENDADO --> EM_VISTORIA
+    EM_VISTORIA --> EM_EXECUCAO
+    EM_EXECUCAO --> AGUARDANDO_PAGAMENTO
+    AGUARDANDO_PAGAMENTO --> CONCLUIDO
+    CONCLUIDO --> [*]
+    AGENDADO --> CANCELADO
+    EM_VISTORIA --> CANCELADO
 ```
 
-### Precificação
+### Advanced Functionalities
 
-- Subtotal automático (soma de itens)
-- Desconto: percentual ou valor fixo
-- Total calculado
-- Comissão total calculada
-
----
-
-## 🔍 Sistema de Vistorias
-
-### Tipos de Vistoria
-
-- **Entrada**: Antes do serviço
-- **Intermediária**: Durante o processo
-- **Final**: Após conclusão
-
-### Checklist Estruturado
-
-- Categorias: exterior, rodas, detalhes
-- Items obrigatórios e items críticos
-- Status por item: `pendente`, `ok`, `com_avaria`
-
-### Registro de Avarias
-
-- Tipo de dano: arranhão, amassado, trinca, mancha, risco, outro
-- Severidade: leve, moderado, grave
-- Foto por item
-- Posição no veículo
-
-### Assinatura Digital
-
-- URL da assinatura
-- Data/hora da assinatura
-- Via de assinatura (cliente, funcionário)
+- **Sequential OS Codes**: Unique tracking ID per tenant.
+- **Itemized Billing**: Granular services and products vinculation with real-time total calculation.
+- **Automatic Load Balancing**: Booking system assigns orders to staff based on current workload.
+- **Internal/External Communications**: Automated WhatsApp messages with dynamic variables (`{{customer_name}}`, `{{order_id}}`).
 
 ---
 
-## 💰 Gestão de Pagamentos
+## 🔍 Digital Inspection System (Vistoria)
 
-### Métodos Suportados
-
-- PIX, Cartão de Crédito, Cartão de Débito, Dinheiro, Transferência
-
-### Funcionalidades
-
-- Múltiplos pagamentos por OS
-- Registro de quem recebeu
-- Observações
-- Cálculo de saldo devedor
+- **Multi-stage Inspections**: `Entrada`, `Intermediária`, and `Final`.
+- **Structured Checklist**: categorized by exterior, wheels, and fine details.
+- **Avaria Mapping**: Visual registration of scratches, dents, or cracks with severity levels and timestamped photos.
+- **Legal Compliance**: Digital signatures stored with signature channel (Client/Staff) and timestamp.
 
 ---
 
-## 📊 Dashboard e Métricas
+## 💰 Financial & Billing
 
-### Dashboard Principal
-
-- Agendamentos do dia
-- OS em andamento
-- Total de clientes
-- Últimas ordens
-- Agenda do dia
-- Link de agendamento para compartilhar
-
-### Métricas Financeiras (Managers+)
-
-- Receita do mês
-- Ticket médio
-- Contas a receber
-- Ordens concluídas
-
-### Relatórios
-
-- Top 10 serviços (receita e volume)
-- Top 20 clientes (receita e número de OS)
-- Crescimento mês-a-mês (comparativo)
-- Gráfico de receita diária
+- **Multi-Method Payments**: PIX, Credit, Debit, Cash.
+- **Commission Split**: Automated calculation per item/service for technicians based on percentage or fixed fees.
+- **Subscription Engine**:
+  - Direct Stripe integration for recurring payments.
+  - Webhook-driven state synchronization.
+  - Support for `customMonthlyPrice` for enterprise/negotiated contracts.
 
 ---
 
-## 🗓️ Agendamento
+## 📊 Analytics & Reporting
 
-### Calendário Interno
-
-- Visualização mensal
-- Ordens por dia
-- Cores por status
-
-### Booking Público (`/booking/{slug}`)
-
-- Página pública sem necessidade de login
-- Seleção de serviço
-- Calendário de disponibilidade (próximos 30 dias)
-- Respeita capacidade máxima diária do tenant
-- Cadastro de cliente e veículo inline
-- Atribuição automática (load balancing por carga de trabalho)
+- **Principal Dashboard**: Real-time KPIs (Revenue, Ticket Médio, Pending Payments).
+- **Admin SaaS Panel**: Global view of all tenants, MRR tracking, and system-wide audit logs.
+- **Reporting Suite**: Exportable reports (CSV/Excel) for customers, services, and employee performance.
 
 ---
 
-## 💬 Comunicação
+## 📱 Public Interfaces
 
-### Templates WhatsApp
-
-- Link de acompanhamento
-- Serviço concluído (com/sem valor)
-- Lembrete de pagamento
-- Feliz aniversário
-- Mensagem personalizada
-
-### Funcionalidades
-
-- Abertura direta do WhatsApp Web/App
-- Substituição de variáveis dinâmicas
-- URL de tracking (`/tracking/{orderId}`)
-
-### Notificações In-App
-
-- Log de notificações por tenant
-- Status: pending, read
-- Visibilidade por role
+- **Public Booking**: Client-facing portal for scheduling without registration, featuring capacity-aware availability.
+- **Real-time Tracking**: Link provided to clients for following OS progress and viewing inspection photos in real-time.
+- **PWA Capabilities**: Installable application icon, offline manifest, and push notifications for status updates.
 
 ---
 
-## 🔐 Segurança
+## 🔐 Security & Governance
 
-- Clerk com SSO
-- Middleware de proteção de rotas
-- Redirect automático por status do tenant
-- Procedures por role: `publicProcedure`, `protectedProcedure`, `managerProcedure`, `ownerProcedure`, `adminProcedure`
-- Isolamento de dados por tenant
-- Rate Limiting via Upstash Redis (50 req/min)
-- Chave PIX criptografada no banco
-- Audit Log (ações críticas, usuário, entidade, valores, timestamp)
-
----
-
-## 👑 Painel Administrativo (ADMIN_SAAS)
-
-- Dashboard: Tenants totais, trial, ativos, suspensos, cancelados + MRR estimado
-- Gestão de Tenants: Ativar Trial, Aprovar, Suspender, Cancelar, Deletar
-- Configuração de preço customizado e Founding Members
-- Logs de auditoria centralizados
-- Configurações do sistema (preços, dias de trial)
-- Métricas de performance
-
----
-
-## 📱 Tracking Público
-
-- Página `/tracking/{orderId}` para cliente acompanhar OS
-- Sem necessidade de login
-- Status em tempo real
-- Fotos da vistoria
-- Timeline de eventos
-
----
-
-## 🎨 Tema e Customização
-
-- Cor primária e secundária por tenant
-- Logo customizada
-- Aplicação dinâmica via `TenantThemeProvider`
-
----
-
-## 📱 Responsividade
-
-- Layout adaptativo desktop/mobile
-- Sidebar colapsável
-- Listas responsivas
-- Design mobile-first
-
----
-
-## 🔔 Onboarding
-
-1. Signup → Status `PENDING_ACTIVATION`
-2. Tela de ativação (`/activate`)
-3. Welcome flow (`/welcome`)
-4. Setup wizard (`/setup`)
-
-### Usuários Convidados
-
-- Email de convite via Clerk
-- Tela de espera (`/awaiting-invite`)
-- Vinculação automática ao tenant
+- **Role-Based Access (RBAC)**: `ADMIN_SAAS`, `OWNER`, `MANAGER`, `MEMBER`.
+- **Audit Trails**: Detailed logs capturing `oldValue` vs `newValue` for critical entity mutations.
+- **Rate Limiting**: Protection against brute-force and scraping via Upstash Redis.
+- **Data Privacy**: Tenant-level isolation enforced at the Prisma query level.
