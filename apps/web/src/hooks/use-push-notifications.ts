@@ -4,11 +4,16 @@ import { useState, useEffect, useCallback } from 'react';
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'unsupported';
 
+interface SubscribeResult {
+    success: boolean;
+    error?: string;
+}
+
 interface UsePushNotificationsReturn {
     permission: PermissionState;
     isSubscribed: boolean;
     isLoading: boolean;
-    subscribe: () => Promise<boolean>;
+    subscribe: () => Promise<SubscribeResult>;
     unsubscribe: () => Promise<boolean>;
     isSupported: boolean;
 }
@@ -59,9 +64,13 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         checkSupport();
     }, []);
 
-    const subscribe = useCallback(async (): Promise<boolean> => {
-        if (!isSupported || permission === 'denied') {
-            return false;
+    const subscribe = useCallback(async (): Promise<SubscribeResult> => {
+        if (!isSupported) {
+            return { success: false, error: 'Notificações push não são suportadas neste navegador.' };
+        }
+
+        if (permission === 'denied') {
+            return { success: false, error: 'Permissão de notificações bloqueada. Vá nas configurações do navegador para permitir.' };
         }
 
         setIsLoading(true);
@@ -72,23 +81,38 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
             if (perm !== 'granted') {
                 setIsLoading(false);
-                return false;
+                return { success: false, error: 'Permissão de notificações negada pelo usuário.' };
             }
-
-            const registration = await navigator.serviceWorker.ready;
 
             const vapidPublicKey = process.env.NEXT_PUBLIC_PWA_PUBLIC_KEY;
 
             if (!vapidPublicKey) {
-                console.error('VAPID public key not configured');
+                console.error('VAPID public key not configured (NEXT_PUBLIC_PWA_PUBLIC_KEY)');
                 setIsLoading(false);
-                return false;
+                return { success: false, error: 'Chave VAPID não configurada no servidor. Contate o suporte.' };
             }
 
-            const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
-            });
+            let registration: ServiceWorkerRegistration;
+            try {
+                registration = await navigator.serviceWorker.ready;
+            } catch (swError) {
+                console.error('Service Worker not ready:', swError);
+                setIsLoading(false);
+                return { success: false, error: 'Service Worker não está ativo. Tente recarregar a página.' };
+            }
+
+            let subscription: PushSubscription;
+            try {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
+                });
+            } catch (pushError) {
+                console.error('PushManager.subscribe failed:', pushError);
+                setIsLoading(false);
+                const errorMsg = pushError instanceof Error ? pushError.message : String(pushError);
+                return { success: false, error: `Falha na inscrição push: ${errorMsg}` };
+            }
 
             const response = await fetch('/api/push/subscribe', {
                 method: 'POST',
@@ -97,16 +121,20 @@ export function usePushNotifications(): UsePushNotificationsReturn {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to save subscription to server');
+                const errorBody = await response.text().catch(() => '');
+                console.error('Push subscribe API failed:', response.status, errorBody);
+                setIsLoading(false);
+                return { success: false, error: `Erro ao salvar inscrição no servidor (HTTP ${response.status}).` };
             }
 
             setIsSubscribed(true);
             setIsLoading(false);
-            return true;
+            return { success: true };
         } catch (error) {
-            console.error('Push subscription failed:', error);
+            console.error('Push subscription unexpected error:', error);
             setIsLoading(false);
-            return false;
+            const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+            return { success: false, error: `Erro inesperado: ${errorMsg}` };
         }
     }, [isSupported, permission]);
 

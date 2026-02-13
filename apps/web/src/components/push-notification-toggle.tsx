@@ -54,15 +54,13 @@ export function PushNotificationToggle() {
         toast.error("Erro ao desativar notificações");
       }
     } else {
-      const success = await subscribe();
-      if (success) {
+      const result = await subscribe();
+      if (result.success) {
         toast.success(
           "Notificações ativadas! Você receberá alertas sobre novas OS e atualizações.",
         );
       } else {
-        toast.error(
-          "Não foi possível ativar as notificações. Verifique as permissões do navegador.",
-        );
+        toast.error(result.error || "Não foi possível ativar as notificações.");
       }
     }
   };

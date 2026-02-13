@@ -2,7 +2,7 @@ import webpush from 'web-push';
 import { prisma } from '@autevo/database';
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_PWA_PUBLIC_KEY;
-const VAPID_PRIVATE = process.env.NEXT_PUBLIC_PWA_PRIVATE_KEY;
+const VAPID_PRIVATE = process.env.PWA_PRIVATE_KEY;
 
 if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
     console.warn('VAPID keys not configured. Push notifications will not work.');

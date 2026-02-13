@@ -54,6 +54,20 @@ export async function POST(request: Request) {
             },
         });
 
+        await prisma.notificationPreferences.upsert({
+            where: { userId: dbUser.id },
+            update: {},
+            create: {
+                userId: dbUser.id,
+                onNewOrder: true,
+                onNewCustomer: true,
+                onOrderCompleted: true,
+                onAssignedToMe: true,
+                onMyOrderStatusChange: true,
+                dailyReminder: false,
+            },
+        });
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Push subscription error:', error);
