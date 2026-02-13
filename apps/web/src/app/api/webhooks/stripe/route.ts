@@ -126,13 +126,11 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     // Process partner referral if applicable
     if (partnerTenantId) {
-        // Update tenant with referrer
         await prisma.tenant.update({
             where: { id: tenantId },
             data: { referredByTenantId: partnerTenantId },
         });
 
-        // Create PartnerReferral record
         await prisma.partnerReferral.upsert({
             where: {
                 partnerTenantId_referredTenantId: {
@@ -143,12 +141,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             create: {
                 partnerTenantId,
                 referredTenantId: tenantId,
-                status: 'PENDING', // Will become ACTIVE after first payment
+                status: 'PENDING',
             },
-            update: {}, // Already exists, no update needed
+            update: {},
         });
-
-        console.log(`[Webhook] Partner referral created: ${partnerTenantId} -> ${tenantId}`);
     }
 
     // Update Clerk metadata
@@ -177,7 +173,6 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     });
 
     if (!dbSubscription) {
-        console.warn(`[Webhook] Subscription not found: ${subscription.id}`);
         return;
     }
 
@@ -209,7 +204,6 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     });
 
     if (!dbSubscription) {
-        console.warn(`[Webhook] Subscription not found: ${subscription.id}`);
         return;
     }
 
@@ -233,7 +227,6 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
     });
 
     if (!dbSubscription) {
-        console.warn(`[Webhook] Subscription not found for invoice: ${invoice.id}`);
         return;
     }
 
@@ -293,8 +286,6 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
                     commissionStartsAt,
                 },
             });
-
-            console.log(`[Webhook] Partner referral activated: ${referral.id}, commission starts at ${commissionStartsAt.toISOString()}`);
         } else if (referral.commissionStartsAt && now >= referral.commissionStartsAt) {
             // After grace period - generate commission
             const periodStart = new Date(inv.period_start * 1000);
@@ -320,8 +311,6 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
                         status: 'PENDING',
                     },
                 });
-
-                console.log(`[Webhook] Partner commission created: R$ ${COMMISSION_AMOUNT} for referral ${referral.id}`);
             }
         }
     }
@@ -336,7 +325,6 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     });
 
     if (!dbSubscription) {
-        console.warn(`[Webhook] Subscription not found for invoice: ${invoice.id}`);
         return;
     }
 
