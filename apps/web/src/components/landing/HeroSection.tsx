@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Play, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { cn } from "@/lib/cn";
 
 export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -16,19 +17,19 @@ export function HeroSection() {
     <section
       id="hero"
       ref={containerRef}
-      className="relative z-10 pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 overflow-hidden min-h-screen flex flex-col justify-center bg-[#050505] text-white"
+      className="relative z-10 pt-24 pb-16 lg:pt-48 lg:pb-32 px-6 overflow-hidden min-h-[90vh] lg:min-h-screen flex flex-col justify-center bg-[#050505] text-white"
     >
       {/* Abstract Background Shapes - Refined for Dark Mode */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
         <motion.div
           style={{ y: y1 }}
-          className="absolute -top-[5%] -left-[10%] w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-gradient-to-br from-red-900/20 via-zinc-900/10 to-transparent rounded-full blur-[80px] md:blur-[120px] opacity-40"
+          className="absolute -top-[5%] -left-[10%] w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-gradient-to-br from-red-900/10 via-zinc-900/5 to-transparent rounded-full blur-[80px] md:blur-[120px] opacity-40 will-change-transform"
         />
         <motion.div
           style={{ y: y2 }}
-          className="absolute top-[10%] -right-[5%] w-[350px] h-[350px] md:w-[500px] md:h-[500px] bg-gradient-to-tr from-zinc-900/20 via-red-900/10 to-transparent rounded-full blur-[80px] md:blur-[120px] opacity-40"
+          className="absolute top-[10%] -right-[5%] w-[350px] h-[350px] md:w-[500px] md:h-[500px] bg-gradient-to-tr from-zinc-900/10 via-red-900/5 to-transparent rounded-full blur-[80px] md:blur-[120px] opacity-40 will-change-transform"
         />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,black,rgba(0,0,0,0))] opacity-[0.2] invert" />
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,black,rgba(0,0,0,0))] opacity-[0.1] invert" />
       </div>
 
       <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-12 lg:gap-8 items-center relative z-20">
@@ -54,13 +55,13 @@ export function HeroSection() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.4 }}
+            transition={{ duration: 0.3 }}
             className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto"
           >
             <Link href="/sign-up" className="w-full sm:w-auto">
               <Button
                 size="lg"
-                className="w-full sm:w-auto h-14 px-10 text-base bg-red-600 hover:bg-red-700 text-white rounded-full transition-all shadow-[0_10px_30px_-10px_rgba(220,38,38,0.5)] hover:shadow-[0_15px_35px_-10px_rgba(220,38,38,0.6)] hover:-translate-y-1 font-bold"
+                className="w-full sm:w-auto h-14 px-10 text-base bg-red-600 hover:bg-red-700 text-white rounded-full transition-all shadow-[0_10px_30px_-10px_rgba(220,38,38,0.5)] active:scale-95 font-bold"
               >
                 Começar Teste Grátis
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -95,10 +96,10 @@ export function HeroSection() {
 
         {/* Right Column: Visual/Dashboard Preview */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
-          className="relative mt-12 lg:mt-0 px-4 md:px-0"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="relative mt-12 lg:mt-0 px-4 md:px-0 will-change-transform"
         >
           {/* Main "Quadro" (Mockup) */}
           <div className="relative rounded-2xl bg-white/[0.02] p-1.5 backdrop-blur-sm border border-white/[0.05] shadow-2xl transition-all duration-700 ease-out max-w-2xl mx-auto">
@@ -131,7 +132,7 @@ export function HeroSection() {
                 </div>
 
                 {/* Dashboard Summary Row */}
-                <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8">
                   {[
                     {
                       label: "Faturamento",
@@ -143,11 +144,19 @@ export function HeroSection() {
                       val: "R$ 1.150",
                       color: "text-zinc-300",
                     },
-                    { label: "Novos Clientes", val: "24", color: "text-white" },
+                    {
+                      label: "Novos Clientes",
+                      val: "24",
+                      color: "text-white",
+                      className: "hidden md:block",
+                    },
                   ].map((item, i) => (
                     <div
                       key={i}
-                      className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl"
+                      className={cn(
+                        "bg-white/[0.02] border border-white/5 p-4 rounded-2xl",
+                        item.className,
+                      )}
                     >
                       <div className="text-[8px] uppercase font-black text-zinc-600 mb-1">
                         {item.label}
@@ -196,11 +205,11 @@ export function HeroSection() {
           {/* Popups EXTERNAL to the frame */}
           {/* Bottom Left Popup */}
           <motion.div
-            animate={{ y: [0, -10, 0], x: [0, 5, 0] }}
+            animate={{ y: [0, -10, 0] }}
             transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
             className="absolute -left-4 md:-left-12 -bottom-6 bg-[#0a0a0a] p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex items-center gap-4 transition-all transform-gpu"
           >
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
               <TrendingUp className="w-5 h-5 md:w-6 md:h-6" />
             </div>
             <div>
@@ -215,21 +224,21 @@ export function HeroSection() {
 
           {/* Top Right Popup */}
           <motion.div
-            animate={{ y: [0, 10, 0], rotate: [0, 2, 0] }}
+            animate={{ y: [0, 5, 0] }}
             transition={{
               repeat: Infinity,
               duration: 5,
               ease: "easeInOut",
               delay: 0.5,
             }}
-            className="absolute -right-4 md:-right-16 -top-4 bg-[#0a0a0a] p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex flex-col gap-1 transition-all"
+            className="absolute -right-4 md:-right-16 -top-4 bg-[#0a0a0a] p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex flex-col gap-1 transition-all hidden sm:flex"
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="flex -space-x-2">
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="w-6 h-6 rounded-full border-2 border-[#0a0a0a] bg-zinc-800 overflow-hidden"
+                    className="w-5 h-5 rounded-full border-2 border-[#0a0a0a] bg-zinc-800 overflow-hidden"
                   >
                     <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900" />
                   </div>
@@ -239,7 +248,7 @@ export function HeroSection() {
                 +12 novos hoje
               </span>
             </div>
-            <div className="text-xs font-black text-white px-3 py-1 bg-red-600 shadow-lg shadow-red-900/40 rounded-full w-fit">
+            <div className="text-[10px] font-black text-white px-3 py-1 bg-red-600 shadow-lg shadow-red-900/40 rounded-full w-fit">
               Clientes Ativos
             </div>
           </motion.div>

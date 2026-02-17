@@ -65,7 +65,10 @@ const config: Config = {
                 sm: 'calc(var(--radius) - 4px)',
             },
             fontFamily: {
-                sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+                sans: ['var(--font-lexend)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+                lexend: ['var(--font-lexend)', 'sans-serif'],
+                delius: ['var(--font-delius)', 'cursive'],
+                inter: ['var(--font-inter)', 'sans-serif'],
                 mono: ['var(--font-geist-mono)', 'monospace'],
             },
 
@@ -113,4 +116,4 @@ const config: Config = {
     plugins: [require('tailwindcss-animate')],
 };
 
-    export default config;
+export default config;

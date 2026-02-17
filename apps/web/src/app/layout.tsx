@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
-import { Inter } from "next/font/google";
+import { Inter, Lexend_Deca, Delius } from "next/font/google";
 
 import "./globals.css";
 import { TRPCProvider } from "@/lib/trpc/provider";
@@ -10,10 +10,25 @@ import { TutorialProvider } from "@/components/providers/TutorialProvider";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-inter",
   display: "swap",
   preload: true,
-  adjustFontFallback: true,
+});
+
+const lexendDeca = Lexend_Deca({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  variable: "--font-lexend",
+  display: "swap",
+  preload: true,
+});
+
+const delius = Delius({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-delius",
+  display: "swap",
+  preload: true,
 });
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://autevo.com.br";
@@ -106,7 +121,9 @@ export default function RootLayout({
         <head>
           <link rel="apple-touch-icon" href="/branding/icon-192x192.png" />
         </head>
-        <body className={`${inter.variable} font-sans antialiased`}>
+        <body
+          className={`${inter.variable} ${lexendDeca.variable} ${delius.variable} font-sans antialiased`}
+        >
           <TRPCProvider>
             <TutorialProvider>
               {children}

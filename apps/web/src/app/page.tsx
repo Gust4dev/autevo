@@ -1,6 +1,5 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Lexend_Deca, Delius } from "next/font/google";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { HeroSection } from "@/components/landing/HeroSection";
@@ -108,24 +107,13 @@ const ScrollToTop = dynamic(
   { ssr: true },
 );
 
-const lexendDeca = Lexend_Deca({
-  subsets: ["latin"],
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
-  display: "swap",
-});
-
-const delius = Delius({
-  subsets: ["latin"],
-  weight: ["400"],
-  display: "swap",
-});
+// Fonts are now handled globally in layout.tsx using CSS variables
 
 export default function LandingPage() {
   return (
     <div
       className={cn(
-        "min-h-screen bg-[#050505] text-white selection:bg-red-500/30 overflow-x-hidden",
-        lexendDeca.className,
+        "min-h-screen bg-[#050505] text-white selection:bg-red-500/30 overflow-x-hidden font-sans",
       )}
     >
       <ScrollToTop />
@@ -138,8 +126,7 @@ export default function LandingPage() {
             </div>
             <span
               className={cn(
-                "font-bold text-xl tracking-tight text-white",
-                delius.className,
+                "font-bold text-xl tracking-tight text-white font-delius",
               )}
             >
               Autevo
