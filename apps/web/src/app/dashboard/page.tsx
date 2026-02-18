@@ -150,7 +150,7 @@ export default function DashboardPage() {
           <Skeleton className="h-10 w-32" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {[...Array(6)].map((_, i) => (
+          {[...Array(6)].map((_: any, i: number) => (
             <Skeleton key={i} className="h-28" />
           ))}
         </div>
@@ -271,7 +271,7 @@ export default function DashboardPage() {
                 Sem agendamentos para hoje.
               </p>
             ) : (
-              todaySchedule.map((order) => (
+              todaySchedule.map((order: any) => (
                 <ScheduleItem
                   key={order.id}
                   time={formatTime(order.scheduledAt)}
@@ -307,7 +307,7 @@ export default function DashboardPage() {
                 Nenhuma ordem recente.
               </p>
             ) : (
-              recentOrders.map((order) => (
+              recentOrders.map((order: any) => (
                 <OrderItem
                   key={order.id}
                   code={order.code}
@@ -351,7 +351,7 @@ export default function DashboardPage() {
               </p>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                {inactiveCustomers.slice(0, 6).map((customer) => (
+                {inactiveCustomers.slice(0, 6).map((customer: any) => (
                   <InactiveCustomerItem
                     key={customer.id}
                     customer={customer}

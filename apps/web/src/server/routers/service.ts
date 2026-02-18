@@ -11,6 +11,10 @@ const serviceCreateSchema = z.object({
     isActive: z.boolean().default(true),
     defaultCommissionPercent: z.number().min(0).max(100).optional(),
     defaultCommissionFixed: z.number().min(0).optional(),
+    productTemplates: z.array(z.object({
+        productId: z.string(),
+        quantity: z.number().min(1)
+    })).optional(),
 });
 
 const serviceUpdateSchema = serviceCreateSchema.partial();
@@ -69,6 +73,15 @@ export const serviceRouter = router({
                     id: input.id,
                     tenantId: ctx.tenantId!,
                 },
+                include: {
+                    productTemplates: {
+                        include: {
+                            product: {
+                                select: { name: true, salePrice: true, costPrice: true }
+                            }
+                        }
+                    }
+                }
             });
 
             if (!service) {
@@ -84,11 +97,15 @@ export const serviceRouter = router({
     create: managerProcedure
         .input(serviceCreateSchema)
         .mutation(async ({ ctx, input }) => {
+            const { productTemplates, ...serviceData } = input;
+
             const service = await ctx.db.service.create({
                 data: {
-                    ...input,
-                    basePrice: input.basePrice,
+                    ...serviceData,
                     tenantId: ctx.tenantId!,
+                    productTemplates: productTemplates ? {
+                        create: productTemplates
+                    } : undefined
                 },
             });
 
@@ -117,9 +134,17 @@ export const serviceRouter = router({
                 });
             }
 
+            const { productTemplates, ...serviceData } = input.data;
+
             const service = await ctx.db.service.update({
                 where: { id: input.id },
-                data: input.data,
+                data: {
+                    ...serviceData,
+                    productTemplates: productTemplates ? {
+                        deleteMany: {},
+                        create: productTemplates
+                    } : undefined
+                },
             });
 
             return service;

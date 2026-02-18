@@ -317,7 +317,7 @@ export default function ServicesPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {services.map((service) => (
+            {services.map((service: any) => (
               <div
                 key={service.id}
                 className="bg-card border border-border/50 rounded-xl p-4 space-y-4 active:bg-muted/30 transition-colors"
@@ -454,7 +454,7 @@ export default function ServicesPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setPage((p) =>
-                      Math.min(pagination?.totalPages || 1, p + 1)
+                      Math.min(pagination?.totalPages || 1, p + 1),
                     );
                   }}
                   disabled={page === (pagination?.totalPages || 1)}

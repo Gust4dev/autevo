@@ -32,7 +32,7 @@ export function Header({
     { limit: 5 },
     {
       refetchInterval: 30000,
-    }
+    },
   );
 
   const markAsRead = trpc.notification.markAsRead.useMutation({
@@ -64,7 +64,7 @@ export function Header({
     <header
       className={cn(
         "sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border/40 bg-background/60 backdrop-blur-xl px-6 transition-all duration-500 ease-out",
-        isSidebarCollapsed ? "lg:pl-[84px]" : "lg:pl-[276px]"
+        isSidebarCollapsed ? "lg:pl-[84px]" : "lg:pl-[276px]",
       )}
     >
       {/* Mobile Menu Button */}
@@ -131,12 +131,12 @@ export function Header({
                   Nenhuma notificação recente.
                 </div>
               ) : (
-                notifications.map((notification) => (
+                notifications.map((notification: any) => (
                   <DropdownMenuItem
                     key={notification.id}
                     className={cn(
                       "flex flex-col items-start gap-1 py-3 cursor-pointer",
-                      notification.status === "pending" && "bg-primary/5"
+                      notification.status === "pending" && "bg-primary/5",
                     )}
                     onClick={() => handleNotificationClick(notification)}
                   >

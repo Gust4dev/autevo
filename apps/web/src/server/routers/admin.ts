@@ -181,7 +181,7 @@ export const adminRouter = router({
             const now = new Date();
 
             // Calculate trial time remaining
-            let trialTimeRemaining = null;
+            let trialTimeRemaining: any = null;
             let trialProgress = 0;
             if (tenant.trialEndsAt && tenant.trialStartedAt) {
                 const totalMs = tenant.trialEndsAt.getTime() - now.getTime();

@@ -32,21 +32,17 @@ export const dashboardRouter = router({
             },
         });
 
+
+        // 📊 Receivables: Calculate balance for non-canceled orders
         const ordersWithPayments = await ctx.db.serviceOrder.findMany({
             where: {
                 tenantId: ctx.tenantId!,
-                status: {
-                    notIn: ['CANCELADO'],
-                },
+                status: { notIn: ['CANCELADO'] },
             },
             select: {
                 id: true,
                 total: true,
-                payments: {
-                    select: {
-                        amount: true,
-                    },
-                },
+                payments: { select: { amount: true } },
             },
         });
 
@@ -60,13 +56,45 @@ export const dashboardRouter = router({
             }
         }
 
+        // 💰 Commissions & COGS
+        const [periodCommissions, periodProductHistory] = await Promise.all([
+            ctx.db.orderItemCommission.aggregate({
+                where: {
+                    orderItem: {
+                        order: {
+                            tenantId: ctx.tenantId!,
+                            completedAt: { gte: startOfMonth, lte: endOfMonth },
+                            status: 'CONCLUIDO'
+                        },
+                    },
+                },
+                _sum: { commissionValue: true },
+            }),
+            ctx.db.orderProduct.findMany({
+                where: {
+                    order: {
+                        tenantId: ctx.tenantId!,
+                        completedAt: { gte: startOfMonth, lte: endOfMonth },
+                        status: 'CONCLUIDO'
+                    },
+                },
+                include: { product: true },
+            })
+        ]);
+
+        const commissions = Number(periodCommissions._sum.commissionValue) || 0;
+        const cogs = periodProductHistory.reduce((sum, op) => sum + (Number(op.costPrice || (op as any).product?.costPrice || 0) * op.quantity), 0);
         const revenue = Number(monthPayments._sum.amount) || 0;
+        const profit = revenue - commissions - cogs;
         const avgTicket = monthOrders > 0 ? revenue / monthOrders : 0;
 
         return {
             revenue,
             avgTicket,
             receivables,
+            commissions,
+            cogs,
+            profit,
             paymentCount: monthPayments._count,
             completedOrders: monthOrders,
         };

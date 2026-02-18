@@ -348,7 +348,7 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                     { id: "service", label: "Serviço" },
                     { id: "date", label: "Data" },
                     { id: "info", label: "Dados" },
-                  ].map((s, idx) => {
+                  ].map((s: any, idx: number) => {
                     const stepOrder = ["service", "date", "info"];
                     const currentIdx = stepOrder.indexOf(step);
                     const isActive = s.id === step;
@@ -624,7 +624,7 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                 </div>
 
                 <div className="grid gap-4">
-                  {tenant.services.map((service) => (
+                  {tenant.services.map((service: any) => (
                     <motion.div
                       key={service.id}
                       whileHover={{ scale: 1.02, y: -2 }}
@@ -758,7 +758,7 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
                   <div className="space-y-6">
                     {/* Calendar Grid */}
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-                      {availableDates?.map((item, idx) => {
+                      {availableDates?.map((item: any, idx: number) => {
                         const isSelected =
                           selectedDate &&
                           isSameDay(selectedDate, new Date(item.date));

@@ -2,6 +2,7 @@ import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { auth } from '@clerk/nextjs/server';
 import { appRouter } from '@/server/routers/_app';
 import { prisma, type User } from '@autevo/database';
+import { tenantExtension } from '@/lib/prisma-tenant';
 import type { Context } from '@/server/trpc';
 import { clerkClient } from '@clerk/nextjs/server';
 import { getCachedUser, setCachedUser, isCacheValid } from '@/lib/user-cache';
@@ -17,7 +18,8 @@ async function createContext(): Promise<Context> {
         if (isCacheValid(userId)) {
             const cached = getCachedUser(userId);
             if (cached) {
-                return { db: prisma, user: cached.user, tenantId: cached.user.tenantId };
+                const db = cached.user.tenantId ? prisma.$extends(tenantExtension(cached.user.tenantId)) : prisma;
+                return { db, user: cached.user, tenantId: cached.user.tenantId };
             }
         }
 
@@ -101,7 +103,8 @@ async function createContext(): Promise<Context> {
             setCachedUser(userId, user as any);
         }
 
-        return { db: prisma, user, tenantId: user?.tenantId ?? null };
+        const db = user?.tenantId ? prisma.$extends(tenantExtension(user.tenantId)) : prisma;
+        return { db, user, tenantId: user?.tenantId ?? null };
     } catch (contextError) {
         console.error('[tRPC][createContext] Critical error:', contextError);
         return { db: prisma, user: null, tenantId: null };

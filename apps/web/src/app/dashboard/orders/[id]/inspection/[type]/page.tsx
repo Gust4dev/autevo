@@ -64,7 +64,7 @@ export default function InspectionChecklistPage({ params }: PageProps) {
 
   const inspectionQuery = trpc.inspection.getByOrderIdAndType.useQuery(
     { orderId, type },
-    { enabled: !!orderId && !!type }
+    { enabled: !!orderId && !!type },
   );
 
   const createInspection = trpc.inspection.create.useMutation({
@@ -115,7 +115,7 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     setExpandedCategories((prev) =>
       prev.includes(categoryKey)
         ? prev.filter((k) => k !== categoryKey)
-        : [...prev, categoryKey]
+        : [...prev, categoryKey],
     );
   };
 
@@ -148,7 +148,7 @@ export default function InspectionChecklistPage({ params }: PageProps) {
 
   const handleMarkWithDamage = (
     itemId: string,
-    data: { notes: string; damageType: string; severity: string }
+    data: { notes: string; damageType: string; severity: string },
   ) => {
     updateItem.mutate({
       itemId,
@@ -268,15 +268,20 @@ export default function InspectionChecklistPage({ params }: PageProps) {
   const items = inspection.items || [];
 
   // Group items by category
-  const itemsByCategory = INSPECTION_CHECKLIST.reduce((acc, category) => {
-    acc[category.key] = items.filter((item) => item.category === category.key);
-    return acc;
-  }, {} as Record<string, typeof items>);
+  const itemsByCategory = INSPECTION_CHECKLIST.reduce(
+    (acc, category) => {
+      acc[category.key] = items.filter(
+        (item: any) => item.category === category.key,
+      );
+      return acc;
+    },
+    {} as Record<string, typeof items>,
+  );
 
   // Calculate progress
-  const totalRequired = items.filter((i) => i.isRequired).length;
+  const totalRequired = items.filter((i: any) => i.isRequired).length;
   const completedRequired = items.filter(
-    (i) => i.isRequired && i.status !== "pendente"
+    (i: any) => i.isRequired && i.status !== "pendente",
   ).length;
   const progress =
     totalRequired > 0
@@ -330,7 +335,7 @@ export default function InspectionChecklistPage({ params }: PageProps) {
           const categoryItems = itemsByCategory[category.key] || [];
           const isExpanded = expandedCategories.includes(category.key);
           const completedInCategory = categoryItems.filter(
-            (i) => i.status !== "pendente"
+            (i: any) => i.status !== "pendente",
           ).length;
           const totalInCategory = categoryItems.length;
 
@@ -380,7 +385,7 @@ export default function InspectionChecklistPage({ params }: PageProps) {
 
               {isExpanded && (
                 <CardContent className="space-y-3">
-                  {categoryItems.map((item) => (
+                  {categoryItems.map((item: any) => (
                     <ChecklistItemCard
                       key={item.id}
                       item={item}
@@ -673,8 +678,8 @@ function ChecklistItemCard({
                 item.status === "ok"
                   ? "default"
                   : item.status === "com_avaria"
-                  ? "destructive"
-                  : "outline"
+                    ? "destructive"
+                    : "outline"
               }
               className="flex-shrink-0 self-start sm:self-auto"
             >

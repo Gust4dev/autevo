@@ -18,6 +18,10 @@ import {
   AlertTriangle,
   Eye,
   ClipboardCheck,
+  Package,
+  Plus,
+  Trash2,
+  Search,
 } from "lucide-react";
 import {
   Button,
@@ -33,6 +37,14 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+  Input,
+  Label,
 } from "@/components/ui";
 import {
   StatusBadge,
@@ -55,7 +67,7 @@ import dynamic from "next/dynamic";
 const PDFDownloadButton = dynamic(
   () =>
     import("@/components/pdfs/PDFDownloadButton").then(
-      (mod) => mod.PDFDownloadButton
+      (mod) => mod.PDFDownloadButton,
     ),
   {
     ssr: false,
@@ -64,13 +76,13 @@ const PDFDownloadButton = dynamic(
         Carregando PDF...
       </Button>
     ),
-  }
+  },
 );
 
 const ContractDownloadButton = dynamic(
   () =>
     import("@/components/pdfs/ContractDownloadButton").then(
-      (mod) => mod.ContractDownloadButton
+      (mod) => mod.ContractDownloadButton,
     ),
   {
     ssr: false,
@@ -79,7 +91,7 @@ const ContractDownloadButton = dynamic(
         Carregando Contrato...
       </Button>
     ),
-  }
+  },
 );
 
 // Valid status transitions (matching backend)
@@ -140,21 +152,21 @@ function InspectionsSection({ orderId }: { orderId: string }) {
     );
   }
 
-  const entradaInspection = inspections?.find((i) => i.type === "entrada");
-  const saidaInspection = inspections?.find((i) => i.type === "final");
+  const entradaInspection = inspections?.find((i: any) => i.type === "entrada");
+  const saidaInspection = inspections?.find((i: any) => i.type === "final");
 
   const entradaStatus =
     entradaInspection?.status === "concluida"
       ? "ok"
       : entradaInspection
-      ? "andamento"
-      : "pendente";
+        ? "andamento"
+        : "pendente";
   const saidaStatus =
     saidaInspection?.status === "concluida"
       ? "ok"
       : saidaInspection
-      ? "andamento"
-      : "pendente";
+        ? "andamento"
+        : "pendente";
 
   const getStatusMessage = () => {
     if (noInspectionRequired) return "Vistorias são opcionais nesta oficina";
@@ -220,16 +232,16 @@ function InspectionsSection({ orderId }: { orderId: string }) {
               entradaStatus === "ok"
                 ? "default"
                 : entradaStatus === "andamento"
-                ? "secondary"
-                : "outline"
+                  ? "secondary"
+                  : "outline"
             }
             className={entradaStatus === "ok" ? "bg-green-500" : ""}
           >
             {entradaStatus === "ok"
               ? "✓ Concluída"
               : entradaStatus === "andamento"
-              ? `${entradaInspection?.progress || 0}%`
-              : "Pendente"}
+                ? `${entradaInspection?.progress || 0}%`
+                : "Pendente"}
           </Badge>
         </Link>
 
@@ -264,16 +276,16 @@ function InspectionsSection({ orderId }: { orderId: string }) {
               saidaStatus === "ok"
                 ? "default"
                 : saidaStatus === "andamento"
-                ? "secondary"
-                : "outline"
+                  ? "secondary"
+                  : "outline"
             }
             className={saidaStatus === "ok" ? "bg-green-500" : ""}
           >
             {saidaStatus === "ok"
               ? "✓ Concluída"
               : saidaStatus === "andamento"
-              ? `${saidaInspection?.progress || 0}%`
-              : "Pendente"}
+                ? `${saidaInspection?.progress || 0}%`
+                : "Pendente"}
           </Badge>
         </Link>
 
@@ -297,9 +309,20 @@ export default function OrderDetailPage({ params }: PageProps) {
   const router = useRouter();
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [addProductOpen, setAddProductOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [customProductData, setCustomProductData] = useState({
+    name: "",
+    costPrice: "",
+    quantity: "1",
+  });
 
   // Queries
   const orderQuery = trpc.order.getById.useQuery({ id });
+  const productsQuery = trpc.product.list.useQuery(
+    { limit: 50, search: productSearch },
+    { enabled: addProductOpen },
+  );
   const settingsQuery = trpc.settings.get.useQuery();
   const utils = trpc.useUtils();
 
@@ -326,6 +349,39 @@ export default function OrderDetailPage({ params }: PageProps) {
       toast.error(error.message || "Erro ao registrar pagamento");
     },
   });
+
+  const addOrderProduct = trpc.order.addProduct.useMutation({
+    onSuccess: () => {
+      toast.success("Produto adicionado");
+      utils.order.getById.invalidate({ id });
+      setAddProductOpen(false);
+      setProductSearch("");
+      setCustomProductData({ name: "", costPrice: "", quantity: "1" });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao adicionar produto");
+    },
+  });
+
+  const removeOrderProduct = trpc.order.removeProduct.useMutation({
+    onSuccess: () => {
+      toast.success("Produto removido");
+      utils.order.getById.invalidate({ id });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao remover produto");
+    },
+  });
+
+  const updateOrderProductQuantity =
+    trpc.order.updateProductQuantity.useMutation({
+      onSuccess: () => {
+        utils.order.getById.invalidate({ id });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Erro ao atualizar quantidade");
+      },
+    });
 
   // Helpers
   const formatCurrency = (value: number) => {
@@ -379,7 +435,7 @@ export default function OrderDetailPage({ params }: PageProps) {
 
   if (orderQuery.isLoading) {
     return (
-      <div className="flexh-[50vh] flex flex-col items-center justify-center p-8">
+      <div className="flex h-[50vh] flex flex-col items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="mt-4 text-muted-foreground">
           Carregando detalhes da OS...
@@ -454,7 +510,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                     nome: order.vehicle.customer.name.split(" ")[0],
                     veiculo: `${order.vehicle.brand} ${order.vehicle.model}`,
                     link: getTrackingUrl(id),
-                  }
+                  },
                 )}
                 whatsappOptIn={order.vehicle.customer.whatsappOptIn}
                 variant="outline"
@@ -479,7 +535,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {nextStatuses.map((status) => (
+                {nextStatuses.map((status: any) => (
                   <DropdownMenuItem
                     key={status.value}
                     onClick={() => handleStatusChange(status.value)}
@@ -530,7 +586,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                 onClick={() => {
                   if (!settingsQuery.data?.contractTemplate) {
                     toast.error(
-                      "O proprietário precisa configurar o modelo de contrato nas configurações."
+                      "O proprietário precisa configurar o modelo de contrato nas configurações.",
                     );
                     return;
                   }
@@ -656,7 +712,7 @@ export default function OrderDetailPage({ params }: PageProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {order.items.map((item) => (
+                {order.items.map((item: any) => (
                   <div
                     key={item.id}
                     className="flex items-start justify-between rounded-lg border border-border p-4"
@@ -698,6 +754,267 @@ export default function OrderDetailPage({ params }: PageProps) {
             </CardContent>
           </Card>
 
+          {/* 📦 Products / Peças (Internal View) */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">
+                  Produtos / Peças (Uso Interno)
+                </CardTitle>
+                <CardDescription>
+                  Materiais e peças utilizados nesta OS para cálculo de CMV
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddProductOpen(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {order.products.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic text-center py-4">
+                  Nenhum produto vinculado a esta ordem.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {order.products.map((product: any) => (
+                    <div
+                      key={product.id}
+                      className="flex items-start justify-between rounded-lg border border-border p-4 bg-muted/20"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {product.customName || product.product?.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Label className="text-[10px] text-muted-foreground uppercase font-semibold">
+                            Qtd:
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={product.quantity}
+                            className="h-7 w-20 text-xs px-2"
+                            onChange={(e) => {
+                              const qty = Number(e.target.value);
+                              if (qty > 0) {
+                                updateOrderProductQuantity.mutate({
+                                  id: product.id,
+                                  quantity: qty,
+                                });
+                              }
+                            }}
+                          />
+                          <span className="text-[10px] text-muted-foreground italic">
+                            • Custo Unitário:{" "}
+                            {formatCurrency(Number(product.costPrice))}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-right">
+                        <div>
+                          <p className="font-semibold text-sm">
+                            Total:{" "}
+                            {formatCurrency(
+                              Number(product.costPrice) * product.quantity,
+                            )}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => {
+                            if (confirm("Deseja remover este produto?")) {
+                              removeOrderProduct.mutate({ id: product.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="pt-4 border-t flex justify-end">
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                        Custo Total de Materiais (CMV)
+                      </p>
+                      <p className="text-xl font-bold text-amber-600">
+                        {formatCurrency(
+                          order.products.reduce(
+                            (acc: number, p: any) =>
+                              acc + Number(p.costPrice) * p.quantity,
+                            0,
+                          ),
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Add Product Dialog */}
+          <Dialog open={addProductOpen} onOpenChange={setAddProductOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Adicionar Produto / Peça</DialogTitle>
+                <DialogDescription>
+                  Adicione itens para o cálculo de CMV desta OS.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>Buscar no Estoque</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Nome do produto..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-10 h-9"
+                    />
+                  </div>
+                  {productSearch &&
+                    (productsQuery.data?.products?.length || 0) > 0 && (
+                      <div className="border rounded-md divide-y overflow-hidden max-h-52 overflow-y-auto">
+                        {productsQuery.data?.products.map((p: any) => (
+                          <div
+                            key={p.id}
+                            className="w-full p-2 hover:bg-muted/50 text-sm flex justify-between items-center group"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium truncate max-w-[180px]">
+                                {p.name}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                Estoque: {p.stock} •{" "}
+                                {formatCurrency(Number(p.costPrice))}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {/* Quantity input that is only local to this row */}
+                              <input
+                                type="number"
+                                defaultValue="1"
+                                min="1"
+                                className="w-12 h-8 rounded-md border border-input bg-background px-2 py-1 text-xs text-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                id={`search-qty-${p.id}`}
+                              />
+                              <Button
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={addOrderProduct.isPending}
+                                onClick={() => {
+                                  const qtyInput = document.getElementById(
+                                    `search-qty-${p.id}`,
+                                  ) as HTMLInputElement;
+                                  const qty = Number(qtyInput?.value || 1);
+                                  addOrderProduct.mutate({
+                                    orderId: id,
+                                    productId: p.id,
+                                    quantity: qty,
+                                  });
+                                }}
+                              >
+                                {addOrderProduct.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Plus className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Item Manual / Miudezas</p>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Nome do Item</Label>
+                    <Input
+                      placeholder="Ex: Parafusos, Estopa, etc."
+                      value={customProductData.name}
+                      onChange={(e) =>
+                        setCustomProductData((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs">Qtd</Label>
+                      <Input
+                        type="number"
+                        value={customProductData.quantity}
+                        onChange={(e) =>
+                          setCustomProductData((prev) => ({
+                            ...prev,
+                            quantity: e.target.value,
+                          }))
+                        }
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Custo (R$)</Label>
+                      <Input
+                        type="number"
+                        placeholder="0,00"
+                        value={customProductData.costPrice}
+                        onChange={(e) =>
+                          setCustomProductData((prev) => ({
+                            ...prev,
+                            costPrice: e.target.value,
+                          }))
+                        }
+                        className="h-8"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    className="w-full h-8"
+                    size="sm"
+                    disabled={
+                      !customProductData.name ||
+                      !customProductData.costPrice ||
+                      addOrderProduct.isPending
+                    }
+                    onClick={() => {
+                      addOrderProduct.mutate({
+                        orderId: id,
+                        customName: customProductData.name,
+                        costPrice: Number(customProductData.costPrice),
+                        quantity: Number(customProductData.quantity),
+                      });
+                    }}
+                  >
+                    {addOrderProduct.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      "Adicionar Item Manual"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Payments */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -723,7 +1040,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {order.payments.map((payment) => (
+                  {order.payments.map((payment: any) => (
                     <div
                       key={payment.id}
                       className="flex items-center justify-between rounded-lg bg-muted/50 p-3"
@@ -854,7 +1171,7 @@ export default function OrderDetailPage({ params }: PageProps) {
         orderId={id}
         totalAmount={Number(order.total)}
         paidAmount={paidAmount}
-        payments={order.payments.map((p) => ({
+        payments={order.payments.map((p: any) => ({
           id: p.id,
           method: p.method,
           amount: Number(p.amount),
@@ -877,7 +1194,7 @@ export default function OrderDetailPage({ params }: PageProps) {
             vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
             vehiclePlate: order.vehicle.plate,
             vehicleColor: order.vehicle.color,
-            services: order.items.map((item) => ({
+            services: order.items.map((item: any) => ({
               name: item.customName || item.service?.name || "Serviço",
               price: Number(item.price),
               quantity: item.quantity,

@@ -231,7 +231,7 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {pending?.slice(0, 5).map((tenant) => (
+                {pending?.slice(0, 5).map((tenant: any) => (
                   <Link
                     key={tenant.id}
                     href={`/admin/tenants/${tenant.id}`}
@@ -292,7 +292,7 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {expiring?.slice(0, 5).map((tenant) => (
+                {expiring?.slice(0, 5).map((tenant: any) => (
                   <Link
                     key={tenant.id}
                     href={`/admin/tenants/${tenant.id}`}
@@ -343,7 +343,7 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentLogs?.logs.slice(0, 5).map((log) => (
+                {recentLogs?.logs.slice(0, 5).map((log: any) => (
                   <div key={log.id} className="flex items-start gap-3">
                     <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
                       <Zap className="h-4 w-4 text-slate-500" />

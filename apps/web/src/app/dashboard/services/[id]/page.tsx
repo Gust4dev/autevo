@@ -1,24 +1,25 @@
-'use client';
+"use client";
 
-import { use, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  Pencil, 
-  Trash2, 
+import { use, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Pencil,
+  Trash2,
   Clock,
   DollarSign,
   Calendar,
   Percent,
   Power,
   PowerOff,
-} from 'lucide-react';
-import { 
-  Button, 
-  Card, 
-  CardContent, 
-  CardHeader, 
+  Package,
+} from "lucide-react";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
   CardTitle,
   Badge,
   Separator,
@@ -29,9 +30,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui';
-import { trpc } from '@/lib/trpc/provider';
-import { toast } from 'sonner';
+} from "@/components/ui";
+import { trpc } from "@/lib/trpc/provider";
+import { toast } from "sonner";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -41,12 +42,16 @@ export default function ServiceDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  
-  const { data: service, isLoading, refetch } = trpc.service.getById.useQuery({ id });
+
+  const {
+    data: service,
+    isLoading,
+    refetch,
+  } = trpc.service.getById.useQuery({ id });
 
   const toggleActiveMutation = trpc.service.toggleActive.useMutation({
     onSuccess: () => {
-      toast.success('Status atualizado');
+      toast.success("Status atualizado");
       refetch();
     },
     onError: (error) => {
@@ -56,8 +61,8 @@ export default function ServiceDetailPage({ params }: PageProps) {
 
   const deleteMutation = trpc.service.delete.useMutation({
     onSuccess: () => {
-      toast.success('Serviço excluído com sucesso');
-      router.push('/dashboard/services');
+      toast.success("Serviço excluído com sucesso");
+      router.push("/dashboard/services");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -65,9 +70,9 @@ export default function ServiceDetailPage({ params }: PageProps) {
   });
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
   };
 
@@ -127,7 +132,9 @@ export default function ServiceDetailPage({ params }: PageProps) {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">{service.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight">
+                {service.name}
+              </h1>
               {service.isActive ? (
                 <Badge variant="success">Ativo</Badge>
               ) : (
@@ -135,7 +142,8 @@ export default function ServiceDetailPage({ params }: PageProps) {
               )}
             </div>
             <p className="text-muted-foreground">
-              Cadastrado em {new Intl.DateTimeFormat('pt-BR').format(new Date())}
+              Cadastrado em{" "}
+              {new Intl.DateTimeFormat("pt-BR").format(new Date())}
             </p>
           </div>
         </div>
@@ -146,8 +154,8 @@ export default function ServiceDetailPage({ params }: PageProps) {
               Editar
             </Link>
           </Button>
-          <Button 
-            variant={service.isActive ? 'outline' : 'default'}
+          <Button
+            variant={service.isActive ? "outline" : "default"}
             onClick={handleToggleActive}
             disabled={toggleActiveMutation.isPending}
           >
@@ -180,7 +188,9 @@ export default function ServiceDetailPage({ params }: PageProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Preço Base</p>
-                <p className="text-xl font-bold">{formatCurrency(Number(service.basePrice))}</p>
+                <p className="text-xl font-bold">
+                  {formatCurrency(Number(service.basePrice))}
+                </p>
               </div>
             </div>
 
@@ -190,8 +200,12 @@ export default function ServiceDetailPage({ params }: PageProps) {
                   <Clock className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Tempo Estimado</p>
-                  <p className="font-medium">{formatTime(service.estimatedTime)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Tempo Estimado
+                  </p>
+                  <p className="font-medium">
+                    {formatTime(service.estimatedTime)}
+                  </p>
                 </div>
               </div>
             )}
@@ -202,7 +216,9 @@ export default function ServiceDetailPage({ params }: PageProps) {
                   <Calendar className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Prazo de Retorno</p>
+                  <p className="text-sm text-muted-foreground">
+                    Prazo de Retorno
+                  </p>
                   <p className="font-medium">{service.returnDays} dias</p>
                 </div>
               </div>
@@ -214,8 +230,12 @@ export default function ServiceDetailPage({ params }: PageProps) {
                   <Percent className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Comissão Padrão</p>
-                  <p className="font-medium">{Number(service.defaultCommissionPercent)}%</p>
+                  <p className="text-sm text-muted-foreground">
+                    Comissão Padrão
+                  </p>
+                  <p className="font-medium">
+                    {Number(service.defaultCommissionPercent)}%
+                  </p>
                 </div>
               </div>
             )}
@@ -246,26 +266,82 @@ export default function ServiceDetailPage({ params }: PageProps) {
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="text-2xl font-bold">{formatCurrency(0)}</p>
-                <p className="text-xs text-muted-foreground">Faturado este mês</p>
+                <p className="text-xs text-muted-foreground">
+                  Faturado este mês
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* 📦 PRODUCT TEMPLATES CARD */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">
+              Produtos Utilizados (Template)
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!service.productTemplates ||
+          service.productTemplates.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">
+              Nenhum produto vinculado a este serviço.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {service.productTemplates.map((template: any) => (
+                <div
+                  key={template.id}
+                  className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium text-sm">
+                      {template.product.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Custo estimado:{" "}
+                      {formatCurrency(
+                        Number(template.product.costPrice) * template.quantity,
+                      )}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="font-mono">
+                    x{template.quantity}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-4 text-[10px] text-muted-foreground">
+            * Estes produtos serão adicionados automaticamente à OS quando este
+            serviço for selecionado.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Danger Zone */}
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-lg text-destructive">Zona de Perigo</CardTitle>
+          <CardTitle className="text-lg text-destructive">
+            Zona de Perigo
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-between">
           <div>
             <p className="font-medium">Excluir Serviço</p>
             <p className="text-sm text-muted-foreground">
-              Esta ação é irreversível. Serviços com OS vinculadas não podem ser excluídos.
+              Esta ação é irreversível. Serviços com OS vinculadas não podem ser
+              excluídos.
             </p>
           </div>
-          <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+          <Button
+            variant="destructive"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
             <Trash2 className="mr-2 h-4 w-4" />
             Excluir
           </Button>
@@ -278,12 +354,15 @@ export default function ServiceDetailPage({ params }: PageProps) {
           <DialogHeader>
             <DialogTitle>Excluir Serviço</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir o serviço <strong>{service.name}</strong>?
-              Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir o serviço{" "}
+              <strong>{service.name}</strong>? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+            >
               Cancelar
             </Button>
             <Button
@@ -291,7 +370,7 @@ export default function ServiceDetailPage({ params }: PageProps) {
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
             </Button>
           </DialogFooter>
         </DialogContent>

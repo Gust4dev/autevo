@@ -329,8 +329,8 @@ export default function TenantsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {data?.tenants.map((tenant) => {
-                    const status = statusConfig[tenant.status];
+                  {data?.tenants.map((tenant: any) => {
+                    const status = statusConfig[tenant.status as TenantStatus];
                     const StatusIcon = status.icon;
 
                     return (
@@ -421,8 +421,8 @@ export default function TenantsPage() {
 
           {/* Mobile/Tablet Cards */}
           <div className="lg:hidden space-y-3">
-            {data?.tenants.map((tenant) => {
-              const status = statusConfig[tenant.status];
+            {data?.tenants.map((tenant: any) => {
+              const status = statusConfig[tenant.status as TenantStatus];
               const StatusIcon = status.icon;
 
               return (

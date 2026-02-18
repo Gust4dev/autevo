@@ -6,8 +6,10 @@ import { prisma, Prisma } from '@autevo/database';
 import type { User } from '@autevo/database';
 import { checkRateLimit, redis } from '@/lib/rate-limit';
 
+
+
 export interface Context {
-    db: typeof prisma;
+    db: any;
     user: User | null;
     tenantId: string | null;
 }
@@ -39,7 +41,8 @@ export const middleware = t.middleware;
 
 const TENANT_CACHE_TTL = 1800; // 30 minutes in seconds
 
-async function getTenantStatus(tenantId: string, db: typeof prisma): Promise<string | null> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getTenantStatus(tenantId: string, db: any): Promise<string | null> {
     const cacheKey = `tenant:status:${tenantId}`;
 
     try {

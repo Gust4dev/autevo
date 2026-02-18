@@ -26,7 +26,9 @@ const orderItemSchema = z.object({
 });
 
 const orderProductSchema = z.object({
-    productId: z.string(),
+    productId: z.string().optional(),
+    customName: z.string().optional(),
+    costPrice: z.number().min(0).optional(),
     quantity: z.number().min(1),
 });
 
@@ -114,6 +116,51 @@ export const orderRouter = router({
                 },
             });
 
+            // 📦 AUTOMATIC INVENTORY TEMPLATES
+            // Fetch standard products for the services added
+            const serviceIds = input.items.filter(i => i.serviceId).map(i => i.serviceId as string);
+            if (serviceIds.length > 0) {
+                const templates = await ctx.db.serviceProductTemplate.findMany({
+                    where: { serviceId: { in: serviceIds } },
+                    include: { product: true }
+                });
+
+                if (templates.length > 0) {
+                    await ctx.db.orderProduct.createMany({
+                        data: templates.map(t => ({
+                            orderId: order.id,
+                            productId: t.productId,
+                            quantity: t.quantity,
+                            costPrice: t.product.costPrice,
+                            customName: t.product.name,
+                        }))
+                    });
+                }
+            }
+
+            // Add manual products if any
+            if (input.products && input.products.length > 0) {
+                // Fetch costs for stock products
+                const stockProductIds = input.products.filter(p => p.productId).map(p => p.productId as string);
+                const stockProducts = await ctx.db.product.findMany({
+                    where: { id: { in: stockProductIds } },
+                    select: { id: true, costPrice: true, name: true }
+                });
+
+                await ctx.db.orderProduct.createMany({
+                    data: input.products.map(p => {
+                        const stockP = stockProducts.find(sp => sp.id === p.productId);
+                        return {
+                            orderId: order.id,
+                            productId: p.productId,
+                            quantity: p.quantity,
+                            costPrice: p.costPrice || stockP?.costPrice || 0,
+                            customName: p.customName || stockP?.name || 'Item Personalizado',
+                        };
+                    })
+                });
+            }
+
             await ctx.db.notificationLog.create({
                 data: {
                     tenantId: ctx.tenantId!,
@@ -158,6 +205,7 @@ export const orderRouter = router({
                     payments: true,
                     assignedTo: true,
                     createdBy: true,
+                    products: true,
                 },
             });
 
@@ -169,7 +217,7 @@ export const orderRouter = router({
             }
 
             const paidAmount = order.payments.reduce(
-                (sum, p) => sum + Number(p.amount),
+                (sum: number, p: any) => sum + Number(p.amount),
                 0
             );
             const balance = Number(order.total) - paidAmount;
@@ -286,6 +334,152 @@ export const orderRouter = router({
                     assignedTo: { select: { name: true } },
                 },
             });
+
+            return { success: true };
+        }),
+
+    addProduct: protectedProcedure
+        .input(z.object({
+            orderId: z.string(),
+            productId: z.string().optional(),
+            customName: z.string().optional(),
+            costPrice: z.number().min(0).optional(),
+            quantity: z.number().min(0.01),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const order = await ctx.db.serviceOrder.findFirst({
+                where: { id: input.orderId, tenantId: ctx.tenantId! }
+            });
+
+            if (!order) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'OS não encontrada' });
+            }
+
+            let costPrice = input.costPrice || 0;
+            let name = input.customName || 'Item Personalizado';
+
+            if (input.productId) {
+                const product = await ctx.db.product.findFirst({
+                    where: { id: input.productId, tenantId: ctx.tenantId! }
+                });
+                if (product) {
+                    costPrice = input.costPrice !== undefined ? input.costPrice : Number(product.costPrice);
+                    name = input.customName || product.name;
+                }
+            }
+
+            const orderProduct = await ctx.db.orderProduct.create({
+                data: {
+                    orderId: input.orderId,
+                    productId: input.productId,
+                    customName: name,
+                    costPrice: costPrice,
+                    quantity: input.quantity,
+                }
+            });
+
+            // If inventory already deducted, we should probably deduct this new one too?
+            // For now, Phase 3 is about tracking CMV. Inventory deduction happens on status change.
+            // If already deducted, we might need a separate logic or just deduct immediately.
+            if (order.inventoryDeducted && input.productId) {
+                await ctx.db.product.update({
+                    where: { id: input.productId },
+                    data: { stock: { decrement: input.quantity } }
+                });
+
+                await ctx.db.stockMovement.create({
+                    data: {
+                        productId: input.productId,
+                        type: 'SAIDA_OS',
+                        quantity: -input.quantity,
+                        notes: `Adição manual na OS ${order.code} (Já executada)`,
+                        createdBy: ctx.user!.id,
+                        reference: `OS-${order.code}`,
+                    }
+                });
+            }
+
+            return orderProduct;
+        }),
+
+    updateProductQuantity: protectedProcedure
+        .input(z.object({
+            id: z.string(),
+            quantity: z.number().min(0.01),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const item = await ctx.db.orderProduct.findFirst({
+                where: { id: input.id },
+                include: { order: true }
+            });
+
+            if (!item) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
+            }
+
+            const diff = input.quantity - item.quantity;
+
+            // Update inventory if already deducted
+            if (item.order.inventoryDeducted && item.productId) {
+                await ctx.db.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { decrement: diff } }
+                });
+
+                await ctx.db.stockMovement.create({
+                    data: {
+                        productId: item.productId,
+                        type: 'AJUSTE',
+                        quantity: -diff,
+                        notes: `Ajuste manual de quantidade na OS ${item.order.code}`,
+                        createdBy: ctx.user!.id,
+                        reference: `OS-${item.order.code}`,
+                    }
+                });
+            }
+
+            return await ctx.db.orderProduct.update({
+                where: { id: input.id },
+                data: { quantity: input.quantity }
+            });
+        }),
+
+    removeProduct: protectedProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            const item = await ctx.db.orderProduct.findFirst({
+                where: { id: input.id },
+                include: { order: true }
+            });
+
+            if (!item) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
+            }
+
+            // Reverse inventory if already deducted
+            if (item.order.inventoryDeducted && item.productId) {
+                await ctx.db.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { increment: item.quantity } }
+                });
+
+                await ctx.db.stockMovement.create({
+                    data: {
+                        productId: item.productId,
+                        type: 'ENTRADA',
+                        quantity: item.quantity,
+                        notes: `Remoção manual na OS ${item.order.code} (Estorno)`,
+                        createdBy: ctx.user!.id,
+                        reference: `OS-${item.order.code}`,
+                    }
+                });
+            }
+
+            await ctx.db.orderProduct.delete({
+                where: { id: input.id }
+            });
+
+            return { success: true };
         }),
 
     update: protectedProcedure
@@ -339,13 +533,40 @@ export const orderRouter = router({
                         notes: item.notes ? sanitizeInput(item.notes) : undefined,
                     })),
                 });
+
+                // 📦 RE-CALCULATE INVENTORY TEMPLATES (only if inventory hasn't been deducted yet)
+                if (!existing.inventoryDeducted) {
+                    await ctx.db.orderProduct.deleteMany({
+                        where: { orderId: input.id }
+                    });
+
+                    const serviceIds = input.data.items.filter(i => i.serviceId).map(i => i.serviceId as string);
+                    if (serviceIds.length > 0) {
+                        const templates = await ctx.db.serviceProductTemplate.findMany({
+                            where: { serviceId: { in: serviceIds } },
+                            include: { product: true }
+                        });
+
+                        if (templates.length > 0) {
+                            await ctx.db.orderProduct.createMany({
+                                data: templates.map(t => ({
+                                    orderId: input.id,
+                                    productId: t.productId,
+                                    quantity: t.quantity,
+                                    costPrice: t.product.costPrice,
+                                    customName: t.product.name,
+                                }))
+                            });
+                        }
+                    }
+                }
             }
 
             // Calculate new totals
             // Use new items if provided, otherwise use existing
             const itemsToCalc = input.data.items
                 ? input.data.items
-                : existing.items.map((i) => ({
+                : existing.items.map((i: any) => ({
                     price: Number(i.price),
                     quantity: i.quantity,
                 }));
@@ -459,8 +680,87 @@ export const orderRouter = router({
                 where: { id: input.id },
                 data: {
                     status: input.status,
+                    ...(input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted ? { inventoryDeducted: true } : {}),
                     ...timestamps,
                 },
+                include: {
+                    products: true,
+                    items: {
+                        include: { service: true }
+                    },
+                    assignedTo: true,
+                }
+            });
+
+            // 💰 SNAPSHOT DE COMISSÃO: Registrar valores quando a OS é concluída
+            if (input.status === 'CONCLUIDO') {
+                for (const item of order.items) {
+                    // Valor da comissão: Prioridade para o Serviço, depois o Técnico (User)
+                    const commissionPercent = item.service?.defaultCommissionPercent
+                        ? Number(item.service.defaultCommissionPercent)
+                        : Number(order.assignedTo.defaultCommissionPercent || 0);
+
+                    const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
+
+                    await ctx.db.orderItemCommission.create({
+                        data: {
+                            orderItemId: item.id,
+                            userId: order.assignedToId,
+                            commissionValue,
+                        }
+                    });
+                }
+            }
+
+            // 📦 GATILHO DE ESTOQUE: Baixa automática ao entrar em execução
+            // 📦 GATILHO DE ESTOQUE: Baixa automática ao entrar em execução
+            if (input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted) {
+                // Fetch products in this order
+                const orderWithProducts = await ctx.db.serviceOrder.findUnique({
+                    where: { id: input.id },
+                    include: { products: true }
+                });
+
+                if (orderWithProducts?.products) {
+                    for (const op of orderWithProducts.products) {
+                        if (!op.productId) continue; // Skip custom items (no stock link)
+
+                        const quantity = op.quantity;
+                        const productId = op.productId;
+
+                        // Update stock and create movement record in transaction
+                        await ctx.db.$transaction([
+                            ctx.db.product.update({
+                                where: { id: productId },
+                                data: { stock: { decrement: quantity } }
+                            }),
+                            ctx.db.stockMovement.create({
+                                data: {
+                                    productId,
+                                    quantity: -quantity,
+                                    type: 'SAIDA_OS',
+                                    reference: `OS-${order.code}`,
+                                    notes: `Baixa automática: OS #${order.code} em execução`,
+                                    createdBy: ctx.user!.id,
+                                }
+                            })
+                        ]);
+                    }
+                }
+            }
+
+            // 🛡️ AUDITORIA: Registrar mudança de status
+            await ctx.db.auditLog.create({
+                data: {
+                    tenantId: ctx.tenantId!,
+                    userId: ctx.user!.id,
+                    action: 'UPDATE_STATUS',
+                    entityType: 'ServiceOrder',
+                    entityId: order.id,
+                    oldValue: { status: existing.status } as any,
+                    newValue: { status: order.status } as any,
+                    metadata: { code: order.code } as any,
+                }
             });
 
             // Notificar owners quando OS é concluída
@@ -522,7 +822,7 @@ export const orderRouter = router({
 
             const orderTotal = Number(order.total);
             const currentPaid = order.payments.reduce(
-                (sum, p) => sum + Number(p.amount),
+                (sum: number, p: any) => sum + Number(p.amount),
                 0
             );
             const balance = orderTotal - currentPaid;
@@ -575,13 +875,36 @@ export const orderRouter = router({
                 }
 
                 if (canComplete) {
-                    await ctx.db.serviceOrder.update({
+                    const completedOrder = await ctx.db.serviceOrder.update({
                         where: { id: input.orderId },
                         data: {
                             status: 'CONCLUIDO',
                             completedAt: new Date(),
                         },
+                        include: {
+                            items: {
+                                include: { service: true }
+                            },
+                            assignedTo: true,
+                        }
                     });
+
+                    // 💰 SNAPSHOT DE COMISSÃO: Registrar valores no fechamento automático por pagamento
+                    for (const item of completedOrder.items) {
+                        const commissionPercent = item.service?.defaultCommissionPercent
+                            ? Number(item.service.defaultCommissionPercent)
+                            : Number(completedOrder.assignedTo.defaultCommissionPercent || 0);
+
+                        const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
+
+                        await ctx.db.orderItemCommission.create({
+                            data: {
+                                orderItemId: item.id,
+                                userId: completedOrder.assignedToId,
+                                commissionValue,
+                            }
+                        });
+                    }
                 }
             }
 
@@ -743,14 +1066,14 @@ export const orderRouter = router({
                         secondaryColor: order.tenant.secondaryColor || '#1F2937',
                         inspectionSignature: (order.tenant as any).inspectionSignature ?? true,
                     },
-                    services: order.items.map(item => ({
+                    services: order.items.map((item: any) => ({
                         name: item.customName || item.service?.name || 'Serviço',
                         total: Number(item.price) * item.quantity,
                     })),
                     total: Number(order.total),
-                    inspections: inspections.map(inspection => {
-                        const requiredItems = inspection.items.filter(i => i.isRequired);
-                        const completedRequired = requiredItems.filter(i => i.status !== 'pendente').length;
+                    inspections: inspections.map((inspection: any) => {
+                        const requiredItems = inspection.items.filter((i: any) => i.isRequired);
+                        const completedRequired = requiredItems.filter((i: any) => i.status !== 'pendente').length;
                         const allRequiredCompleted = requiredItems.length > 0 && completedRequired === requiredItems.length;
                         const canSign = allRequiredCompleted && !inspection.signatureUrl && (order.tenant as any).inspectionSignature !== false;
 
@@ -762,7 +1085,7 @@ export const orderRouter = router({
                             signedAt: inspection.signedAt,
                             createdAt: inspection.createdAt,
                             canSign,
-                            items: inspection.items.map(item => ({
+                            items: inspection.items.map((item: any) => ({
                                 id: item.id,
                                 category: item.category,
                                 label: item.label,
@@ -773,7 +1096,7 @@ export const orderRouter = router({
                                 damageType: item.damageType,
                                 severity: item.severity,
                             })),
-                            damages: inspection.damages.map(d => ({
+                            damages: inspection.damages.map((d: any) => ({
                                 id: d.id,
                                 position: d.position,
                                 damageType: d.damageType,

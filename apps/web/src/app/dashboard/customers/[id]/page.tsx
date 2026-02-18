@@ -224,7 +224,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 <p className="text-sm text-muted-foreground">Cadastrado em</p>
                 <p className="font-medium">
                   {new Intl.DateTimeFormat("pt-BR").format(
-                    new Date(customer.createdAt)
+                    new Date(customer.createdAt),
                   )}
                 </p>
               </div>
@@ -293,7 +293,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                {customer.vehicles.map((vehicle) => (
+                {customer.vehicles.map((vehicle: any) => (
                   <Link
                     key={vehicle.id}
                     href={`/dashboard/vehicles/${vehicle.id}`}

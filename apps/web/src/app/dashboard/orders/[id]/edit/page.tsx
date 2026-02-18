@@ -97,7 +97,7 @@ export default function EditOrderPage({ params }: PageProps) {
 
       // Load items
       setItems(
-        order.items.map((item) => ({
+        order.items.map((item: any) => ({
           serviceId: item.serviceId || undefined,
           customName: item.customName || undefined,
           price: Number(item.price),
@@ -111,7 +111,9 @@ export default function EditOrderPage({ params }: PageProps) {
   const handleAddService = () => {
     if (!selectedServiceId) return;
 
-    const service = servicesQuery.data?.find((s) => s.id === selectedServiceId);
+    const service = servicesQuery.data?.find(
+      (s: any) => s.id === selectedServiceId,
+    );
     if (!service) return;
 
     setItems((prev) => [
@@ -127,7 +129,7 @@ export default function EditOrderPage({ params }: PageProps) {
   };
 
   const handleRemoveItem = (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
+    setItems((prev) => prev.filter((_: any, i: number) => i !== index));
   };
 
   const updateItem = (
@@ -136,7 +138,7 @@ export default function EditOrderPage({ params }: PageProps) {
     value: any,
   ) => {
     setItems((prev) =>
-      prev.map((item, i) => {
+      prev.map((item: any, i: number) => {
         if (i !== index) return item;
         return { ...item, [field]: value };
       }),
@@ -272,7 +274,7 @@ export default function EditOrderPage({ params }: PageProps) {
                     <SelectValue placeholder="Selecione um serviço para adicionar..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {servicesQuery.data?.map((service) => (
+                    {servicesQuery.data?.map((service: any) => (
                       <SelectItem key={service.id} value={service.id}>
                         {service.name} -{" "}
                         {formatCurrency(Number(service.basePrice))}
@@ -299,7 +301,7 @@ export default function EditOrderPage({ params }: PageProps) {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {items.map((item, index) => (
+                  {items.map((item: any, index: number) => (
                     <div
                       key={index}
                       className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
@@ -461,7 +463,7 @@ export default function EditOrderPage({ params }: PageProps) {
                 </div>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {usersQuery.data?.map((user) => (
+                  {usersQuery.data?.map((user: any) => (
                     <button
                       key={user.id}
                       type="button"

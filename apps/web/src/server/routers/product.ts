@@ -276,4 +276,48 @@ export const productRouter = router({
 
         return products.filter((p) => p.stock <= p.minStock).length;
     }),
+
+    // List stock movements
+    listMovements: managerProcedure
+        .input(z.object({
+            productId: z.string().optional(),
+            limit: z.number().min(1).max(100).default(20),
+            page: z.number().min(1).default(1),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { productId, limit, page } = input;
+            const skip = (page - 1) * limit;
+
+            const where: any = {
+                product: { tenantId: ctx.tenantId! }
+            };
+
+            if (productId) {
+                where.productId = productId;
+            }
+
+            const [movements, total] = await Promise.all([
+                ctx.db.stockMovement.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    include: {
+                        product: { select: { name: true, sku: true } },
+                        user: { select: { name: true } }
+                    },
+                    orderBy: { createdAt: 'desc' },
+                }),
+                ctx.db.stockMovement.count({ where }),
+            ]);
+
+            return {
+                movements,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit),
+                },
+            };
+        }),
 });

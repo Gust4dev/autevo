@@ -151,7 +151,7 @@ export default function AuditLogsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {data?.logs.map((log) => {
+          {data?.logs.map((log: any) => {
             const isExpanded = expandedLogs.has(log.id);
             const colors = actionColors[log.action] || {
               bg: "bg-slate-100",

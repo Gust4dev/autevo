@@ -61,7 +61,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
-    null
+    null,
   );
 
   // tRPC query
@@ -168,7 +168,7 @@ export default function CustomersPage() {
       render: (customer) => (
         <span className="text-sm text-muted-foreground">
           {new Intl.DateTimeFormat("pt-BR").format(
-            new Date(customer.createdAt)
+            new Date(customer.createdAt),
           )}
         </span>
       ),
@@ -290,7 +290,7 @@ export default function CustomersPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {customers.map((customer) => (
+              {customers.map((customer: any) => (
                 <div
                   key={customer.id}
                   className="bg-card border border-border/50 rounded-xl p-4 space-y-4 active:bg-muted/30 transition-colors"
@@ -374,7 +374,7 @@ export default function CustomersPage() {
                     <span className="text-xs text-muted-foreground">
                       Cadastrado em{" "}
                       {new Intl.DateTimeFormat("pt-BR").format(
-                        new Date(customer.createdAt)
+                        new Date(customer.createdAt),
                       )}
                     </span>
                     <Button variant="ghost" size="sm" asChild>
@@ -405,7 +405,7 @@ export default function CustomersPage() {
                     size="sm"
                     onClick={() =>
                       setPage((p) =>
-                        Math.min(pagination?.totalPages || 1, p + 1)
+                        Math.min(pagination?.totalPages || 1, p + 1),
                       )
                     }
                     disabled={page === (pagination?.totalPages || 1)}
@@ -454,7 +454,7 @@ export default function CustomersPage() {
 function ExportButton({ search }: { search?: string }) {
   const { refetch, isFetching } = trpc.customer.listAll.useQuery(
     { search },
-    { enabled: false }
+    { enabled: false },
   );
 
   const handleExport = async () => {
@@ -462,7 +462,7 @@ function ExportButton({ search }: { search?: string }) {
       const { data } = await refetch();
       if (!data) return;
 
-      const exportData = data.map((c) => ({
+      const exportData = data.map((c: any) => ({
         Nome: c.name,
         Telefone: c.phone,
         Email: c.email || "",
@@ -470,7 +470,7 @@ function ExportButton({ search }: { search?: string }) {
         "WhatsApp Opt-In": c.whatsappOptIn ? "Sim" : "Não",
         Veículos: c._count.vehicles,
         Cadastro: new Intl.DateTimeFormat("pt-BR").format(
-          new Date(c.createdAt)
+          new Date(c.createdAt),
         ),
       }));
 

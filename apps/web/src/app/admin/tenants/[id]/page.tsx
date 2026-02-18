@@ -222,7 +222,7 @@ export default function TenantDetailsPage() {
     );
   }
 
-  const status = statusConfig[tenant.status];
+  const status = statusConfig[tenant.status as TenantStatus];
   const StatusIcon = status.icon;
 
   return (
@@ -387,7 +387,7 @@ export default function TenantDetailsPage() {
             </CardHeader>
             <CardContent className="p-4">
               <div className="space-y-3">
-                {tenant.users.map((user) => (
+                {tenant.users.map((user: any) => (
                   <div
                     key={user.id}
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100"

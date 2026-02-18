@@ -26,7 +26,7 @@ export const tenantRouter = router({
                 });
             }
 
-            await ctx.db.$transaction(async (tx) => {
+            await ctx.db.$transaction(async (tx: any) => {
                 await tx.user.update({
                     where: { id: ctx.user!.id },
                     data: { jobTitle: input.jobTitle },
@@ -71,7 +71,7 @@ export const tenantRouter = router({
         const email = ctx.user.email;
         const slug = `${email.split('@')[0].replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}`;
 
-        const result = await ctx.db.$transaction(async (tx) => {
+        const result = await ctx.db.$transaction(async (tx: any) => {
             const newTenant = await tx.tenant.create({
                 data: { name: 'Minha Empresa', slug, status: 'ACTIVE' },
             });

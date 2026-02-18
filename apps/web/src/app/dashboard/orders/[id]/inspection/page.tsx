@@ -69,7 +69,7 @@ export default function InspectionIndexPage({ params }: PageProps) {
   const order = orderQuery.data;
 
   const getInspectionForType = (type: InspectionType) => {
-    return inspections.find((i) => i.type === type);
+    return inspections.find((i: any) => i.type === type);
   };
 
   const getWarningMessage = () => {
@@ -267,8 +267,8 @@ export default function InspectionIndexPage({ params }: PageProps) {
                       isCompleted
                         ? "outline"
                         : required
-                        ? "default"
-                        : "secondary"
+                          ? "default"
+                          : "secondary"
                     }
                     asChild
                   >
@@ -279,8 +279,8 @@ export default function InspectionIndexPage({ params }: PageProps) {
                       {isCompleted
                         ? "Ver Vistoria"
                         : isInProgress
-                        ? "Continuar"
-                        : "Iniciar"}
+                          ? "Continuar"
+                          : "Iniciar"}
                     </Link>
                   </Button>
                 </CardContent>

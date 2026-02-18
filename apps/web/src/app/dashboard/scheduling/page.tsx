@@ -50,7 +50,7 @@ export default function SchedulingPage() {
 
   const ordersByDay = React.useMemo(() => {
     const map = new Map<string, typeof orders>();
-    orders.forEach((order) => {
+    orders.forEach((order: any) => {
       const key = format(new Date(order.scheduledAt), "yyyy-MM-dd");
       if (!map.has(key)) {
         map.set(key, []);
@@ -175,7 +175,7 @@ export default function SchedulingPage() {
                   </span>
                   {hasOrders && !isSelected && (
                     <div className="absolute bottom-1 flex gap-0.5">
-                      {dayOrders.slice(0, 3).map((_, i) => (
+                      {dayOrders.slice(0, 3).map((_: any, i: number) => (
                         <div
                           key={i}
                           className="h-1 w-1 rounded-full bg-primary"
@@ -222,7 +222,7 @@ export default function SchedulingPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedDateOrders.map((order) => (
+                  {selectedDateOrders.map((order: any) => (
                     <Link
                       key={order.id}
                       href={`/dashboard/orders/${order.id}`}

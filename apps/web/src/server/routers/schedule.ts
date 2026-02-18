@@ -122,7 +122,7 @@ export const scheduleRouter = router({
 
             if (!tenant) throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant não encontrado' });
 
-            const dates = [];
+            const dates: any[] = [];
             const today = startOfDay(new Date());
 
             for (let i = 1; i <= 30; i++) {

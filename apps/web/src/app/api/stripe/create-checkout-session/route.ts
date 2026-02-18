@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         }
 
         // Validate promo code if provided
-        let promoCodeRecord = null;
+        let promoCodeRecord: any = null;
         if (promoCode) {
             promoCodeRecord = await prisma.promoCode.findFirst({
                 where: {
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         }
 
         // Validate partner code if provided
-        let partnerTenant = null;
+        let partnerTenant: any = null;
         if (partnerCode) {
             partnerTenant = await prisma.tenant.findFirst({
                 where: {

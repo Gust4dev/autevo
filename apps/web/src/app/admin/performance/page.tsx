@@ -63,7 +63,7 @@ export default function PerformancePage() {
     undefined,
     {
       enabled: false,
-    }
+    },
   );
 
   const clearStats = trpc.benchmark.clear.useMutation();
@@ -79,8 +79,9 @@ export default function PerformancePage() {
     await customerBenchmark.mutateAsync({ iterations: 5 });
     const result = await analyzeBottlenecks.refetch();
     if (result.data) {
-      setBottlenecks(result.data.bottlenecks);
-      setCounts(result.data.counts);
+      const data = result.data as any;
+      setBottlenecks(data.bottlenecks);
+      setCounts(data.counts);
     }
   };
 
@@ -146,7 +147,7 @@ export default function PerformancePage() {
                     </td>
                     <td
                       className={`text-right py-2 px-3 font-mono font-semibold ${getStatusColor(
-                        stat.avg
+                        stat.avg,
                       )}`}
                     >
                       {stat.avg.toFixed(1)}
@@ -248,8 +249,8 @@ export default function PerformancePage() {
                     b.severity === "high"
                       ? "border-red-500/50 bg-red-500/5"
                       : b.severity === "medium"
-                      ? "border-yellow-500/50 bg-yellow-500/5"
-                      : "border-blue-500/50 bg-blue-500/5"
+                        ? "border-yellow-500/50 bg-yellow-500/5"
+                        : "border-blue-500/50 bg-blue-500/5"
                   }`}
                 >
                   <div className="font-semibold">{b.area}</div>

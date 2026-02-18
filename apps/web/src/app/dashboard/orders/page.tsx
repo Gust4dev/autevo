@@ -70,7 +70,7 @@ export default function OrdersPage() {
     },
     {
       refetchInterval: 5000,
-    }
+    },
   );
 
   const orders = data?.orders || [];
@@ -94,7 +94,7 @@ export default function OrdersPage() {
     setSelectedStatuses((prev) =>
       prev.includes(status)
         ? prev.filter((s) => s !== status)
-        : [...prev, status]
+        : [...prev, status],
     );
   };
 
@@ -337,7 +337,7 @@ export default function OrdersPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
+            {orders.map((order: any) => (
               <div
                 key={order.id}
                 className="bg-card border border-border/50 rounded-xl p-4 space-y-4 active:bg-muted/30 transition-colors"
@@ -441,7 +441,7 @@ function ExportButton({
         ? (selectedStatuses as OrderStatus[])
         : undefined,
     },
-    { enabled: false }
+    { enabled: false },
   );
 
   const handleExport = async () => {
@@ -449,11 +449,11 @@ function ExportButton({
       const { data } = await refetch();
       if (!data) return;
 
-      const exportData = data.map((o) => ({
+      const exportData = data.map((o: any) => ({
         Código: o.code,
         Status: o.status,
         "Data Agendamento": new Intl.DateTimeFormat("pt-BR").format(
-          new Date(o.scheduledAt)
+          new Date(o.scheduledAt),
         ),
         Cliente: o.vehicle.customer?.name || "N/A",
         Veículo: `${o.vehicle.brand} ${o.vehicle.model}`,
@@ -465,7 +465,7 @@ function ExportButton({
       exportToExcel(
         exportData,
         `OrdensServico_${formatFilenameDate()}`,
-        "Ordens"
+        "Ordens",
       );
       toast.success("Exportação concluída");
     } catch (error) {

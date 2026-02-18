@@ -240,15 +240,15 @@ export const benchmarkRouter = router({
 
         const { result: orderCount } = await benchmark('analyze.orderCount', () =>
             ctx.db.serviceOrder.count({ where: { tenantId: tenantId! } })
-        );
+        ) as { result: number };
 
         const { result: customerCount } = await benchmark('analyze.customerCount', () =>
             ctx.db.customer.count({ where: { tenantId: tenantId! } })
-        );
+        ) as { result: number };
 
         const { result: paymentCount } = await benchmark('analyze.paymentCount', () =>
             ctx.db.payment.count({ where: { order: { tenantId: tenantId! } } })
-        );
+        ) as { result: number };
 
         const bottlenecks: Array<{ area: string; issue: string; severity: 'high' | 'medium' | 'low'; recommendation: string }> = [];
 
