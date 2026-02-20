@@ -2,25 +2,39 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, PenTool } from "lucide-react";
+import { RotateCcw, PenTool, ShieldCheck } from "lucide-react";
 
 interface SignaturePadProps {
-  onSave: (base64: string) => void;
+  onSave: (base64: string, metadata?: SignatureMetadata) => void;
   onClear?: () => void;
   placeholder?: string;
+  requireTerms?: boolean;
+  termsText?: string;
+}
+
+export interface SignatureMetadata {
+  signedAt: string;
+  userAgent: string;
+  screenWidth: number;
+  screenHeight: number;
 }
 
 export function SignaturePad({
   onSave,
   onClear,
   placeholder = "Assine aqui",
+  requireTerms = false,
+  termsText = "Declaro que li e concordo com os termos do serviço e confirmo que as informações acima são corretas.",
 }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  const canSign = !requireTerms || termsAccepted;
 
   const getCoordinates = (
-    event: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent
+    event: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent,
   ) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -43,6 +57,7 @@ export function SignaturePad({
   };
 
   const startDrawing = (event: React.MouseEvent | React.TouchEvent) => {
+    if (!canSign) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -55,12 +70,11 @@ export function SignaturePad({
     setIsDrawing(true);
     setIsEmpty(false);
 
-    // Prevent scrolling on touch
     if (event.cancelable) event.preventDefault();
   };
 
   const draw = (
-    event: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent
+    event: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent,
   ) => {
     if (!isDrawing) return;
 
@@ -96,9 +110,19 @@ export function SignaturePad({
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas || isEmpty) return;
+    if (requireTerms && !termsAccepted) return;
 
     const base64 = canvas.toDataURL("image/png");
-    onSave(base64);
+
+    // Capture legal metadata
+    const metadata: SignatureMetadata = {
+      signedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+    };
+
+    onSave(base64, metadata);
   };
 
   useEffect(() => {
@@ -108,26 +132,22 @@ export function SignaturePad({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Setup styles
     ctx.strokeStyle = "#000000";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    // Fix blurry canvas on high DPI screens
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // Update styles after resize
     ctx.strokeStyle = "#000000";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    // Add global listeners for smoother drawing
     window.addEventListener("mouseup", stopDrawing);
     window.addEventListener("touchend", stopDrawing);
 
@@ -139,16 +159,41 @@ export function SignaturePad({
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      <div className="relative w-full aspect-[2/1] bg-white border-2 border-dashed border-muted-foreground/30 rounded-lg overflow-hidden touch-none">
+      {/* Terms of Acceptance */}
+      {requireTerms && (
+        <label className="flex items-start gap-3 p-3 rounded-lg border border-border/60 bg-muted/30 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+          />
+          <span className="text-xs text-muted-foreground leading-relaxed">
+            <ShieldCheck className="inline h-3.5 w-3.5 mr-1 text-primary" />
+            {termsText}
+          </span>
+        </label>
+      )}
+
+      {/* Canvas */}
+      <div
+        className={`relative w-full aspect-[2/1] bg-white border-2 border-dashed rounded-lg overflow-hidden touch-none transition-colors ${
+          canSign
+            ? "border-muted-foreground/30"
+            : "border-muted-foreground/15 opacity-60"
+        }`}
+      >
         {isEmpty && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground pointer-events-none opacity-50">
             <PenTool className="w-8 h-8 mb-2" />
-            <span className="text-sm">{placeholder}</span>
+            <span className="text-sm">
+              {canSign ? placeholder : "Aceite os termos para assinar"}
+            </span>
           </div>
         )}
         <canvas
           ref={canvasRef}
-          className="w-full h-full cursor-crosshair"
+          className={`w-full h-full ${canSign ? "cursor-crosshair" : "cursor-not-allowed"}`}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
@@ -173,7 +218,7 @@ export function SignaturePad({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={isEmpty}
+          disabled={isEmpty || (requireTerms && !termsAccepted)}
           className="text-xs"
         >
           Confirmar Assinatura

@@ -215,6 +215,7 @@ export const productRouter = router({
                 }),
                 ctx.db.stockMovement.create({
                     data: {
+                        tenantId: ctx.tenantId!,
                         productId: input.id,
                         quantity: input.quantity,
                         type: input.type,

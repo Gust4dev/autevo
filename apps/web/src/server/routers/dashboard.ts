@@ -11,6 +11,7 @@ export const dashboardRouter = router({
             where: {
                 order: {
                     tenantId: ctx.tenantId!,
+                    status: { not: 'CANCELADO' },
                 },
                 paidAt: {
                     gte: startOfMonth,
@@ -123,7 +124,10 @@ export const dashboardRouter = router({
             }),
             ctx.db.payment.aggregate({
                 where: {
-                    order: { tenantId: ctx.tenantId! },
+                    order: {
+                        tenantId: ctx.tenantId!,
+                        status: { not: 'CANCELADO' },
+                    },
                     paidAt: { gte: startOfMonth },
                 },
                 _sum: { amount: true },
@@ -190,7 +194,10 @@ export const dashboardRouter = router({
                 }),
                 ctx.db.payment.aggregate({
                     where: {
-                        order: { tenantId: ctx.tenantId! },
+                        order: {
+                            tenantId: ctx.tenantId!,
+                            status: { not: 'CANCELADO' },
+                        },
                         paidAt: { gte: from, lte: to },
                     },
                     _sum: { amount: true },
@@ -283,7 +290,10 @@ export const dashboardRouter = router({
         // But for portability, we can fetch all payments and aggregate in JS (assuming volume isn't massive yet)
         const payments = await ctx.db.payment.findMany({
             where: {
-                order: { tenantId: ctx.tenantId! },
+                order: {
+                    tenantId: ctx.tenantId!,
+                    status: { not: 'CANCELADO' },
+                },
                 paidAt: { gte: startOfMonth, lte: endOfMonth },
             },
             select: {
@@ -404,11 +414,15 @@ export const dashboardRouter = router({
                 detailedCommissions,
                 openOrdersCount,
                 detailedCompletedOrders,
-                detailedOpenOrders
+                detailedOpenOrders,
+                periodOrderProducts
             ] = await Promise.all([
                 ctx.db.payment.aggregate({
                     where: {
-                        order: { tenantId: ctx.tenantId! },
+                        order: {
+                            tenantId: ctx.tenantId!,
+                            status: { not: 'CANCELADO' },
+                        },
                         paidAt: { gte: from, lte: to },
                     },
                     _sum: { amount: true },
@@ -435,7 +449,10 @@ export const dashboardRouter = router({
                 }),
                 ctx.db.payment.findMany({
                     where: {
-                        order: { tenantId: ctx.tenantId! },
+                        order: {
+                            tenantId: ctx.tenantId!,
+                            status: { not: 'CANCELADO' },
+                        },
                         paidAt: { gte: from, lte: to },
                     },
                     select: { paidAt: true, amount: true },
@@ -463,7 +480,10 @@ export const dashboardRouter = router({
                 // Detailed Payments for Export
                 ctx.db.payment.findMany({
                     where: {
-                        order: { tenantId: ctx.tenantId! },
+                        order: {
+                            tenantId: ctx.tenantId!,
+                            status: { not: 'CANCELADO' },
+                        },
                         paidAt: { gte: from, lte: to },
                     },
                     select: {
@@ -555,6 +575,17 @@ export const dashboardRouter = router({
                     },
                     orderBy: { scheduledAt: 'asc' }
                 }),
+                // CMV / COGS
+                ctx.db.orderProduct.findMany({
+                    where: {
+                        order: {
+                            tenantId: ctx.tenantId!,
+                            status: 'CONCLUIDO',
+                            completedAt: { gte: from, lte: to }
+                        }
+                    },
+                    select: { costPrice: true, quantity: true }
+                }),
             ]);
 
             let receivables = 0;
@@ -567,6 +598,10 @@ export const dashboardRouter = router({
 
             const revenue = Number(periodPayments._sum.amount) || 0;
             const avgTicket = periodOrders > 0 ? revenue / periodOrders : 0;
+
+            const totalCommissions = (detailedCommissions as any[]).reduce((sum, c) => sum + Number(c.commissionValue), 0);
+            const cogs = (periodOrderProducts as any[]).reduce((sum, op) => sum + (Number(op.costPrice) * op.quantity), 0);
+            const profit = revenue - totalCommissions - cogs;
 
             const dailyRevenue = new Map<string, number>();
             // Initialize all days in selected range
@@ -599,7 +634,7 @@ export const dashboardRouter = router({
             });
 
             return {
-                stats: { revenue, avgTicket, receivables, paymentCount: periodPayments._count, completedOrders: periodOrders },
+                stats: { revenue, avgTicket, receivables, paymentCount: periodPayments._count, completedOrders: periodOrders, cogs, commissions: totalCommissions, profit },
                 chartData,
                 team: {
                     users: teamStats,

@@ -48,7 +48,11 @@ function getScaledDimensions(width: number, height: number, maxSize: number): { 
     };
 }
 
-export async function convertFileToWebPBase64(file: File, quality = 0.7): Promise<string> {
+export async function convertFileToWebPBase64(
+    file: File,
+    quality = 0.7,
+    watermark?: string,
+): Promise<string> {
     const processedFile = await preprocessFile(file);
 
     return new Promise((resolve, reject) => {
@@ -80,6 +84,35 @@ export async function convertFileToWebPBase64(file: File, quality = 0.7): Promis
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0, width, height);
+
+                // 🔏 WATERMARK: Stamp OS code + timestamp for legal evidence
+                if (watermark) {
+                    const now = new Intl.DateTimeFormat('pt-BR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                    }).format(new Date());
+                    const text = `${watermark} · ${now}`;
+
+                    const fontSize = Math.max(12, Math.round(width * 0.022));
+                    ctx.font = `bold ${fontSize}px monospace`;
+
+                    const padding = Math.round(fontSize * 0.6);
+                    const textWidth = ctx.measureText(text).width;
+                    const boxH = fontSize + padding * 2;
+                    const boxW = textWidth + padding * 2;
+                    const x = width - boxW - padding;
+                    const y = height - boxH - padding;
+
+                    // Semi-transparent background
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, boxW, boxH, 4);
+                    ctx.fill();
+
+                    // Text
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                    ctx.fillText(text, x + padding, y + padding + fontSize * 0.85);
+                }
 
                 let base64 = canvas.toDataURL('image/webp', quality);
 

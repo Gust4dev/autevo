@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { Check, Circle } from 'lucide-react';
-import { cn } from '@/lib/cn';
+import { Check, Circle, RefreshCw, Loader2 } from "lucide-react";
+import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui";
 
 interface TimelineItem {
   status: string;
@@ -17,23 +18,25 @@ interface OrderTimelineProps {
   startedAt?: Date;
   completedAt?: Date;
   className?: string;
+  onReopen?: () => void;
+  isReopening?: boolean;
 }
 
 const statusOrder = [
-  'AGENDADO',
-  'EM_VISTORIA',
-  'EM_EXECUCAO',
-  'AGUARDANDO_PAGAMENTO',
-  'CONCLUIDO',
+  "AGENDADO",
+  "EM_VISTORIA",
+  "EM_EXECUCAO",
+  "AGUARDANDO_PAGAMENTO",
+  "CONCLUIDO",
 ];
 
 const statusLabels: Record<string, string> = {
-  AGENDADO: 'Agendado',
-  EM_VISTORIA: 'Vistoria',
-  EM_EXECUCAO: 'Em Execução',
-  AGUARDANDO_PAGAMENTO: 'Pagamento',
-  CONCLUIDO: 'Concluído',
-  CANCELADO: 'Cancelado',
+  AGENDADO: "Agendado",
+  EM_VISTORIA: "Vistoria",
+  EM_EXECUCAO: "Em Execução",
+  AGUARDANDO_PAGAMENTO: "Pagamento",
+  CONCLUIDO: "Concluído",
+  CANCELADO: "Cancelado",
 };
 
 export function OrderTimeline({
@@ -42,12 +45,37 @@ export function OrderTimeline({
   startedAt,
   completedAt,
   className,
+  onReopen,
+  isReopening,
 }: OrderTimelineProps) {
   // If cancelled, show special state
-  if (currentStatus === 'CANCELADO') {
+  if (currentStatus === "CANCELADO") {
     return (
-      <div className={cn('p-4 rounded-lg bg-destructive/10 border border-destructive/20', className)}>
-        <p className="text-sm font-medium text-destructive">Ordem Cancelada</p>
+      <div
+        className={cn(
+          "p-4 rounded-lg bg-destructive/10 border border-destructive/20",
+          className,
+        )}
+      >
+        <p className="text-sm font-medium text-destructive mb-3">
+          Ordem Cancelada
+        </p>
+        {onReopen && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs h-8 bg-destructive/5 border-destructive/20 hover:bg-destructive/10 hover:text-destructive transition-colors"
+            onClick={onReopen}
+            disabled={isReopening}
+          >
+            {isReopening ? (
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-3 w-3" />
+            )}
+            Reabrir Ordem de Serviço
+          </Button>
+        )}
       </div>
     );
   }
@@ -56,11 +84,11 @@ export function OrderTimeline({
 
   const getDateForStatus = (status: string): Date | undefined => {
     switch (status) {
-      case 'AGENDADO':
+      case "AGENDADO":
         return scheduledAt;
-      case 'EM_EXECUCAO':
+      case "EM_EXECUCAO":
         return startedAt;
-      case 'CONCLUIDO':
+      case "CONCLUIDO":
         return completedAt;
       default:
         return undefined;
@@ -76,26 +104,28 @@ export function OrderTimeline({
   }));
 
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(date);
   };
 
   return (
-    <div className={cn('space-y-0', className)}>
+    <div className={cn("space-y-0", className)}>
       {items.map((item, index) => (
         <div key={item.status} className="flex gap-3">
           {/* Line and Circle */}
           <div className="flex flex-col items-center">
             <div
               className={cn(
-                'flex h-6 w-6 items-center justify-center rounded-full border-2',
-                item.isCompleted && 'bg-primary border-primary',
-                item.isCurrent && 'border-primary bg-primary/20',
-                !item.isCompleted && !item.isCurrent && 'border-muted-foreground/30'
+                "flex h-6 w-6 items-center justify-center rounded-full border-2",
+                item.isCompleted && "bg-primary border-primary",
+                item.isCurrent && "border-primary bg-primary/20",
+                !item.isCompleted &&
+                  !item.isCurrent &&
+                  "border-muted-foreground/30",
               )}
             >
               {item.isCompleted ? (
@@ -107,8 +137,8 @@ export function OrderTimeline({
             {index < items.length - 1 && (
               <div
                 className={cn(
-                  'w-0.5 flex-1 min-h-[24px]',
-                  item.isCompleted ? 'bg-primary' : 'bg-muted-foreground/20'
+                  "w-0.5 flex-1 min-h-[24px]",
+                  item.isCompleted ? "bg-primary" : "bg-muted-foreground/20",
                 )}
               />
             )}
@@ -118,10 +148,12 @@ export function OrderTimeline({
           <div className="pb-4">
             <p
               className={cn(
-                'text-sm font-medium',
-                item.isCompleted && 'text-muted-foreground',
-                item.isCurrent && 'text-foreground',
-                !item.isCompleted && !item.isCurrent && 'text-muted-foreground/50'
+                "text-sm font-medium",
+                item.isCompleted && "text-muted-foreground",
+                item.isCurrent && "text-foreground",
+                !item.isCompleted &&
+                  !item.isCurrent &&
+                  "text-muted-foreground/50",
               )}
             >
               {item.label}

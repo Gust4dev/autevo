@@ -166,6 +166,7 @@ export const inspectionRouter = router({
             if (missingItems.length > 0) {
                 await ctx.db.inspectionItem.createMany({
                     data: missingItems.map(item => ({
+                        tenantId: ctx.tenantId!,
                         inspectionId: inspection.id,
                         category: item.category,
                         itemKey: item.itemKey,
@@ -231,11 +232,13 @@ export const inspectionRouter = router({
 
             const inspection = await ctx.db.inspection.create({
                 data: {
+                    tenantId: ctx.tenantId!,
                     orderId: input.orderId,
                     type: input.type,
                     status: 'em_andamento',
                     items: {
                         create: checklistItems.map(item => ({
+                            tenantId: ctx.tenantId!,
                             category: item.category,
                             itemKey: item.itemKey,
                             label: item.label,
@@ -283,11 +286,85 @@ export const inspectionRouter = router({
                 where: { id: input.itemId },
                 data: {
                     status: input.status,
-                    photoUrl: input.photoUrl,
                     notes: input.notes,
                     damageType: input.status === 'com_avaria' ? input.damageType : null,
                     severity: input.status === 'com_avaria' ? input.severity : null,
                     completedAt: input.status !== 'pendente' ? new Date() : null,
+                },
+            });
+
+            return updated;
+        }),
+
+    addPhoto: protectedProcedureNoRateLimit
+        .input(z.object({
+            itemId: z.string(),
+            photoBase64: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const item = await ctx.db.inspectionItem.findUnique({
+                where: { id: input.itemId },
+                include: {
+                    inspection: {
+                        include: { order: { select: { tenantId: true } } },
+                    },
+                },
+            });
+
+            if (!item || item.inspection.order.tenantId !== ctx.tenantId) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
+            }
+
+            if (item.inspection.status === 'concluida') {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Vistoria já concluída' });
+            }
+
+            const updatedPhotos = [...item.photos, input.photoBase64];
+
+            const updated = await ctx.db.inspectionItem.update({
+                where: { id: input.itemId },
+                data: {
+                    photos: updatedPhotos,
+                    // Keep photoUrl as the first photo for backward compat
+                    photoUrl: updatedPhotos[0],
+                    // Auto-mark as pendente if it was empty before
+                    status: item.status === 'pendente' ? 'pendente' : item.status,
+                },
+            });
+
+            return updated;
+        }),
+
+    removePhoto: protectedProcedureNoRateLimit
+        .input(z.object({
+            itemId: z.string(),
+            photoBase64: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const item = await ctx.db.inspectionItem.findUnique({
+                where: { id: input.itemId },
+                include: {
+                    inspection: {
+                        include: { order: { select: { tenantId: true } } },
+                    },
+                },
+            });
+
+            if (!item || item.inspection.order.tenantId !== ctx.tenantId) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
+            }
+
+            if (item.inspection.status === 'concluida') {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Vistoria já concluída' });
+            }
+
+            const updatedPhotos = item.photos.filter((p) => p !== input.photoBase64);
+
+            const updated = await ctx.db.inspectionItem.update({
+                where: { id: input.itemId },
+                data: {
+                    photos: updatedPhotos,
+                    photoUrl: updatedPhotos[0] ?? null,
                 },
             });
 
@@ -342,6 +419,7 @@ export const inspectionRouter = router({
 
             const damage = await ctx.db.inspectionDamage.create({
                 data: {
+                    tenantId: ctx.tenantId!,
                     inspectionId: input.inspectionId,
                     ...input.damage,
                 },

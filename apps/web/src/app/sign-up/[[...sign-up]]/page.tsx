@@ -6,7 +6,7 @@ export default function SignUpPage() {
       <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]" />
       <div className="relative z-10 animate-fade-in-up">
         <SignUp
-          forceRedirectUrl="/activate"
+          forceRedirectUrl="/post-signup"
           appearance={{
             elements: {
               card: "bg-card/50 backdrop-blur-md border border-border/50 shadow-xl",

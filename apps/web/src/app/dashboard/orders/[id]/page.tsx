@@ -109,6 +109,7 @@ const validNextStatuses: Record<string, { value: string; label: string }[]> = {
     { value: "CANCELADO", label: "Cancelar OS" },
   ],
   AGUARDANDO_PAGAMENTO: [{ value: "CONCLUIDO", label: "Concluir OS" }],
+  CANCELADO: [{ value: "AGENDADO", label: "Reabrir OS" }],
 };
 
 const paymentMethodLabels: Record<string, string> = {
@@ -324,6 +325,7 @@ export default function OrderDetailPage({ params }: PageProps) {
     { enabled: addProductOpen },
   );
   const settingsQuery = trpc.settings.get.useQuery();
+  const meQuery = trpc.user.me.useQuery();
   const utils = trpc.useUtils();
 
   // Mutations
@@ -336,6 +338,18 @@ export default function OrderDetailPage({ params }: PageProps) {
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao atualizar status");
+    },
+  });
+
+  const reopenOrder = trpc.order.reopen.useMutation({
+    onSuccess: () => {
+      toast.success("Ordem de serviço reaberta");
+      utils.order.getById.invalidate({ id });
+      utils.order.list.invalidate();
+      utils.order.getStats.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao reabrir ordem");
     },
   });
 
@@ -1015,6 +1029,93 @@ export default function OrderDetailPage({ params }: PageProps) {
             </DialogContent>
           </Dialog>
 
+          {/* 💰 Financial Breakdown (Owner/Manager Only) */}
+          {["OWNER", "MANAGER"].includes(meQuery.data?.role || "") && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  Gouvernança Financeira (Lucro Real)
+                </CardTitle>
+                <CardDescription>
+                  Detalhamento de custos e margem líquida desta OS
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                      Receita Bruta
+                    </p>
+                    <p className="text-lg font-bold">
+                      {formatCurrency(Number(order.total))}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <Package className="h-3 w-3" /> CMV (Peças)
+                    </p>
+                    <p className="text-lg font-bold text-amber-600">
+                      -
+                      {formatCurrency(
+                        order.products.reduce(
+                          (acc: number, p: any) =>
+                            acc + Number(p.costPrice) * p.quantity,
+                          0,
+                        ),
+                      )}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <User className="h-3 w-3" /> Comissões
+                    </p>
+                    <p className="text-lg font-bold text-amber-600">
+                      -
+                      {formatCurrency(
+                        order.items.reduce(
+                          (acc: number, item: any) =>
+                            acc +
+                            (item.commissions?.reduce(
+                              (cAcc: number, c: any) =>
+                                cAcc + Number(c.commissionValue),
+                              0,
+                            ) || 0),
+                          0,
+                        ),
+                      )}
+                    </p>
+                  </div>
+                  <div className="space-y-1 bg-background/50 p-2 rounded-md border border-primary/10">
+                    <p className="text-[10px] uppercase font-bold text-primary tracking-wider">
+                      Lucro Líquido
+                    </p>
+                    <p className="text-xl font-black text-primary">
+                      {formatCurrency(
+                        Number(order.total) -
+                          order.products.reduce(
+                            (acc: number, p: any) =>
+                              acc + Number(p.costPrice) * p.quantity,
+                            0,
+                          ) -
+                          order.items.reduce(
+                            (acc: number, item: any) =>
+                              acc +
+                              (item.commissions?.reduce(
+                                (cAcc: number, c: any) =>
+                                  cAcc + Number(c.commissionValue),
+                                0,
+                              ) || 0),
+                            0,
+                          ),
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Payments */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1114,6 +1215,8 @@ export default function OrderDetailPage({ params }: PageProps) {
                 completedAt={
                   order.completedAt ? new Date(order.completedAt) : undefined
                 }
+                onReopen={() => reopenOrder.mutate({ id })}
+                isReopening={reopenOrder.isPending}
               />
             </CardContent>
           </Card>

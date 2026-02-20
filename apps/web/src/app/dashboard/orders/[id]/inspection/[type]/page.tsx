@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,8 @@ import {
   Video,
 } from "lucide-react";
 import { convertFileToWebPBase64 } from "@/lib/image-conversion";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
+import { OfflineUploadBanner } from "@/components/inspection/OfflineUploadBanner";
 import {
   Button,
   Card,
@@ -26,6 +28,11 @@ import {
   Badge,
   Progress,
   Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui";
 import { trpc } from "@/lib/trpc/provider";
 import { toast } from "sonner";
@@ -67,6 +74,12 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     { enabled: !!orderId && !!type },
   );
 
+  const orderQuery = trpc.order.getById.useQuery(
+    { id: orderId },
+    { enabled: !!orderId, staleTime: 60000 },
+  );
+  const orderCode = orderQuery.data?.code;
+
   const createInspection = trpc.inspection.create.useMutation({
     onSuccess: () => {
       utils.inspection.getByOrderIdAndType.invalidate({ orderId, type });
@@ -80,6 +93,25 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     onSuccess: () => {
       utils.inspection.getByOrderIdAndType.invalidate({ orderId, type });
       toast.success("Item atualizado!");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const addPhoto = trpc.inspection.addPhoto.useMutation({
+    onSuccess: () => {
+      utils.inspection.getByOrderIdAndType.invalidate({ orderId, type });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const removePhoto = trpc.inspection.removePhoto.useMutation({
+    onSuccess: () => {
+      utils.inspection.getByOrderIdAndType.invalidate({ orderId, type });
+      toast.success("Foto removida!");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -106,6 +138,22 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     },
   });
 
+  // Offline-resilient upload function — uses addPhoto to append to the list
+  const uploadFn = useCallback(
+    async (itemId: string, base64: string) => {
+      await new Promise<void>((resolve, reject) => {
+        addPhoto.mutate(
+          { itemId, photoBase64: base64 },
+          { onSuccess: () => resolve(), onError: (e) => reject(e) },
+        );
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const { state: queueState, handleUpload } = useOfflineQueue(uploadFn);
+
   // Auto-create inspection if it doesn't exist
   const handleStartInspection = () => {
     createInspection.mutate({ orderId, type });
@@ -123,17 +171,13 @@ export default function InspectionChecklistPage({ params }: PageProps) {
     setUploadingItemId(itemId);
 
     try {
-      const base64 = await convertFileToWebPBase64(file);
+      const base64 = await convertFileToWebPBase64(file, 0.7, orderCode);
 
       if (!base64 || !base64.startsWith("data:image/")) {
         throw new Error("Conversão retornou resultado inválido");
       }
 
-      updateItem.mutate({
-        itemId,
-        status: "pendente",
-        photoUrl: base64,
-      });
+      await handleUpload(itemId, orderId, base64);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Erro ao processar foto.";
@@ -331,6 +375,11 @@ export default function InspectionChecklistPage({ params }: PageProps) {
 
       {/* Checklist */}
       <div className="max-w-2xl mx-auto p-4 space-y-4">
+        <OfflineUploadBanner
+          isOnline={queueState.isOnline}
+          pendingCount={queueState.pendingCount}
+          isSyncing={queueState.isSyncing}
+        />
         {INSPECTION_CHECKLIST.map((category) => {
           const categoryItems = itemsByCategory[category.key] || [];
           const isExpanded = expandedCategories.includes(category.key);
@@ -388,9 +437,12 @@ export default function InspectionChecklistPage({ params }: PageProps) {
                   {categoryItems.map((item: any) => (
                     <ChecklistItemCard
                       key={item.id}
-                      item={item}
+                      item={{ ...item, photos: item.photos ?? [] }}
                       isUploading={uploadingItemId === item.id}
                       onUpload={(file) => handleFileUpload(item.id, file)}
+                      onRemovePhoto={(itemId, photoBase64) =>
+                        removePhoto.mutate({ itemId, photoBase64 })
+                      }
                       onMarkOk={() => handleMarkOk(item.id)}
                       onMarkDamage={(data) =>
                         handleMarkWithDamage(item.id, data)
@@ -529,6 +581,7 @@ interface ChecklistItemCardProps {
     label: string;
     status: string;
     photoUrl: string | null;
+    photos: string[];
     notes: string | null;
     isRequired: boolean;
     isCritical: boolean;
@@ -538,6 +591,7 @@ interface ChecklistItemCardProps {
   isUploading: boolean;
   disabled: boolean;
   onUpload: (file: File) => void;
+  onRemovePhoto: (itemId: string, photoBase64: string) => void;
   onMarkOk: () => void;
   onMarkDamage: (data: {
     notes: string;
@@ -551,6 +605,7 @@ function ChecklistItemCard({
   isUploading,
   disabled,
   onUpload,
+  onRemovePhoto,
   onMarkOk,
   onMarkDamage,
 }: ChecklistItemCardProps) {
@@ -580,114 +635,112 @@ function ChecklistItemCard({
 
   return (
     <div
-      className={`
-      rounded-lg border p-4 
-      ${
+      className={`rounded-lg border p-4 ${
         item.status === "ok"
           ? "border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
           : ""
-      }
-      ${
+      } ${
         item.status === "com_avaria"
           ? "border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20"
           : ""
-      }
-    `}
+      }`}
     >
       <div className="flex items-start gap-3">
-        {/* Photo Preview / Upload Button */}
+        {/* Photo Strip — shows all photos + add button */}
         <div className="flex-shrink-0">
-          {item.photoUrl ? (
-            <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted group">
-              <img
-                src={item.photoUrl}
-                alt={item.label}
-                className="w-full h-full object-cover"
-              />
-              {/* Status indicator based on actual status, not just photo presence */}
-              {item.status === "ok" && (
-                <div className="absolute bottom-0 right-0 bg-green-500 rounded-tl-lg p-1">
-                  <Check className="h-3 w-3 text-white" />
-                </div>
-              )}
-              {item.status === "com_avaria" && (
-                <div className="absolute bottom-0 right-0 bg-amber-500 rounded-tl-lg p-1">
-                  <AlertTriangle className="h-3 w-3 text-white" />
-                </div>
-              )}
-              {/* Allow changing photo if still pending */}
-              {item.status === "pendente" && !disabled && (
-                <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*,.heic,.heif"
-                    capture="environment"
-                    className="hidden"
-                    onChange={handleFileChange}
-                    disabled={disabled || isUploading}
+          <div className="flex items-center gap-2 flex-wrap max-w-[200px] sm:max-w-[250px]">
+            {/* Existing photos wrapper */}
+            {item.photos &&
+              item.photos.length > 0 &&
+              item.photos.map((photo, i) => (
+                <div key={i} className="relative group flex-shrink-0">
+                  <img
+                    src={photo}
+                    alt={`Foto ${i + 1}`}
+                    className="w-16 h-16 rounded-md object-cover border"
                   />
-                  <Camera className="h-6 w-6 text-white" />
+                  {!disabled && (
+                    <button
+                      onClick={() => onRemovePhoto(item.id, photo)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Remover foto"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+
+            {/* Always show Add Photo button */}
+            {!disabled && (
+              <div className="w-16 h-16 flex-shrink-0">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  id={`photo-${item.id}`}
+                  onChange={handleFileChange}
+                  disabled={isUploading || disabled}
+                />
+                <label
+                  htmlFor={`photo-${item.id}`}
+                  className={`
+                    flex flex-col items-center justify-center w-full h-full 
+                    border-2 border-dashed rounded-md 
+                    transition-colors cursor-pointer
+                    bg-muted/50 hover:bg-muted
+                    ${
+                      isUploading || disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }
+                  `}
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  ) : (
+                    <>
+                      <Camera className="h-5 w-5 text-muted-foreground mb-1" />
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        Foto
+                      </span>
+                    </>
+                  )}
                 </label>
-              )}
-            </div>
-          ) : item.status === "ok" ? (
-            <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-green-100 dark:bg-green-900/30">
-              <Check className="h-8 w-8 text-green-600" />
-            </div>
-          ) : item.status === "com_avaria" ? (
-            <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-              <AlertTriangle className="h-8 w-8 text-amber-600" />
-            </div>
-          ) : (
-            <label
-              className={`
-              flex items-center justify-center w-16 h-16 rounded-lg border-2 border-dashed 
-              ${
-                disabled
-                  ? "opacity-50 cursor-not-allowed"
-                  : "cursor-pointer hover:border-primary hover:bg-muted/50"
-              }
-              border-muted-foreground/30
-            `}
-            >
-              <input
-                type="file"
-                accept="image/*,.heic,.heif"
-                capture="environment"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={disabled || isUploading}
-              />
-              {isUploading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : (
-                <Camera className="h-6 w-6 text-muted-foreground" />
-              )}
-            </label>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="font-medium text-sm sm:text-base">{item.label}</p>
+              <h4 className="font-medium text-sm sm:text-base leading-tight">
+                {item.label}
+              </h4>
+              {item.isRequired && (
+                <span className="text-xs text-red-500 font-medium mt-1 inline-block">
+                  *Obrigatório
+                </span>
+              )}
             </div>
+            {/* Status Badge */}
             <Badge
-              variant={
-                item.status === "ok"
-                  ? "default"
-                  : item.status === "com_avaria"
-                    ? "destructive"
-                    : "outline"
-              }
-              className="flex-shrink-0 self-start sm:self-auto"
+              variant="outline"
+              className={`
+                whitespace-nowrap flex-shrink-0
+                ${statusInfo.color === "green" ? "bg-green-100 text-green-800" : ""}
+                ${statusInfo.color === "yellow" ? "bg-yellow-100 text-yellow-800" : ""}
+                ${statusInfo.color === "red" ? "bg-red-100 text-red-800" : ""}
+              `}
             >
               {statusInfo.label}
             </Badge>
           </div>
 
-          {/* Damage info display */}
+          {/* Badges para Avaria/Gravidade */}
           {item.status === "com_avaria" &&
             (item.damageType || item.severity) && (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -703,21 +756,9 @@ function ChecklistItemCard({
                   <Badge
                     variant="outline"
                     className={`
-                    ${
-                      item.severity === "leve"
-                        ? "text-yellow-700 border-yellow-300"
-                        : ""
-                    }
-                    ${
-                      item.severity === "moderado"
-                        ? "text-orange-700 border-orange-300"
-                        : ""
-                    }
-                    ${
-                      item.severity === "grave"
-                        ? "text-red-700 border-red-300"
-                        : ""
-                    }
+                    ${item.severity === "leve" ? "text-yellow-700 border-yellow-300" : ""}
+                    ${item.severity === "moderado" ? "text-orange-700 border-orange-300" : ""}
+                    ${item.severity === "grave" ? "text-red-700 border-red-300" : ""}
                   `}
                   >
                     {SEVERITY_LABELS[item.severity]?.label || item.severity}
@@ -736,7 +777,6 @@ function ChecklistItemCard({
             <div className="mt-3 space-y-3">
               {!showDamageForm ? (
                 <div className="flex flex-wrap gap-2">
-                  {/* Mark as OK without photo */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -747,7 +787,6 @@ function ChecklistItemCard({
                     OK sem avaria
                   </Button>
 
-                  {/* Mark with damage */}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -759,52 +798,60 @@ function ChecklistItemCard({
                   </Button>
                 </div>
               ) : (
-                <div className="w-full space-y-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                <div className="bg-muted p-3 rounded-md space-y-3 border animate-in slide-in-from-top-2">
+                  <h5 className="font-medium text-sm flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
                     Registrar Avaria
-                  </p>
+                  </h5>
 
-                  {/* Damage Type Select */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                      Tipo de Avaria *
-                    </label>
-                    <select
-                      className="w-full p-2 rounded-md border bg-background text-sm"
-                      value={damageType}
-                      onChange={(e) => setDamageType(e.target.value)}
-                    >
-                      <option value="">Selecione...</option>
-                      {DAMAGE_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Tipo</label>
+                      <Select value={damageType} onValueChange={setDamageType}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(DAMAGE_TYPE_LABELS).map(
+                            ([value, label]) => (
+                              <SelectItem
+                                key={value}
+                                value={value}
+                                className="text-xs"
+                              >
+                                {label}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Gravidade</label>
+                      <Select value={severity} onValueChange={setSeverity}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(SEVERITY_LABELS).map(
+                            ([value, { label }]) => (
+                              <SelectItem
+                                key={value}
+                                value={value}
+                                className="text-xs"
+                              >
+                                {label}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  {/* Severity Select */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                      Gravidade *
-                    </label>
-                    <select
-                      className="w-full p-2 rounded-md border bg-background text-sm"
-                      value={severity}
-                      onChange={(e) => setSeverity(e.target.value)}
-                    >
-                      <option value="">Selecione...</option>
-                      {SEVERITY_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">
                       Observações (opcional)
                     </label>
                     <Textarea
@@ -815,7 +862,6 @@ function ChecklistItemCard({
                     />
                   </div>
 
-                  {/* Actions */}
                   <div className="flex gap-2">
                     <Button
                       size="sm"

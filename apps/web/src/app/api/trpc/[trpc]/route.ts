@@ -49,50 +49,82 @@ async function createContext(): Promise<Context> {
                 const firstName = clerkUser.firstName || 'Usuário';
 
                 if (email) {
-
-                    const tenantName = `Estética de ${firstName}`.trim();
-                    const baseSlug = tenantName.toLowerCase()
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                        .replace(/[^a-z0-9]/g, '-')
-                        .replace(/-+/g, '-')
-                        .replace(/^-|-$/g, '');
-
-                    let slug = baseSlug;
-                    const existingTenant = await prisma.tenant.findUnique({
-                        where: { slug },
-                        select: { id: true },
+                    // ── Case 1: Invited member (pre-created record, no clerkId yet) ──
+                    const invitedUser = await prisma.user.findFirst({
+                        where: { email, clerkId: null },
+                        include: { tenant: true },
                     });
 
-                    if (existingTenant) {
-                        slug = `${baseSlug}-${Math.random().toString(36).substring(2, 5)}`;
-                    }
+                    if (invitedUser) {
+                        // Link the Clerk ID to the existing invited user record
+                        user = await prisma.user.update({
+                            where: { id: invitedUser.id },
+                            data: {
+                                clerkId: userId,
+                                status: 'ACTIVE',
+                                avatarUrl: clerkUser.imageUrl || invitedUser.avatarUrl,
+                            },
+                            include: { tenant: true },
+                        });
 
-                    user = await prisma.user.create({
-                        data: {
-                            clerkId: userId,
-                            email,
-                            name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || email,
-                            role: 'OWNER',
-                            status: 'ACTIVE',
-                            tenant: {
-                                create: {
-                                    name: tenantName,
-                                    slug,
-                                    status: 'PENDING_ACTIVATION'
-                                }
+                        // Sync Clerk metadata so middleware knows the correct tenant/role
+                        client.users.updateUser(userId, {
+                            publicMetadata: {
+                                tenantId: user.tenantId,
+                                role: user.role,
+                                dbUserId: user.id,
+                                tenantStatus: user.tenant?.status ?? 'ACTIVE',
                             }
-                        },
-                        include: { tenant: true }
-                    });
+                        }).catch(() => { });
+                    } else {
+                        // ── Case 2: Brand new owner sign-up ──
+                        const tenantName = `Estética de ${firstName}`.trim();
+                        const baseSlug = tenantName.toLowerCase()
+                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-z0-9]/g, '-')
+                            .replace(/-+/g, '-')
+                            .replace(/^-|-$/g, '');
 
-                    client.users.updateUser(userId, {
-                        publicMetadata: {
-                            tenantId: user.tenantId,
-                            role: 'OWNER',
-                            dbUserId: user.id,
-                            tenantStatus: 'PENDING_ACTIVATION'
+                        // Ensure slug uniqueness with up to 3 retries
+                        let slug = baseSlug;
+                        let attempts = 0;
+                        while (attempts < 3) {
+                            const existing = await prisma.tenant.findUnique({
+                                where: { slug },
+                                select: { id: true },
+                            });
+                            if (!existing) break;
+                            slug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+                            attempts++;
                         }
-                    }).catch(() => { });
+
+                        user = await prisma.user.create({
+                            data: {
+                                clerkId: userId,
+                                email,
+                                name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || email,
+                                role: 'OWNER',
+                                status: 'ACTIVE',
+                                tenant: {
+                                    create: {
+                                        name: tenantName,
+                                        slug,
+                                        status: 'PENDING_ACTIVATION'
+                                    }
+                                }
+                            },
+                            include: { tenant: true }
+                        });
+
+                        client.users.updateUser(userId, {
+                            publicMetadata: {
+                                tenantId: user.tenantId,
+                                role: 'OWNER',
+                                dbUserId: user.id,
+                                tenantStatus: 'PENDING_ACTIVATION'
+                            }
+                        }).catch(() => { });
+                    }
                 }
             } catch (autoCreateError) {
                 console.error('[tRPC][createContext] Auto-create user failed:', autoCreateError);

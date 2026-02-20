@@ -9,9 +9,9 @@ const validTransitions: Record<string, string[]> = {
     AGENDADO: ['EM_VISTORIA', 'CANCELADO'],
     EM_VISTORIA: ['EM_EXECUCAO', 'CANCELADO'],
     EM_EXECUCAO: ['AGUARDANDO_PAGAMENTO', 'CANCELADO'],
-    AGUARDANDO_PAGAMENTO: ['CONCLUIDO'],
+    AGUARDANDO_PAGAMENTO: ['CONCLUIDO', 'CANCELADO'],
     CONCLUIDO: [],
-    CANCELADO: [],
+    CANCELADO: ['AGENDADO'],
 };
 
 const MAX_PRICE = 99999999.99;
@@ -106,6 +106,7 @@ export const orderRouter = router({
                     code: `OS-${Date.now()}`,
                     items: {
                         create: input.items.map((item) => ({
+                            tenantId: ctx.tenantId!,
                             serviceId: item.serviceId,
                             customName: item.customName ? sanitizeInput(item.customName) : undefined,
                             price: item.price,
@@ -113,6 +114,15 @@ export const orderRouter = router({
                             notes: item.notes ? sanitizeInput(item.notes) : undefined,
                         })),
                     },
+                    products: input.products ? {
+                        create: input.products.map((product) => ({
+                            tenantId: ctx.tenantId!,
+                            productId: product.productId,
+                            customName: product.customName ? sanitizeInput(product.customName) : undefined,
+                            costPrice: product.costPrice,
+                            quantity: product.quantity,
+                        })),
+                    } : undefined,
                 },
             });
 
@@ -128,6 +138,7 @@ export const orderRouter = router({
                 if (templates.length > 0) {
                     await ctx.db.orderProduct.createMany({
                         data: templates.map(t => ({
+                            tenantId: ctx.tenantId!,
                             orderId: order.id,
                             productId: t.productId,
                             quantity: t.quantity,
@@ -151,6 +162,7 @@ export const orderRouter = router({
                     data: input.products.map(p => {
                         const stockP = stockProducts.find(sp => sp.id === p.productId);
                         return {
+                            tenantId: ctx.tenantId!,
                             orderId: order.id,
                             productId: p.productId,
                             quantity: p.quantity,
@@ -200,6 +212,7 @@ export const orderRouter = router({
                     items: {
                         include: {
                             service: true,
+                            commissions: true,
                         },
                     },
                     payments: true,
@@ -370,6 +383,7 @@ export const orderRouter = router({
 
             const orderProduct = await ctx.db.orderProduct.create({
                 data: {
+                    tenantId: ctx.tenantId!,
                     orderId: input.orderId,
                     productId: input.productId,
                     customName: name,
@@ -389,6 +403,7 @@ export const orderRouter = router({
 
                 await ctx.db.stockMovement.create({
                     data: {
+                        tenantId: ctx.tenantId!,
                         productId: input.productId,
                         type: 'SAIDA_OS',
                         quantity: -input.quantity,
@@ -428,6 +443,7 @@ export const orderRouter = router({
 
                 await ctx.db.stockMovement.create({
                     data: {
+                        tenantId: ctx.tenantId!,
                         productId: item.productId,
                         type: 'AJUSTE',
                         quantity: -diff,
@@ -525,6 +541,7 @@ export const orderRouter = router({
                 // Create new items
                 await ctx.db.orderItem.createMany({
                     data: input.data.items.map((item) => ({
+                        tenantId: ctx.tenantId!,
                         orderId: input.id,
                         serviceId: item.serviceId,
                         customName: item.customName ? sanitizeInput(item.customName) : undefined,
@@ -550,6 +567,7 @@ export const orderRouter = router({
                         if (templates.length > 0) {
                             await ctx.db.orderProduct.createMany({
                                 data: templates.map(t => ({
+                                    tenantId: ctx.tenantId!,
                                     orderId: input.id,
                                     productId: t.productId,
                                     quantity: t.quantity,
@@ -695,24 +713,36 @@ export const orderRouter = router({
             // 💰 SNAPSHOT DE COMISSÃO: Registrar valores quando a OS é concluída
             if (input.status === 'CONCLUIDO') {
                 for (const item of order.items) {
-                    // Valor da comissão: Prioridade para o Serviço, depois o Técnico (User)
-                    const commissionPercent = item.service?.defaultCommissionPercent
-                        ? Number(item.service.defaultCommissionPercent)
-                        : Number(order.assignedTo.defaultCommissionPercent || 0);
+                    // Valor da comissão: Prioridade para o Serviço (se > 0), depois o Técnico (User)
+                    let commissionPercent = 0;
+                    const servicePercent = item.service?.defaultCommissionPercent ? Number(item.service.defaultCommissionPercent) : 0;
+                    const userPercent = order.assignedTo?.defaultCommissionPercent ? Number(order.assignedTo.defaultCommissionPercent) : 0;
+
+                    if (servicePercent > 0) {
+                        commissionPercent = servicePercent;
+                    } else {
+                        commissionPercent = userPercent;
+                    }
 
                     const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
 
-                    await ctx.db.orderItemCommission.create({
-                        data: {
-                            orderItemId: item.id,
-                            userId: order.assignedToId,
-                            commissionValue,
-                        }
-                    });
+                    if (commissionValue > 0) {
+                        await ctx.db.orderItemCommission.upsert({
+                            where: { orderItemId: item.id },
+                            create: {
+                                tenantId: ctx.tenantId!,
+                                orderItemId: item.id,
+                                userId: order.assignedToId,
+                                commissionValue,
+                            },
+                            update: {
+                                commissionValue, // Update in case price/quantity changed before completion
+                            }
+                        });
+                    }
                 }
             }
 
-            // 📦 GATILHO DE ESTOQUE: Baixa automática ao entrar em execução
             // 📦 GATILHO DE ESTOQUE: Baixa automática ao entrar em execução
             if (input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted) {
                 // Fetch products in this order
@@ -736,6 +766,7 @@ export const orderRouter = router({
                             }),
                             ctx.db.stockMovement.create({
                                 data: {
+                                    tenantId: ctx.tenantId!,
                                     productId,
                                     quantity: -quantity,
                                     type: 'SAIDA_OS',
@@ -746,6 +777,54 @@ export const orderRouter = router({
                             })
                         ]);
                     }
+                }
+            }
+
+            // 🚫 GATILHO DE CANCELAMENTO: Estornar estoque e deletar comissões
+            if (input.status === 'CANCELADO') {
+                // 1. Deletar comissões (Snapshot de comissão é deletado se a OS for cancelada)
+                await ctx.db.orderItemCommission.deleteMany({
+                    where: {
+                        orderItem: { orderId: order.id }
+                    }
+                });
+
+                // 2. Estornar estoque se já tiver sido baixado
+                if (existing.inventoryDeducted) {
+                    const orderWithProducts = await ctx.db.serviceOrder.findUnique({
+                        where: { id: input.id },
+                        include: { products: true }
+                    });
+
+                    if (orderWithProducts?.products) {
+                        for (const op of orderWithProducts.products) {
+                            if (!op.productId) continue;
+
+                            await ctx.db.$transaction([
+                                ctx.db.product.update({
+                                    where: { id: op.productId },
+                                    data: { stock: { increment: op.quantity } }
+                                }),
+                                ctx.db.stockMovement.create({
+                                    data: {
+                                        tenantId: ctx.tenantId!,
+                                        productId: op.productId,
+                                        quantity: op.quantity,
+                                        type: 'AJUSTE',
+                                        reference: `OS-${order.code}`,
+                                        notes: `Estorno automático: OS #${order.code} cancelada`,
+                                        createdBy: ctx.user!.id,
+                                    }
+                                })
+                            ]);
+                        }
+                    }
+
+                    // Resetar flags no banco
+                    await ctx.db.serviceOrder.update({
+                        where: { id: order.id },
+                        data: { inventoryDeducted: false }
+                    });
                 }
             }
 
@@ -797,6 +876,90 @@ export const orderRouter = router({
             return order;
         }),
 
+    reopen: protectedProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            const order = await ctx.db.serviceOrder.findFirst({
+                where: { id: input.id, tenantId: ctx.tenantId! }
+            });
+
+            if (!order) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem de serviço não encontrada' });
+            }
+
+            if (order.status !== 'CANCELADO') {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Apenas ordens canceladas podem ser reabertas' });
+            }
+
+            const updatedOrder = await ctx.db.serviceOrder.update({
+                where: { id: input.id },
+                data: {
+                    status: 'AGENDADO',
+                    completedAt: null,
+                }
+            });
+
+            // 🛡️ AUDITORIA: Registrar reabertura
+            await ctx.db.auditLog.create({
+                data: {
+                    tenantId: ctx.tenantId!,
+                    userId: ctx.user!.id,
+                    action: 'REOPEN',
+                    entityType: 'ServiceOrder',
+                    entityId: order.id,
+                    oldValue: { status: 'CANCELADO' } as any,
+                    newValue: { status: 'AGENDADO' } as any,
+                    metadata: { code: order.code } as any,
+                }
+            });
+
+            return updatedOrder;
+        }),
+
+    getMyTasks: protectedProcedure
+        .query(async ({ ctx }) => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const endOfWeek = new Date(today);
+            endOfWeek.setDate(today.getDate() + 7);
+            endOfWeek.setHours(23, 59, 59, 999);
+
+            const orders = await ctx.db.serviceOrder.findMany({
+                where: {
+                    tenantId: ctx.tenantId!,
+                    assignedToId: ctx.user!.id,
+                    status: {
+                        notIn: ['CONCLUIDO', 'CANCELADO'],
+                    },
+                    scheduledAt: {
+                        lte: endOfWeek,
+                    },
+                },
+                orderBy: { scheduledAt: 'asc' },
+                take: 20,
+                include: {
+                    vehicle: {
+                        include: {
+                            customer: { select: { id: true, name: true, phone: true } },
+                        },
+                    },
+                    items: {
+                        include: { service: { select: { name: true } } },
+                    },
+                },
+            });
+
+            const todayOrders = orders.filter(o => {
+                const d = new Date(o.scheduledAt);
+                return d >= today && d < new Date(today.getTime() + 86400000);
+            });
+            const upcomingOrders = orders.filter(o => {
+                const d = new Date(o.scheduledAt);
+                return d >= new Date(today.getTime() + 86400000);
+            });
+
+            return { todayOrders, upcomingOrders };
+        }),
 
     addPayment: protectedProcedure
         .input(paymentSchema)
@@ -838,6 +1001,7 @@ export const orderRouter = router({
 
             const payment = await ctx.db.payment.create({
                 data: {
+                    tenantId: ctx.tenantId!,
                     orderId: input.orderId,
                     method: input.method,
                     amount: input.amount,
@@ -891,19 +1055,32 @@ export const orderRouter = router({
 
                     // 💰 SNAPSHOT DE COMISSÃO: Registrar valores no fechamento automático por pagamento
                     for (const item of completedOrder.items) {
-                        const commissionPercent = item.service?.defaultCommissionPercent
-                            ? Number(item.service.defaultCommissionPercent)
-                            : Number(completedOrder.assignedTo.defaultCommissionPercent || 0);
+                        let commissionPercent = 0;
+                        const servicePercent = item.service?.defaultCommissionPercent ? Number(item.service.defaultCommissionPercent) : 0;
+                        const userPercent = completedOrder.assignedTo?.defaultCommissionPercent ? Number(completedOrder.assignedTo.defaultCommissionPercent) : 0;
+
+                        if (servicePercent > 0) {
+                            commissionPercent = servicePercent;
+                        } else {
+                            commissionPercent = userPercent;
+                        }
 
                         const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
 
-                        await ctx.db.orderItemCommission.create({
-                            data: {
-                                orderItemId: item.id,
-                                userId: completedOrder.assignedToId,
-                                commissionValue,
-                            }
-                        });
+                        if (commissionValue > 0) {
+                            await ctx.db.orderItemCommission.upsert({
+                                where: { orderItemId: item.id },
+                                create: {
+                                    tenantId: ctx.tenantId!,
+                                    orderItemId: item.id,
+                                    userId: completedOrder.assignedToId,
+                                    commissionValue,
+                                },
+                                update: {
+                                    commissionValue,
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -985,6 +1162,109 @@ export const orderRouter = router({
             });
 
             return orders;
+        }),
+
+    getPendingCommissions: protectedProcedure
+        .input(z.object({
+            userId: z.string().optional(),
+            dateFrom: z.date().optional(),
+            dateTo: z.date().optional(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const isMember = ctx.user?.role === 'MEMBER';
+
+            const where: any = {
+                settlementId: null,
+            };
+
+            if (isMember) {
+                where.userId = ctx.user!.id;
+            } else if (input.userId) {
+                where.userId = input.userId;
+            }
+
+            if (input.dateFrom || input.dateTo) {
+                where.calculatedAt = {
+                    gte: input.dateFrom,
+                    lte: input.dateTo,
+                };
+            }
+
+            return await ctx.db.orderItemCommission.findMany({
+                where,
+                include: {
+                    user: true,
+                    orderItem: {
+                        include: {
+                            order: true,
+                            service: true,
+                        }
+                    }
+                },
+                orderBy: { calculatedAt: 'desc' }
+            });
+        }),
+
+    createSettlement: protectedProcedure
+        .input(z.object({
+            userId: z.string(),
+            commissionIds: z.array(z.string()).min(1),
+            paymentMethod: z.string().optional(),
+            paymentRef: z.string().optional(),
+            periodStart: z.date(),
+            periodEnd: z.date(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            if (ctx.user?.role === 'MEMBER') {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Apenas gestores podem realizar acertos' });
+            }
+
+            const commissions = await ctx.db.orderItemCommission.findMany({
+                where: {
+                    id: { in: input.commissionIds },
+                    userId: input.userId,
+                    settlementId: null,
+                }
+            });
+
+            if (commissions.length === 0) {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Nenhuma comissão pendente encontrada para este técnico' });
+            }
+
+            const totalPaid = commissions.reduce((acc, c) => acc + Number(c.commissionValue), 0);
+
+            return await ctx.db.$transaction(async (tx) => {
+                const settlement = await tx.commissionSettlement.create({
+                    data: {
+                        tenantId: ctx.tenantId!,
+                        userId: input.userId,
+                        totalPaid,
+                        paymentMethod: input.paymentMethod,
+                        paymentRef: input.paymentRef,
+                        periodStart: input.periodStart,
+                        periodEnd: input.periodEnd,
+                        createdBy: ctx.user!.id,
+                    }
+                });
+
+                await tx.orderItemCommission.updateMany({
+                    where: { id: { in: input.commissionIds } },
+                    data: { settlementId: settlement.id }
+                });
+
+                await (tx.auditLog as any).create({
+                    data: {
+                        tenantId: ctx.tenantId!,
+                        userId: ctx.user!.id,
+                        action: 'CREATE_SETTLEMENT',
+                        entityType: 'CommissionSettlement',
+                        entityId: settlement.id,
+                        newValue: { totalPaid, userId: input.userId },
+                    }
+                }).catch(() => { });
+
+                return settlement;
+            });
         }),
 
     getPublicStatus: publicProcedure

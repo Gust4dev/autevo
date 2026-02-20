@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, Mail, Shield, User, Loader2 } from 'lucide-react';
-import Link from 'next/link';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Mail,
+  Shield,
+  User,
+  Loader2,
+} from "lucide-react";
+import Link from "next/link";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 import {
   Button,
@@ -31,10 +39,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui';
-import { trpc } from '@/lib/trpc/provider';
-import { toast } from 'sonner';
-import { InviteMemberModal } from '@/components/settings/invite-member-modal';
+} from "@/components/ui";
+import { trpc } from "@/lib/trpc/provider";
+import { toast } from "sonner";
+import { InviteMemberModal } from "@/components/settings/invite-member-modal";
+import { EditMemberModal } from "@/components/settings/edit-member-modal";
 
 export default function TeamSettingsPage() {
   const router = useRouter();
@@ -44,22 +53,22 @@ export default function TeamSettingsPage() {
   const { data: users, isLoading } = trpc.user.list.useQuery();
   const deactivateMutation = trpc.user.deactivate.useMutation({
     onSuccess: () => {
-      toast.success('Usuário desativado com sucesso');
+      toast.success("Usuário desativado com sucesso");
       utils.user.list.invalidate();
       setDeleteId(null);
     },
     onError: (error) => {
-      toast.error(error.message || 'Erro ao desativar usuário');
+      toast.error(error.message || "Erro ao desativar usuário");
     },
   });
 
   const reactivateMutation = trpc.user.reactivate.useMutation({
     onSuccess: () => {
-      toast.success('Usuário reativado com sucesso');
+      toast.success("Usuário reativado com sucesso");
       utils.user.list.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message || 'Erro ao reativar usuário');
+      toast.error(error.message || "Erro ao reativar usuário");
     },
   });
 
@@ -90,7 +99,9 @@ export default function TeamSettingsPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Gerenciar Equipe</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Gerenciar Equipe
+            </h1>
             <p className="text-muted-foreground">
               Convide e gerencie os membros da sua equipe
             </p>
@@ -143,48 +154,82 @@ export default function TeamSettingsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={user.role === 'OWNER' ? 'default' : 'secondary'}>
-                      {user.role === 'OWNER' && <Shield className="mr-1 h-3 w-3" />}
-                      {user.role === 'MANAGER' && <User className="mr-1 h-3 w-3" />}
-                      {user.role === 'MEMBER' ? 'Membro' : user.role === 'OWNER' ? 'Dono' : 'Gerente'}
+                    <Badge
+                      variant={user.role === "OWNER" ? "default" : "secondary"}
+                    >
+                      {user.role === "OWNER" && (
+                        <Shield className="mr-1 h-3 w-3" />
+                      )}
+                      {user.role === "MANAGER" && (
+                        <User className="mr-1 h-3 w-3" />
+                      )}
+                      {user.role === "MEMBER"
+                        ? "Membro"
+                        : user.role === "OWNER"
+                          ? "Dono"
+                          : "Gerente"}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {user.status === 'INVITED' ? (
-                      <Badge variant="warning" className="bg-yellow-500/15 text-yellow-600 border-yellow-500/20 hover:bg-yellow-500/25">
+                    {user.status === "INVITED" ? (
+                      <Badge
+                        variant="warning"
+                        className="bg-yellow-500/15 text-yellow-600 border-yellow-500/20 hover:bg-yellow-500/25"
+                      >
                         <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                         Pendente
                       </Badge>
                     ) : (
-                      <Badge variant={user.isActive ? 'outline' : 'destructive'}>
-                        {user.isActive ? 'Ativo' : 'Inativo'}
+                      <Badge
+                        variant={user.isActive ? "outline" : "destructive"}
+                      >
+                        {user.isActive ? "Ativo" : "Inativo"}
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell>
-                    {format(new Date(user.createdAt), "d 'de' MMMM, yyyy", { locale: ptBR })}
+                    {format(new Date(user.createdAt), "d 'de' MMMM, yyyy", {
+                      locale: ptBR,
+                    })}
                   </TableCell>
                   <TableCell className="text-right">
-                    {user.role !== 'OWNER' && (
-                      <Button
-                        variant={user.isActive ? 'ghost' : 'outline'}
-                        size="sm"
-                        className={user.isActive ? 'text-destructive hover:text-destructive' : ''}
-                        onClick={() => handleToggleStatus(user.id, user.isActive)}
-                      >
-                        {user.isActive ? (
-                          <Trash2 className="h-4 w-4" />
-                        ) : (
-                          'Reativar'
-                        )}
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {user.role !== "OWNER" && (
+                        <EditMemberModal
+                          user={user}
+                          onSuccess={() => utils.user.list.invalidate()}
+                        />
+                      )}
+                      {user.role !== "OWNER" && (
+                        <Button
+                          variant={user.isActive ? "ghost" : "outline"}
+                          size="sm"
+                          className={
+                            user.isActive
+                              ? "text-destructive hover:text-destructive"
+                              : ""
+                          }
+                          onClick={() =>
+                            handleToggleStatus(user.id, user.isActive)
+                          }
+                        >
+                          {user.isActive ? (
+                            <Trash2 className="h-4 w-4" />
+                          ) : (
+                            "Reativar"
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
               {users?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell
+                    colSpan={5}
+                    className="text-center py-8 text-muted-foreground"
+                  >
                     Nenhum membro encontrado.
                   </TableCell>
                 </TableRow>
@@ -195,24 +240,33 @@ export default function TeamSettingsPage() {
       </Card>
 
       {/* Confirmation Dialog for Deactivation */}
-      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <Dialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Desativar Usuário</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja desativar este usuário? Ele perderá o acesso ao sistema imediatamente, mas seus dados históricos serão mantidos.
+              Tem certeza que deseja desativar este usuário? Ele perderá o
+              acesso ao sistema imediatamente, mas seus dados históricos serão
+              mantidos.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>
               Cancelar
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => deleteId && deactivateMutation.mutate({ id: deleteId })}
+            <Button
+              variant="destructive"
+              onClick={() =>
+                deleteId && deactivateMutation.mutate({ id: deleteId })
+              }
               disabled={deactivateMutation.isPending}
             >
-              {deactivateMutation.isPending ? 'Desativando...' : 'Confirmar Desativação'}
+              {deactivateMutation.isPending
+                ? "Desativando..."
+                : "Confirmar Desativação"}
             </Button>
           </DialogFooter>
         </DialogContent>

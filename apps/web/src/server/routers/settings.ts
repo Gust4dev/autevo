@@ -170,6 +170,7 @@ export const settingsRouter = router({
         });
 
         let trialEndsAt: Date;
+        let newStatus: 'TRIAL' | 'ACTIVE';
 
         if (tenant?.status === 'PENDING_ACTIVATION') {
             const config = await ctx.db.systemConfig.findUnique({
@@ -179,6 +180,7 @@ export const settingsRouter = router({
             const trialDays = config?.value ? parseInt(config.value) : 14;
             const now = new Date();
             trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+            newStatus = 'TRIAL';
 
             await ctx.db.tenant.update({
                 where: { id: ctx.user.tenantId },
@@ -189,6 +191,10 @@ export const settingsRouter = router({
                     isFoundingMember: false,
                 },
             });
+
+            // Invalidate Redis cache to prevent FORBIDDEN errors in middleware
+            const { invalidateTenantCache } = await import('../trpc');
+            await invalidateTenantCache(ctx.user.tenantId);
 
             const { createAuditLog } = await import('@/lib/audit');
             await createAuditLog({
@@ -202,6 +208,7 @@ export const settingsRouter = router({
             });
         } else if (tenant?.status === 'TRIAL' || tenant?.status === 'ACTIVE') {
             trialEndsAt = tenant.trialEndsAt ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+            newStatus = tenant.status as 'TRIAL' | 'ACTIVE';
         } else {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Tenant not pending activation' });
         }
@@ -218,7 +225,7 @@ export const settingsRouter = router({
                     tenantId: ctx.user.tenantId,
                     role: currentUser?.role || ctx.user.role,
                     dbUserId: ctx.user.id,
-                    tenantStatus: tenant?.status === 'ACTIVE' ? 'ACTIVE' : 'TRIAL',
+                    tenantStatus: newStatus,
                     trialEndsAt: trialEndsAt.toISOString(),
                     isFoundingMember: false,
                 },

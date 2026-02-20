@@ -476,6 +476,7 @@ export const scheduleRouter = router({
                     code: `AG-${Date.now().toString().slice(-6)}`,
                     items: {
                         create: {
+                            tenantId: input.tenantId,
                             serviceId: service.id,
                             price: service.basePrice,
                             quantity: 1,

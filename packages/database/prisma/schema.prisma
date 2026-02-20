@@ -60,61 +60,69 @@ enum NotificationType {
 
 // Tenant & Billing
 model Tenant {
-  id               String       @id @default(cuid())
-  name             String
-  slug             String       @unique
-  logo             String?
-  primaryColor     String       @default("#DC2626")
-  secondaryColor   String       @default("#1F2937")
-  status           TenantStatus @default(PENDING_ACTIVATION)
-  plan             String       @default("pro_monthly")
-  trialStartedAt     DateTime?
-  trialEndsAt        DateTime?
-  nextBillingAt      DateTime?
-  customMonthlyPrice Decimal?   @db.Decimal(10, 2)
-  isFoundingMember   Boolean    @default(false)
-  billingCycleStart  DateTime?
-  stripeCustomerId   String?
-  phone            String?
-  email            String?
-  address          String?
-  cnpj             String?
-  pixKey           String?
-  paymentTerms     String?      @db.Text
-  contractTemplate String?      @db.Text
-  maxDailyCapacity Int          @default(10)
-  businessHours    String?      @db.Text
-  inspectionRequired   String   @default("NONE")
-  inspectionSignature  Boolean  @default(true)
-  
-  customerInactivityDays    Int       @default(30)
-  inactivityReminderEnabled Boolean   @default(false)
-  
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  id                  String       @id @default(cuid())
+  name                String
+  slug                String       @unique
+  logo                String?
+  primaryColor        String       @default("#DC2626")
+  secondaryColor      String       @default("#1F2937")
+  status              TenantStatus @default(PENDING_ACTIVATION)
+  plan                String       @default("pro_monthly")
+  trialStartedAt      DateTime?
+  trialEndsAt         DateTime?
+  nextBillingAt       DateTime?
+  customMonthlyPrice  Decimal?     @db.Decimal(10, 2)
+  isFoundingMember    Boolean      @default(false)
+  billingCycleStart   DateTime?
+  stripeCustomerId    String?
+  phone               String?
+  email               String?
+  address             String?
+  cnpj                String?
+  pixKey              String?
+  paymentTerms        String?      @db.Text
+  contractTemplate    String?      @db.Text
+  maxDailyCapacity    Int          @default(10)
+  businessHours       String?      @db.Text
+  inspectionRequired  String       @default("NONE")
+  inspectionSignature Boolean      @default(true)
 
-  users            User[]
-  customers        Customer[]
-  vehicles         Vehicle[]
-  services         Service[]
-  products         Product[]
-  orders           ServiceOrder[]
-  settlements      CommissionSettlement[]
-  notifications    NotificationLog[]
-  messageTemplates MessageTemplate[]
-  
+  customerInactivityDays    Int     @default(30)
+  inactivityReminderEnabled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  customers         Customer[]
+  vehicles          Vehicle[]
+  services          Service[]
+  products          Product[]
+  orders            ServiceOrder[]
+  settlements       CommissionSettlement[]
+  stockMovements    StockMovement[]
+  itemCommissions   OrderItemCommission[]
+  orderItems        OrderItem[]
+  orderProducts     OrderProduct[]
+  payments          Payment[]
+  inspections       Inspection[]
+  inspectionItems   InspectionItem[]
+  inspectionDamages InspectionDamage[]
+  notifications     NotificationLog[]
+  messageTemplates  MessageTemplate[]
+
   // Billing relations
-  subscription     Subscription?
-  promoCodes       PromoCode[]      @relation("PromoCodeOwner")
-  
+  subscription Subscription?
+  promoCodes   PromoCode[]   @relation("PromoCodeOwner")
+
   // Partnership / Referral fields
-  partnerCode           String?    @unique // Código único do parceiro, ex: "FILMTECH"
-  referredByTenantId    String?    // Quem indicou este tenant
-  referredByTenant      Tenant?    @relation("TenantReferrals", fields: [referredByTenantId], references: [id])
-  referredTenants       Tenant[]   @relation("TenantReferrals")
-  partnerReferrals      PartnerReferral[] @relation("PartnerOwner")
-  receivedReferrals     PartnerReferral[] @relation("ReferredTenant")
-  partnerCommissions    PartnerCommission[]
+  partnerCode        String?             @unique // Código único do parceiro, ex: "FILMTECH"
+  referredByTenantId String? // Quem indicou este tenant
+  referredByTenant   Tenant?             @relation("TenantReferrals", fields: [referredByTenantId], references: [id])
+  referredTenants    Tenant[]            @relation("TenantReferrals")
+  partnerReferrals   PartnerReferral[]   @relation("PartnerOwner")
+  receivedReferrals  PartnerReferral[]   @relation("ReferredTenant")
+  partnerCommissions PartnerCommission[]
 }
 
 enum UserStatus {
@@ -124,29 +132,29 @@ enum UserStatus {
 }
 
 model User {
-  id                       String     @id @default(cuid())
-  clerkId                  String?    @unique
-  email                    String
-  name                     String
-  role                     UserRole   @default(MEMBER)
-  status                   UserStatus @default(ACTIVE)
-  avatarUrl                String?
-  phone                    String?
-  
+  id        String     @id @default(cuid())
+  clerkId   String?    @unique
+  email     String
+  name      String
+  role      UserRole   @default(MEMBER)
+  status    UserStatus @default(ACTIVE)
+  avatarUrl String?
+  phone     String?
+
   // HR Details
   jobTitle                 String?
-  salary                   Decimal?   @db.Decimal(10, 2)
+  salary                   Decimal?  @db.Decimal(10, 2)
   admissionDate            DateTime?
-  pixKey                   String? 
-  defaultCommissionPercent Decimal?   @default(0) @db.Decimal(5, 2)
-  
-  tenantId                 String
-  tenant                   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  isActive                 Boolean    @default(true)
-  createdAt                DateTime   @default(now())
+  pixKey                   String?
+  defaultCommissionPercent Decimal?  @default(0) @db.Decimal(5, 2)
 
-  assignedOrders          ServiceOrder[]          @relation("AssignedTo")
-  createdOrders           ServiceOrder[]          @relation("CreatedBy")
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  assignedOrders          ServiceOrder[]           @relation("AssignedTo")
+  createdOrders           ServiceOrder[]           @relation("CreatedBy")
   commissions             OrderItemCommission[]
   auditLogs               AuditLog[]
   pushSubscriptions       PushSubscription[]
@@ -159,17 +167,17 @@ model User {
 
 // Core Entities
 model Customer {
-  id            String    @id @default(cuid())
-  name          String
-  phone         String
-  email         String?
-  document      String?
-  birthDate     DateTime?
-  instagram     String?
-  notes         String?
-  whatsappOptIn Boolean   @default(true)
-  tenantId      String
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  name               String
+  phone              String
+  email              String?
+  document           String?
+  birthDate          DateTime?
+  instagram          String?
+  notes              String?
+  whatsappOptIn      Boolean   @default(true)
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
@@ -219,7 +227,7 @@ model Service {
   tenantId                 String
   tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  orderItems    OrderItem[]
+  orderItems       OrderItem[]
   productTemplates ServiceProductTemplate[]
 
   @@index([tenantId])
@@ -241,24 +249,24 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  stockMovements StockMovement[]
-  orderProducts  OrderProduct[]
+  stockMovements   StockMovement[]
+  orderProducts    OrderProduct[]
   serviceTemplates ServiceProductTemplate[]
 
   @@index([tenantId])
 }
 
 model ServiceProductTemplate {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   serviceId String
   productId String
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity  Int     @default(1)
 
+  @@unique([serviceId, productId])
   @@index([serviceId])
   @@index([productId])
-  @@unique([serviceId, productId])
 }
 
 model StockMovement {
@@ -269,10 +277,13 @@ model StockMovement {
   type      MovementType
   reference String?
   notes     String?
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt DateTime     @default(now())
   createdBy String
 
   @@index([productId])
+  @@index([tenantId])
 }
 
 // Service Order
@@ -325,15 +336,18 @@ model OrderItem {
   price      Decimal      @db.Decimal(10, 2)
   quantity   Int          @default(1)
   notes      String?
+  tenantId   String
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   commissions OrderItemCommission[]
 
   @@index([orderId])
+  @@index([tenantId])
 }
 
 model OrderItemCommission {
   id              String                @id @default(cuid())
-  orderItemId     String
+  orderItemId     String                @unique
   orderItem       OrderItem             @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   userId          String
   user            User                  @relation(fields: [userId], references: [id])
@@ -341,10 +355,13 @@ model OrderItemCommission {
   calculatedAt    DateTime              @default(now())
   settlementId    String?
   settlement      CommissionSettlement? @relation(fields: [settlementId], references: [id])
+  tenantId        String
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([settlementId])
   @@index([orderItemId])
+  @@index([tenantId])
 }
 
 model CommissionSettlement {
@@ -371,14 +388,17 @@ model OrderProduct {
   orderId   String
   order     ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String?
-  product   Product?      @relation(fields: [productId], references: [id])
+  product   Product?     @relation(fields: [productId], references: [id])
   quantity  Int
-  
+
   // Custom item fields / Snapshots
   customName String?
-  costPrice  Decimal?      @db.Decimal(10, 2)
+  costPrice  Decimal? @db.Decimal(10, 2)
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@index([tenantId])
 }
 
 // Inspection
@@ -395,6 +415,8 @@ model Inspection {
   signedVia     String?
   lastSyncedAt  DateTime?
   pendingSync   Boolean      @default(false)
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -405,43 +427,49 @@ model Inspection {
 
   @@unique([orderId, type])
   @@index([orderId])
+  @@index([tenantId])
 }
 
 model InspectionItem {
   id           String     @id @default(cuid())
   inspectionId String
   inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  category     String     // "exterior", "rodas", "detalhes"
-  itemKey      String     // "frente", "roda_de", "roda_dd", etc.
-  label        String     // "Frente Completa", "Roda Dianteira Esquerda"
+  category     String // "exterior", "rodas", "detalhes"
+  itemKey      String // "frente", "roda_de", "roda_dd", etc.
+  label        String // "Frente Completa", "Roda Dianteira Esquerda"
   isRequired   Boolean    @default(true)
   isCritical   Boolean    @default(false) // Warning vermelho
-  photoUrl     String?
+  photoUrl     String? // Kept for backward compat — first photo in the list
+  photos       String[]   @default([]) // All photos for this item
   notes        String?
   status       String     @default("pendente") // pendente, ok, com_avaria
-  damageType   String?    // arranhao, amassado, trinca, mancha, risco, outro
-  severity     String?    // leve, moderado, grave
+  damageType   String? // arranhao, amassado, trinca, mancha, risco, outro
+  severity     String? // leve, moderado, grave
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   completedAt  DateTime?
   createdAt    DateTime   @default(now())
 
   @@unique([inspectionId, itemKey])
   @@index([inspectionId])
+  @@index([tenantId])
 }
 
 model InspectionDamage {
   id           String     @id @default(cuid())
   inspectionId String
   inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  position     String     // Parte do carro onde está o dano
+  position     String // Parte do carro onde está o dano
   damageType   String
   photoUrl     String?
   notes        String?
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
 
   @@index([inspectionId])
+  @@index([tenantId])
 }
-
-
 
 // Payments
 model Payment {
@@ -453,9 +481,12 @@ model Payment {
   paidAt     DateTime      @default(now())
   receivedBy String
   notes      String?
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([paidAt])
+  @@index([tenantId])
 }
 
 // Notifications
@@ -557,22 +588,22 @@ model Subscription {
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean            @default(false)
-  
+
   // Custom pricing (enterprise/promos)
-  customMonthlyPrice   Decimal?           @db.Decimal(10, 2)
-  
+  customMonthlyPrice Decimal? @db.Decimal(10, 2)
+
   // Founder tracking
-  isFounder            Boolean            @default(false)
-  founderExpiresAt     DateTime?
-  
+  isFounder        Boolean   @default(false)
+  founderExpiresAt DateTime?
+
   // Promo code used at signup
   promoCodeId          String?
-  promoCode            PromoCode?         @relation(fields: [promoCodeId], references: [id])
-  promoDiscountApplied Boolean            @default(false)
-  promoMonthsRemaining Int                @default(0) // For yearly: 3 months, for monthly: 1 month
-  
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  promoCode            PromoCode? @relation(fields: [promoCodeId], references: [id])
+  promoDiscountApplied Boolean    @default(false)
+  promoMonthsRemaining Int        @default(0) // For yearly: 3 months, for monthly: 1 month
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   payments SubscriptionPayment[]
 
@@ -601,33 +632,33 @@ model SubscriptionPayment {
 // ==========================================
 
 model PromoCode {
-  id                String           @id @default(cuid())
-  code              String           @unique // e.g., "FILMTECH15"
-  
+  id   String @id @default(cuid())
+  code String @unique // e.g., "FILMTECH15"
+
   // Referral: which tenant created this code
-  referrerTenantId  String?
-  referrerTenant    Tenant?          @relation("PromoCodeOwner", fields: [referrerTenantId], references: [id], onDelete: SetNull)
-  
+  referrerTenantId String?
+  referrerTenant   Tenant? @relation("PromoCodeOwner", fields: [referrerTenantId], references: [id], onDelete: SetNull)
+
   // Discount configuration
-  discountPercent   Int              @default(15) // 15%
-  
+  discountPercent Int @default(15) // 15%
+
   // Duration: how many months the discount applies
   // Monthly subscription: 1 month
   // Yearly subscription: 3 months
-  monthlyDuration   Int              @default(1)
-  yearlyDuration    Int              @default(3)
-  
-  // Validity
-  isActive          Boolean          @default(true)
-  maxUses           Int?             // null = unlimited
-  usedCount         Int              @default(0)
-  expiresAt         DateTime?
-  
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  monthlyDuration Int @default(1)
+  yearlyDuration  Int @default(3)
 
-  usages            PromoCodeUsage[]
-  subscriptions     Subscription[]
+  // Validity
+  isActive  Boolean   @default(true)
+  maxUses   Int? // null = unlimited
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usages        PromoCodeUsage[]
+  subscriptions Subscription[]
 
   @@index([code])
   @@index([referrerTenantId])
@@ -638,15 +669,15 @@ model PromoCodeUsage {
   id          String    @id @default(cuid())
   promoCodeId String
   promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
-  
+
   // Who used it
   usedByTenantId String
-  
+
   // Discount applied
-  discountAmount Decimal   @db.Decimal(10, 2)
-  originalAmount Decimal   @db.Decimal(10, 2)
-  
-  usedAt      DateTime  @default(now())
+  discountAmount Decimal @db.Decimal(10, 2)
+  originalAmount Decimal @db.Decimal(10, 2)
+
+  usedAt DateTime @default(now())
 
   @@index([promoCodeId])
   @@index([usedByTenantId])
@@ -668,16 +699,16 @@ model FounderSlot {
 // ==========================================
 
 model WebhookLog {
-  id            String   @id @default(cuid())
-  source        String   @default("stripe") // stripe, clerk, etc.
-  event         String
-  externalId    String   @unique // stripeEventId, etc.
-  status        String   @default("pending") // pending, success, failed
-  payload       Json
-  errorMessage  String?
-  attempts      Int      @default(1)
-  processedAt   DateTime?
-  createdAt     DateTime @default(now())
+  id           String    @id @default(cuid())
+  source       String    @default("stripe") // stripe, clerk, etc.
+  event        String
+  externalId   String    @unique // stripeEventId, etc.
+  status       String    @default("pending") // pending, success, failed
+  payload      Json
+  errorMessage String?
+  attempts     Int       @default(1)
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
 
   @@index([source, event])
   @@index([status])
@@ -701,20 +732,20 @@ model PushSubscription {
 }
 
 model NotificationPreferences {
-  id        String  @id @default(cuid())
-  userId    String  @unique
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Owner/Manager notifications
-  onNewOrder          Boolean @default(true)
-  onNewCustomer       Boolean @default(true)
-  onOrderCompleted    Boolean @default(true)
-  
+  onNewOrder       Boolean @default(true)
+  onNewCustomer    Boolean @default(true)
+  onOrderCompleted Boolean @default(true)
+
   // Member notifications
   onAssignedToMe        Boolean @default(true)
   onMyOrderStatusChange Boolean @default(true)
   dailyReminder         Boolean @default(false)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -724,29 +755,29 @@ model NotificationPreferences {
 // ==========================================
 
 enum PartnerReferralStatus {
-  PENDING           // Indicado ainda não pagou
-  ACTIVE            // Indicado está ativo e pagando
-  CHURNED           // Indicado cancelou
+  PENDING // Indicado ainda não pagou
+  ACTIVE // Indicado está ativo e pagando
+  CHURNED // Indicado cancelou
 }
 
 // Tracking de indicações entre parceiros
 model PartnerReferral {
-  id                    String   @id @default(cuid())
-  partnerTenantId       String   // Quem indicou
-  partnerTenant         Tenant   @relation("PartnerOwner", fields: [partnerTenantId], references: [id])
-  referredTenantId      String   // Quem foi indicado
-  referredTenant        Tenant   @relation("ReferredTenant", fields: [referredTenantId], references: [id])
-  
+  id               String @id @default(cuid())
+  partnerTenantId  String // Quem indicou
+  partnerTenant    Tenant @relation("PartnerOwner", fields: [partnerTenantId], references: [id])
+  referredTenantId String // Quem foi indicado
+  referredTenant   Tenant @relation("ReferredTenant", fields: [referredTenantId], references: [id])
+
   // Status tracking
-  status                PartnerReferralStatus @default(PENDING)
-  firstPaymentAt        DateTime? // Data do primeiro pagamento
-  commissionStartsAt    DateTime? // Data que comissão começa (1 mês após firstPaymentAt)
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  commissions           PartnerCommission[]
-  
+  status             PartnerReferralStatus @default(PENDING)
+  firstPaymentAt     DateTime? // Data do primeiro pagamento
+  commissionStartsAt DateTime? // Data que comissão começa (1 mês após firstPaymentAt)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  commissions PartnerCommission[]
+
   @@unique([partnerTenantId, referredTenantId])
   @@index([partnerTenantId])
   @@index([referredTenantId])
@@ -754,28 +785,28 @@ model PartnerReferral {
 }
 
 enum PartnerCommissionStatus {
-  PENDING   // Aguardando pagamento
-  PAID      // Pago via PIX
+  PENDING // Aguardando pagamento
+  PAID // Pago via PIX
   CANCELLED // Cancelado (ex: churn)
 }
 
 // Histórico de comissões pagas aos parceiros
 model PartnerCommission {
-  id                    String   @id @default(cuid())
-  tenantId              String   // Parceiro que recebe
-  tenant                Tenant   @relation(fields: [tenantId], references: [id])
-  referralId            String
-  referral              PartnerReferral @relation(fields: [referralId], references: [id])
-  
-  amount                Decimal  @db.Decimal(10, 2) // R$ 42 (30% de R$ 140)
-  periodStart           DateTime // Início do período
-  periodEnd             DateTime // Fim do período
-  status                PartnerCommissionStatus @default(PENDING)
-  paidAt                DateTime?
-  pixTransactionId      String?  // ID da transação PIX (manual)
-  
-  createdAt             DateTime @default(now())
-  
+  id         String          @id @default(cuid())
+  tenantId   String // Parceiro que recebe
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  referralId String
+  referral   PartnerReferral @relation(fields: [referralId], references: [id])
+
+  amount           Decimal                 @db.Decimal(10, 2) // R$ 42 (30% de R$ 140)
+  periodStart      DateTime // Início do período
+  periodEnd        DateTime // Fim do período
+  status           PartnerCommissionStatus @default(PENDING)
+  paidAt           DateTime?
+  pixTransactionId String? // ID da transação PIX (manual)
+
+  createdAt DateTime @default(now())
+
   @@index([tenantId])
   @@index([referralId])
   @@index([status])

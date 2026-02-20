@@ -118,7 +118,10 @@ export const reportRouter = router({
             // Current Month
             ctx.db.payment.aggregate({
                 where: {
-                    order: { tenantId: ctx.tenantId! },
+                    order: {
+                        tenantId: ctx.tenantId!,
+                        status: { not: 'CANCELADO' },
+                    },
                     paidAt: { gte: startOfCurrent },
                 },
                 _sum: { amount: true },
@@ -127,7 +130,10 @@ export const reportRouter = router({
             // Previous Month
             ctx.db.payment.aggregate({
                 where: {
-                    order: { tenantId: ctx.tenantId! },
+                    order: {
+                        tenantId: ctx.tenantId!,
+                        status: { not: 'CANCELADO' },
+                    },
                     paidAt: { gte: startOfLast, lte: endOfLast },
                 },
                 _sum: { amount: true },

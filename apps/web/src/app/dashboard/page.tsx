@@ -37,6 +37,7 @@ import { trpc } from "@/lib/trpc/provider";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 import { useState } from "react";
+import { TechnicianView } from "@/components/technician/TechnicianView";
 
 export default function DashboardPage() {
   const { user, isLoaded: isUserLoaded } = useUser();
@@ -112,6 +113,9 @@ export default function DashboardPage() {
   });
   const inactiveCustomers = inactiveQuery.data ?? [];
 
+  const { data: currentUser } = trpc.user.me.useQuery();
+  const isTechnician = currentUser?.role === "MEMBER";
+
   const [isCopying, setIsCopying] = useState(false);
 
   const bookingUrl =
@@ -158,6 +162,21 @@ export default function DashboardPage() {
           <Skeleton className="h-64" />
           <Skeleton className="h-64" />
         </div>
+      </div>
+    );
+  }
+
+  // Technician view: focused mobile hub for MEMBER role
+  if (isTechnician) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Olá, {user?.firstName || "Técnico"} 👋
+          </h1>
+          <p className="text-muted-foreground">Suas tarefas de hoje</p>
+        </div>
+        <TechnicianView />
       </div>
     );
   }

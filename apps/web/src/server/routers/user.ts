@@ -181,25 +181,81 @@ export const userRouter = router({
                     dbUserId: dbUser.id,
                 };
             } catch (error: any) {
-                const isDuplicate = error?.errors?.some((e: any) => e.code === 'duplicate_record');
+                console.error('[user.invite] Clerk error:', JSON.stringify({
+                    status: error?.status,
+                    clerkError: error?.clerkError,
+                    errors: error?.errors,
+                    message: error?.message,
+                }, null, 2));
+                const clerkErrors: any[] = error?.errors ?? [];
+                const isDuplicate = clerkErrors.some((e) => e.code === 'duplicate_record');
+                // "Unprocessable Entity" = email already has a Clerk account
+                const isAlreadyRegistered =
+                    error?.status === 422 ||
+                    clerkErrors.some((e) =>
+                        e.code === 'form_identifier_exists' ||
+                        e.code === 'already_a_member'
+                    );
 
                 if (isDuplicate) {
                     await ctx.db.user.delete({ where: { id: dbUser.id } }).catch(() => { });
-
                     throw new TRPCError({
                         code: 'CONFLICT',
-                        message: 'Este e-mail já possui um convite pendente enviando pelo Clerk. Verifique no painel do Clerk ou peça para o usuário checar o e-mail.',
+                        message: 'Este e-mail já possui um convite pendente. Peça ao usuário para verificar o e-mail.',
+                    });
+                }
+
+                if (isAlreadyRegistered) {
+                    // User already has a Clerk account — look them up and link directly
+                    try {
+                        const clerkUsers = await clerk.users.getUserList({ emailAddress: [input.email] });
+                        const existingClerkUser = clerkUsers.data[0];
+
+                        if (existingClerkUser) {
+                            // Link the existing Clerk user to the pre-created DB record
+                            await ctx.db.user.update({
+                                where: { id: dbUser.id },
+                                data: {
+                                    clerkId: existingClerkUser.id,
+                                    status: 'ACTIVE',
+                                    avatarUrl: existingClerkUser.imageUrl || undefined,
+                                },
+                            });
+
+                            // Update Clerk metadata so they can access this tenant
+                            await clerk.users.updateUser(existingClerkUser.id, {
+                                publicMetadata: {
+                                    tenantId: ctx.tenantId,
+                                    role: input.role,
+                                    dbUserId: dbUser.id,
+                                    tenantStatus: 'ACTIVE',
+                                },
+                            });
+
+                            return {
+                                success: true,
+                                invitationId: null,
+                                email: input.email,
+                                dbUserId: dbUser.id,
+                                note: 'Usuário já tinha conta — acesso concedido diretamente.',
+                            };
+                        }
+                    } catch {
+                        // Fall through to generic error
+                    }
+
+                    await ctx.db.user.delete({ where: { id: dbUser.id } }).catch(() => { });
+                    throw new TRPCError({
+                        code: 'CONFLICT',
+                        message: 'Este e-mail já possui uma conta registrada. O acesso foi concedido — peça ao usuário para fazer login.',
                     });
                 }
 
                 await ctx.db.user.delete({ where: { id: dbUser.id } }).catch(() => { });
 
-                let errorMessage = 'Unknown error';
-                if (error instanceof Error) {
-                    errorMessage = error.message;
-                } else if (error.errors && Array.isArray(error.errors)) {
-                    errorMessage = error.errors.map((e: any) => e.longMessage || e.message).join(', ');
-                }
+                const errorMessage = clerkErrors.length > 0
+                    ? clerkErrors.map((e) => e.longMessage || e.message).join(', ')
+                    : error instanceof Error ? error.message : 'Erro desconhecido';
 
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',

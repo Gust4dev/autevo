@@ -32,7 +32,10 @@ import {
   Share2,
   PenTool,
 } from "lucide-react";
-import { SignaturePad } from "@/components/ui/signature-pad";
+import {
+  SignaturePad,
+  type SignatureMetadata,
+} from "@/components/ui/signature-pad";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -111,7 +114,7 @@ export default function TrackingPage({ params }: PageProps) {
   const [mounted, setMounted] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState("");
   const [signingInspectionId, setSigningInspectionId] = useState<string | null>(
-    null
+    null,
   );
   const [viewSignatureDigits, setViewSignatureDigits] = useState("");
   const [signatureVerified, setSignatureVerified] = useState<
@@ -136,7 +139,11 @@ export default function TrackingPage({ params }: PageProps) {
     },
   });
 
-  const handleSignature = (inspectionId: string, signatureBase64: string) => {
+  const handleSignature = (
+    inspectionId: string,
+    signatureBase64: string,
+    metadata?: SignatureMetadata,
+  ) => {
     if (phoneDigits.length !== 4) {
       toast.error("Digite os 4 últimos dígitos do seu telefone");
       return;
@@ -220,7 +227,7 @@ export default function TrackingPage({ params }: PageProps) {
   const currentStepIndex = statusOrder.indexOf(status);
   const progressPercent = Math.max(
     5,
-    ((currentStepIndex + 1) / statusOrder.length) * 100
+    ((currentStepIndex + 1) / statusOrder.length) * 100,
   );
 
   const handleWhatsappClick = () => {
@@ -231,9 +238,9 @@ export default function TrackingPage({ params }: PageProps) {
     window.open(
       `https://wa.me/${tenantContact.whatsapp.replace(
         /\D/g,
-        ""
+        "",
       )}?text=${encodeURIComponent(message)}`,
-      "_blank"
+      "_blank",
     );
   };
 
@@ -377,7 +384,7 @@ export default function TrackingPage({ params }: PageProps) {
                   inspections.filter(
                     (i) =>
                       i.items.some((k) => k.photoUrl) ||
-                      i.damages.some((d) => d.photoUrl)
+                      i.damages.some((d) => d.photoUrl),
                   ).length
                 }{" "}
                 disponíveis
@@ -428,8 +435,8 @@ export default function TrackingPage({ params }: PageProps) {
                             {inspection.type === "entrada"
                               ? "Vistoria Inicial"
                               : inspection.type === "final"
-                              ? "Resultado Final"
-                              : inspection.type.replace("_", " ")}
+                                ? "Resultado Final"
+                                : inspection.type.replace("_", " ")}
                           </span>
                         </div>
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -549,8 +556,8 @@ export default function TrackingPage({ params }: PageProps) {
                           {inspection.type === "entrada"
                             ? "Vistoria de Entrada"
                             : inspection.type === "final"
-                            ? "Vistoria de Saída"
-                            : "Vistoria"}
+                              ? "Vistoria de Saída"
+                              : "Vistoria"}
                         </span>
                       </div>
                       <Badge
@@ -584,7 +591,7 @@ export default function TrackingPage({ params }: PageProps) {
                           value={phoneDigits}
                           onChange={(e) =>
                             setPhoneDigits(
-                              e.target.value.replace(/\D/g, "").slice(0, 4)
+                              e.target.value.replace(/\D/g, "").slice(0, 4),
                             )
                           }
                           placeholder="0000"
@@ -605,10 +612,12 @@ export default function TrackingPage({ params }: PageProps) {
                           transition={{ duration: 0.3 }}
                         >
                           <SignaturePad
-                            onSave={(base64) =>
-                              handleSignature(inspection.id, base64)
+                            onSave={(base64, metadata) =>
+                              handleSignature(inspection.id, base64, metadata)
                             }
                             placeholder="Assine aqui com o dedo"
+                            requireTerms
+                            termsText="Declaro que revisei as fotos da vistoria, confirmo o estado do veículo e autorizo a execução dos serviços descritos nesta ordem."
                           />
 
                           {saveSignature.isPending && (
@@ -650,8 +659,8 @@ export default function TrackingPage({ params }: PageProps) {
                         {inspection.type === "entrada"
                           ? "Vistoria de Entrada"
                           : inspection.type === "final"
-                          ? "Vistoria de Saída"
-                          : "Vistoria"}{" "}
+                            ? "Vistoria de Saída"
+                            : "Vistoria"}{" "}
                         - Assinada
                       </span>
                     </div>
@@ -686,7 +695,7 @@ export default function TrackingPage({ params }: PageProps) {
                             value={viewSignatureDigits}
                             onChange={(e) =>
                               setViewSignatureDigits(
-                                e.target.value.replace(/\D/g, "").slice(0, 4)
+                                e.target.value.replace(/\D/g, "").slice(0, 4),
                               )
                             }
                           />

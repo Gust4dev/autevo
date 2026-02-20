@@ -59,7 +59,7 @@ export default function FinancialDashboardPage() {
     },
     {
       refetchInterval: 30000,
-    }
+    },
   );
 
   const { data: topServices, isLoading: isLoadingServices } =
@@ -68,7 +68,7 @@ export default function FinancialDashboardPage() {
         from: dateRange.from,
         to: dateRange.to,
       },
-      { enabled: !!data }
+      { enabled: !!data },
     );
 
   const { data: topCustomers, isLoading: isLoadingCustomers } =
@@ -77,7 +77,7 @@ export default function FinancialDashboardPage() {
         from: dateRange.from,
         to: dateRange.to,
       },
-      { enabled: !!data }
+      { enabled: !!data },
     );
 
   const formatCurrency = (value: number) => {
@@ -98,7 +98,7 @@ export default function FinancialDashboardPage() {
       "Período:",
       `${format(dateRange.from, "dd/MM/yyyy")} a ${format(
         dateRange.to,
-        "dd/MM/yyyy"
+        "dd/MM/yyyy",
       )}`,
     ]);
     rows.push([]); // Spacing
@@ -225,7 +225,7 @@ export default function FinancialDashboardPage() {
     exportToExcel(
       rows,
       `Relatorio_Financeiro_Mestre_${formatFilenameDate()}`,
-      "Financeiro Completo"
+      "Financeiro Completo",
     );
   };
 
@@ -357,26 +357,40 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          title="Faturamento Período"
+          title="Faturamento Bruto"
           value={formatCurrency(stats?.revenue || 0)}
-          description="Recebido em pagamentos (Pix/Cartão)"
+          description="Total recebido no período"
           icon={TrendingUp}
           highlight
         />
         <StatCard
-          title="Ticket Médio"
-          value={formatCurrency(stats?.avgTicket || 0)}
-          description="Valor médio por OS concluída"
-          icon={Receipt}
+          title="CMV (Peças)"
+          value={formatCurrency(stats?.cogs || 0)}
+          description="Custo de materiais utilizados"
+          icon={DollarSign}
+          variant="danger"
+        />
+        <StatCard
+          title="Comissões"
+          value={formatCurrency(stats?.commissions || 0)}
+          description="Total gerado para equipe"
+          icon={Users}
+          variant="warning"
+        />
+        <StatCard
+          title="Lucro Líquido"
+          value={formatCurrency(stats?.profit || 0)}
+          description="Margem real pós-custos"
+          icon={TrendingUp}
+          highlight
         />
         <StatCard
           title="A Receber"
           value={formatCurrency(stats?.receivables || 0)}
-          description="Saldo pendente de OS finalizadas"
+          description="Saldo pendente global"
           icon={Wallet}
-          variant="warning"
         />
       </div>
 
@@ -645,7 +659,7 @@ function StatCard({
       className={cn(
         "overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1",
         bgClass,
-        borderClass
+        borderClass,
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2">

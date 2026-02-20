@@ -101,10 +101,15 @@ const tenantMiddleware = middleware(async ({ ctx, next }) => {
     }
 
     if (status === 'PENDING_ACTIVATION') {
-        throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'Account pending activation. Please complete payment.',
-        });
+        const path = (ctx as any).path;
+        const isSetupMutation = path === 'tenant.updateSetup';
+
+        if (!isSetupMutation) {
+            throw new TRPCError({
+                code: 'FORBIDDEN',
+                message: 'Account pending activation. Please complete payment.',
+            });
+        }
     }
 
     if (status === 'SUSPENDED') {
