@@ -311,12 +311,29 @@ export default function InspectionChecklistPage({ params }: PageProps) {
   const inspection = inspectionQuery.data;
   const items = inspection.items || [];
 
-  // Group items by category
+  // Group items by category and sort them by static definition
   const itemsByCategory = INSPECTION_CHECKLIST.reduce(
     (acc, category) => {
-      acc[category.key] = items.filter(
+      const categoryDbItems = items.filter(
         (item: any) => item.category === category.key,
       );
+
+      // Create a map for fast lookup
+      const itemMap = new Map();
+      categoryDbItems.forEach((item: any) => itemMap.set(item.itemKey, item));
+
+      // Build the sorted array based on the static checklist definition order
+      const sortedItems = category.items
+        .map((defItem) => itemMap.get(defItem.key))
+        .filter(Boolean); // Remove undefined if missing in DB
+
+      // Append any extra/legacy items that exist in DB but not in the static definition
+      const staticKeys = new Set(category.items.map((i) => i.key));
+      const extraItems = categoryDbItems.filter(
+        (item: any) => !staticKeys.has(item.itemKey),
+      );
+
+      acc[category.key] = [...sortedItems, ...extraItems] as typeof items;
       return acc;
     },
     {} as Record<string, typeof items>,

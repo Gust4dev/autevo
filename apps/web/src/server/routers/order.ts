@@ -250,6 +250,8 @@ export const orderRouter = router({
             status: z.array(z.nativeEnum(PrismaOrderStatus)).optional(),
             dateFrom: z.date().optional(),
             dateTo: z.date().optional(),
+            sortBy: z.string().optional(),
+            sortOrder: z.enum(['asc', 'desc']).optional(),
         }))
         .query(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
@@ -268,14 +270,36 @@ export const orderRouter = router({
                 where.assignedToId = ctx.user!.id;
             }
 
+            let orderByClause: any = { scheduledAt: 'desc' }; // default
+            if (input.sortBy && input.sortOrder) {
+                switch (input.sortBy) {
+                    case 'code':
+                        orderByClause = { code: input.sortOrder };
+                        break;
+                    case 'status':
+                        orderByClause = { status: input.sortOrder };
+                        break;
+                    case 'total':
+                        orderByClause = { total: input.sortOrder };
+                        break;
+                    case 'assignedTo':
+                        orderByClause = { assignedTo: { name: input.sortOrder === 'asc' ? 'asc' : 'desc' } };
+                        break;
+                    case 'vehicle':
+                        orderByClause = { vehicle: { customer: { name: input.sortOrder === 'asc' ? 'asc' : 'desc' } } };
+                        break;
+                    default:
+                        orderByClause = { scheduledAt: input.sortOrder }; // treats 'date' or any default as scheduledAt
+                        break;
+                }
+            }
+
             const [orders, count] = await Promise.all([
                 ctx.db.serviceOrder.findMany({
                     where,
                     skip: (input.page - 1) * input.limit,
                     take: input.limit,
-                    orderBy: {
-                        scheduledAt: 'asc',
-                    },
+                    orderBy: orderByClause,
                     include: {
                         vehicle: {
                             include: {
@@ -1303,6 +1327,23 @@ export const orderRouter = router({
                                 price: true,
                                 quantity: true,
                             }
+                        },
+                        products: {
+                            select: {
+                                id: true,
+                                customName: true,
+                                costPrice: true,
+                                quantity: true,
+                            },
+                        },
+                        payments: {
+                            select: {
+                                id: true,
+                                amount: true,
+                                method: true,
+                                paidAt: true,
+                            },
+                            orderBy: { paidAt: 'asc' },
                         }
                     }
                 });
@@ -1350,6 +1391,18 @@ export const orderRouter = router({
                         name: item.customName || item.service?.name || 'Serviço',
                         total: Number(item.price) * item.quantity,
                     })),
+                    products: order.products.map((prod: any) => ({
+                        name: prod.customName || 'Produto',
+                        total: Number(prod.costPrice || 0) * prod.quantity,
+                    })),
+                    payments: order.payments.map((pay: any) => ({
+                        amount: Number(pay.amount),
+                        method: pay.method,
+                        paidAt: pay.paidAt,
+                    })),
+                    subtotal: Number(order.subtotal || 0),
+                    discountType: order.discountType,
+                    discountValue: Number(order.discountValue || 0),
                     total: Number(order.total),
                     inspections: inspections.map((inspection: any) => {
                         const requiredItems = inspection.items.filter((i: any) => i.isRequired);
@@ -1371,6 +1424,7 @@ export const orderRouter = router({
                                 label: item.label,
                                 status: item.status,
                                 photoUrl: item.photoUrl,
+                                photos: item.photos || [],
                                 notes: item.notes,
                                 isCritical: item.isCritical,
                                 damageType: item.damageType,

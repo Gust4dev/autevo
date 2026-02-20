@@ -15,6 +15,11 @@ import type { inferRouterOutputs } from "@trpc/server";
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type PublicStatus = RouterOutputs["order"]["getPublicStatus"] & {
   vehiclePlate?: string | null;
+  products?: { name: string; total: number }[];
+  payments?: { amount: number; method: string; paidAt: Date }[];
+  subtotal?: number;
+  discountType?: string | null;
+  discountValue?: number;
 };
 
 interface InspectionPDFProps {
@@ -122,18 +127,12 @@ export const InspectionPDF = ({
       color: "#1E293B",
       fontWeight: "bold",
     },
-    // Divider
-    divider: {
-      height: 1,
-      backgroundColor: "#F1F5F9",
-      marginVertical: 15,
-    },
     // Section Header
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
       marginBottom: 12,
-      marginTop: 5,
+      marginTop: 15,
     },
     sectionTitle: {
       fontSize: 10,
@@ -205,118 +204,49 @@ export const InspectionPDF = ({
       fontSize: 8,
       color: "#64748B",
     },
-    // Total Section
-    totalContainer: {
-      marginTop: 20,
+    // Totals Section
+    totalsContainer: {
+      marginTop: 15,
+      alignItems: "flex-end",
+    },
+    totalsRow: {
       flexDirection: "row",
       justifyContent: "flex-end",
+      width: "50%",
+      marginBottom: 4,
+    },
+    totalsLabel: {
+      fontSize: 9,
+      color: "#64748B",
+      width: 80,
+      textAlign: "right",
+      paddingRight: 10,
+    },
+    totalsValue: {
+      fontSize: 9,
+      color: "#1E293B",
+      width: 70,
+      textAlign: "right",
+      fontWeight: "bold",
     },
     totalBox: {
       width: "40%",
       backgroundColor: secondaryColor,
-      padding: 15,
+      padding: 10,
       borderRadius: 4,
       alignItems: "flex-end",
+      marginTop: 8,
     },
-    totalLabel: {
+    totalLabelFinal: {
       fontSize: 9,
       color: "#CBD5E1",
       textTransform: "uppercase",
-      marginBottom: 4,
+      marginBottom: 2,
     },
-    totalValue: {
-      fontSize: 18,
+    totalValueFinal: {
+      fontSize: 16,
       color: "#FFFFFF",
       fontWeight: "bold",
-    },
-    // Footer
-    footer: {
-      position: "absolute",
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 40,
-      backgroundColor: "#F8FAFC",
-      borderTopWidth: 1,
-      borderTopColor: "#E2E8F0",
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 40,
-    },
-    footerBrandContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    footerIcon: {
-      width: 60,
-      height: 20,
-      objectFit: "contain",
-    },
-    footerBrand: {
-      fontSize: 10,
-      fontWeight: "bold",
-      color: secondaryColor,
-      letterSpacing: 2,
-    },
-    footerInfo: {
-      fontSize: 8,
-      color: "#94A3B8",
-    },
-    // Image Gallery
-    inspectionPage: {
-      padding: 40,
-      paddingTop: 30,
-      backgroundColor: "#FFFFFF",
-      fontFamily: "Helvetica",
-    },
-    inspectionPageHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 20,
-      paddingBottom: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: "#E2E8F0",
-    },
-    inspectionPageTitle: {
-      fontSize: 16,
-      fontWeight: "bold",
-      color: secondaryColor,
-    },
-    inspectionPageSubtitle: {
-      fontSize: 9,
-      color: "#64748B",
-    },
-    imageGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-    },
-    imageCard: {
-      width: "48%",
-      marginBottom: 15,
-    },
-    inspectionImage: {
-      width: "100%",
-      height: 150,
-      objectFit: "cover",
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-    },
-    imageCaption: {
-      fontSize: 8,
-      color: "#64748B",
-      marginTop: 4,
-      textAlign: "center",
-    },
-    noImagesText: {
-      fontSize: 10,
-      color: "#94A3B8",
-      fontStyle: "italic",
-      textAlign: "center",
-      marginTop: 20,
     },
     // Signature Styles
     signatureSection: {
@@ -356,6 +286,108 @@ export const InspectionPDF = ({
       color: "#94A3B8",
       marginTop: 2,
     },
+    // Footer
+    footer: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 40,
+      backgroundColor: "#F8FAFC",
+      borderTopWidth: 1,
+      borderTopColor: "#E2E8F0",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 40,
+    },
+    footerBrandContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    footerIcon: {
+      width: 60,
+      height: 20,
+      objectFit: "contain",
+    },
+    footerInfo: {
+      fontSize: 8,
+      color: "#94A3B8",
+    },
+    // Image Gallery
+    inspectionPage: {
+      padding: 40,
+      paddingTop: 30,
+      backgroundColor: "#FFFFFF",
+      fontFamily: "Helvetica",
+    },
+    inspectionPageHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: "#E2E8F0",
+    },
+    inspectionPageTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: secondaryColor,
+    },
+    inspectionPageSubtitle: {
+      fontSize: 9,
+      color: "#64748B",
+    },
+    imageGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12, // Reduced gap config for 3 columns
+    },
+    imageCard: {
+      width: "31%", // 3 columns instead of 2 (which was 48%)
+      marginBottom: 15,
+      backgroundColor: "#F8FAFC",
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: "#E2E8F0",
+      padding: 6,
+    },
+    inspectionImage: {
+      width: "100%",
+      height: 120, // slightly smaller height for 3cols
+      objectFit: "cover",
+      borderRadius: 2,
+      marginBottom: 6,
+    },
+    imageCaption: {
+      fontSize: 8,
+      fontWeight: "bold",
+      color: "#1E293B",
+      textAlign: "center",
+      marginBottom: 2,
+    },
+    imageStatusBadge: {
+      fontSize: 7,
+      color: "#FFFFFF",
+      backgroundColor: primaryColor,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: 2,
+    },
+    imageStatusOk: {
+      backgroundColor: "#10B981", // Emerald 500
+    },
+    imageStatusWarning: {
+      backgroundColor: "#F59E0B", // Amber 500
+    },
+    imageSubcaption: {
+      fontSize: 7,
+      color: "#64748B",
+      textAlign: "center",
+    },
   });
 
   const formatCurrency = (value: number) => {
@@ -381,15 +413,31 @@ export const InspectionPDF = ({
     grave: "Grave",
   };
 
-  const entradaInspection = data.inspections?.find((i) => i.type === "entrada");
-  const intermediariaInspection = data.inspections?.find(
-    (i) => i.type === "intermediaria"
+  const paymentMethodLabels: Record<string, string> = {
+    PIX: "PIX",
+    CARTAO_CREDITO: "Cartão de Crédito",
+    CARTAO_DEBITO: "Cartão de Débito",
+    DINHEIRO: "Dinheiro",
+    TRANSFERENCIA: "Transferência",
+  };
+
+  // Safe checks for inspections array
+  const inspectionsArray = Array.isArray(data.inspections)
+    ? data.inspections
+    : [];
+
+  const entradaInspection = inspectionsArray.find(
+    (i: any) => i.type === "entrada",
   );
-  const saidaInspection = data.inspections?.find((i) => i.type === "final");
+  const intermediariaInspection = inspectionsArray.find(
+    (i: any) => i.type === "intermediaria",
+  );
+  const saidaInspection = inspectionsArray.find((i: any) => i.type === "final");
 
   const avarias =
-    entradaInspection?.items?.filter((item) => item.status === "com_avaria") ||
-    [];
+    entradaInspection?.items?.filter(
+      (item: any) => item.status === "com_avaria",
+    ) || [];
 
   // Helpers for inspection images
   const inspectionTypeLabels: Record<string, string> = {
@@ -398,31 +446,53 @@ export const InspectionPDF = ({
     final: "Vistoria de Saída",
   };
 
-  const getInspectionImages = (inspection: typeof entradaInspection) => {
+  const getInspectionImages = (inspection: any) => {
     if (!inspection || inspection.status !== "concluida") return [];
 
-    const images: { url: string; label: string }[] = [];
+    const images: {
+      url: string;
+      label: string;
+      status: string;
+      damageInfo: string;
+    }[] = [];
 
-    // Add item photos
-    inspection.items?.forEach((item) => {
-      if (item.photoUrl) {
+    // Add item photos (support multiple photos via photos array, fallback to photoUrl)
+    inspection.items?.forEach((item: any) => {
+      // If we have the array with multiple photos
+      if (item.photos && Array.isArray(item.photos) && item.photos.length > 0) {
+        item.photos.forEach((photo: string, idx: number) => {
+          images.push({
+            url: photo,
+            label: `${item.label || "Item"}${item.photos.length > 1 ? ` (${idx + 1}/${item.photos.length})` : ""}`,
+            status: item.status,
+            damageInfo:
+              item.status === "com_avaria"
+                ? `${damageTypeLabels[item.damageType] || item.damageType || "Dano"} • ${severityLabels[item.severity] || item.severity || "-"}`
+                : "Sem Avaria",
+          });
+        });
+      } else if (item.photoUrl) {
+        // Fallback for older items with only 1 photo string
         images.push({
           url: item.photoUrl,
           label: item.label || "Item",
+          status: item.status,
+          damageInfo:
+            item.status === "com_avaria"
+              ? `${damageTypeLabels[item.damageType] || item.damageType || "Dano"} • ${severityLabels[item.severity] || item.severity || "-"}`
+              : "Sem Avaria",
         });
       }
     });
 
-    // Add damage photos
-    inspection.damages?.forEach((damage, index) => {
+    // Add standalone damage photos (older version fallback)
+    inspection.damages?.forEach((damage: any, index: number) => {
       if (damage.photoUrl) {
         images.push({
           url: damage.photoUrl,
-          label: `Avaria ${index + 1}${
-            damage.damageType
-              ? ` - ${damageTypeLabels[damage.damageType] || damage.damageType}`
-              : ""
-          }`,
+          label: `Avaria Declarada Livre ${index + 1}`,
+          status: "com_avaria",
+          damageInfo: `${damageTypeLabels[damage.damageType] || damage.damageType || "Dano"}`,
         });
       }
     });
@@ -437,7 +507,7 @@ export const InspectionPDF = ({
   ].filter(
     (i) =>
       i.inspection?.status === "concluida" &&
-      getInspectionImages(i.inspection).length > 0
+      getInspectionImages(i.inspection).length > 0,
   );
 
   return (
@@ -449,18 +519,7 @@ export const InspectionPDF = ({
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               {data.tenantContact.logo ? (
-                <Image
-                  src={
-                    data.tenantContact.logo.startsWith("/")
-                      ? `${
-                          typeof window !== "undefined"
-                            ? window.location.origin
-                            : ""
-                        }${data.tenantContact.logo}`
-                      : data.tenantContact.logo
-                  }
-                  style={styles.logo}
-                />
+                <Image src={data.tenantContact.logo} style={styles.logo} />
               ) : (
                 <Text
                   style={{
@@ -475,13 +534,13 @@ export const InspectionPDF = ({
             </View>
             <Link src={trackingUrl} style={styles.qrContainer}>
               <Image src={qrCodeUrl} style={styles.qrCode} />
-              <Text style={styles.qrLabel}>Vistoria On-line</Text>
+              <Text style={styles.qrLabel}>Rastreamento On-line</Text>
             </Link>
           </View>
 
           <View style={styles.titleBar}>
             <Text style={styles.titleText}>
-              Relatório de Vistoria Profissional
+              Relatório de Ordem de Serviço / Vistoria
             </Text>
           </View>
 
@@ -509,22 +568,179 @@ export const InspectionPDF = ({
             <View style={styles.infoBlock}>
               <Text style={styles.label}>Status Geral</Text>
               <Text style={[styles.value, { color: primaryColor }]}>
-                {String(data.status || "N/A").toUpperCase()}
+                {String(data.status || "N/A")
+                  .replace(/_/g, " ")
+                  .toUpperCase()}
               </Text>
             </View>
           </View>
 
-          {/* Avarias */}
+          {/* Serviços Ocultado se Vazio */}
+          {data.services && data.services.length > 0 && (
+            <View style={{ marginTop: 15 }}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Serviços Executados</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderText, styles.col1]}>
+                    Descrição
+                  </Text>
+                  <Text style={[styles.tableHeaderText, styles.col2]}>
+                    Valor
+                  </Text>
+                </View>
+                {data.services.map((service, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.tableRow,
+                      index % 2 === 1 ? styles.tableRowEven : {},
+                    ]}
+                  >
+                    <Text style={[styles.cellText, styles.col1]}>
+                      {String(service.name)}
+                    </Text>
+                    <Text style={[styles.cellTextBold, styles.col2]}>
+                      {formatCurrency(service.total)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Produtos Ocultado se Vazio */}
+          {data.products && data.products.length > 0 && (
+            <View style={{ marginTop: 15 }}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Produtos Adicionais</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={styles.table}>
+                {data.products.map((product, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.tableRow,
+                      index % 2 === 0 ? styles.tableRowEven : {},
+                    ]}
+                  >
+                    <Text style={[styles.cellText, styles.col1]}>
+                      {String(product.name)}
+                    </Text>
+                    <Text style={[styles.cellTextBold, styles.col2]}>
+                      {formatCurrency(product.total)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Bloco de Totais Subtotais e Descontos */}
+          <View style={styles.totalsContainer}>
+            {data.discountValue && data.discountValue > 0 ? (
+              <>
+                <View style={styles.totalsRow}>
+                  <Text style={styles.totalsLabel}>Subtotal</Text>
+                  <Text style={styles.totalsValue}>
+                    {formatCurrency(data.subtotal || data.total)}
+                  </Text>
+                </View>
+                <View style={styles.totalsRow}>
+                  <Text style={styles.totalsLabel}>Desconto</Text>
+                  <Text style={[styles.totalsValue, { color: primaryColor }]}>
+                    -{" "}
+                    {data.discountType === "PERCENTAGE"
+                      ? `${data.discountValue}% (${formatCurrency((data.subtotal || data.total) * (data.discountValue / 100))})`
+                      : formatCurrency(data.discountValue)}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+            <View style={styles.totalBox}>
+              <Text style={styles.totalLabelFinal}>Valor Total</Text>
+              <Text style={styles.totalValueFinal}>
+                {formatCurrency(data.total)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Pagamentos Efetuados Ocultado se Vazio */}
+          {data.payments && data.payments.length > 0 && (
+            <View style={{ marginTop: 25 }}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Histórico de Pagamentos</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderText, { width: "40%" }]}>
+                    Método
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tableHeaderText,
+                      { width: "30%", textAlign: "center" },
+                    ]}
+                  >
+                    Data
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tableHeaderText,
+                      { width: "30%", textAlign: "right" },
+                    ]}
+                  >
+                    Valor Pago
+                  </Text>
+                </View>
+                {data.payments.map((pay: any, index: number) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.tableRow,
+                      index % 2 === 1 ? styles.tableRowEven : {},
+                    ]}
+                  >
+                    <Text style={[styles.cellText, { width: "40%" }]}>
+                      {paymentMethodLabels[pay.method] || pay.method}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cellText,
+                        { width: "30%", textAlign: "center" },
+                      ]}
+                    >
+                      {new Date(pay.paidAt).toLocaleDateString("pt-BR")}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cellTextBold,
+                        { width: "30%", textAlign: "right", color: "#10B981" },
+                      ]}
+                    >
+                      {formatCurrency(pay.amount)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Avarias Principais (Entrada) - Só mostra se tiver Vistoria com avaria de Entrada */}
           {avarias.length > 0 && (
-            <View style={{ marginTop: 10 }}>
+            <View style={{ marginTop: 20 }}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>
-                  Vistoria de Entrada (Avarias)
+                  Resumo de Avarias (Entrada)
                 </Text>
                 <View style={styles.sectionLine} />
               </View>
               <View style={styles.damageGrid}>
-                {avarias.map((item) => (
+                {avarias.map((item: any) => (
                   <View key={item.id} style={styles.damageCard}>
                     <Text style={styles.damageTitle}>{String(item.label)}</Text>
                     <Text style={styles.damageDesc}>
@@ -541,49 +757,7 @@ export const InspectionPDF = ({
             </View>
           )}
 
-          {/* Serviços */}
-          <View style={{ marginTop: 25 }}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Resumo dos Serviços</Text>
-              <View style={styles.sectionLine} />
-            </View>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, styles.col1]}>
-                  Descrição do Serviço
-                </Text>
-                <Text style={[styles.tableHeaderText, styles.col2]}>Valor</Text>
-              </View>
-              {data.services.map((service, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.tableRow,
-                    index % 2 === 1 ? styles.tableRowEven : {},
-                  ]}
-                >
-                  <Text style={[styles.cellText, styles.col1]}>
-                    {String(service.name)}
-                  </Text>
-                  <Text style={[styles.cellTextBold, styles.col2]}>
-                    {formatCurrency(service.total)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Total */}
-          <View style={styles.totalContainer}>
-            <View style={styles.totalBox}>
-              <Text style={styles.totalLabel}>Valor Total</Text>
-              <Text style={styles.totalValue}>
-                {formatCurrency(data.total)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Assinatura */}
+          {/* Assinatura Ocultada se não houver Nenhuma */}
           {(saidaInspection?.signatureUrl ||
             entradaInspection?.signatureUrl) && (
             <View style={styles.signatureSection}>
@@ -601,7 +775,7 @@ export const InspectionPDF = ({
                     <Text style={styles.signatureDate}>
                       {entradaInspection.signedAt
                         ? new Date(
-                            entradaInspection.signedAt
+                            entradaInspection.signedAt,
                           ).toLocaleDateString("pt-BR")
                         : ""}
                     </Text>
@@ -616,12 +790,12 @@ export const InspectionPDF = ({
                     />
                     <View style={styles.signatureLine} />
                     <Text style={styles.signatureLabel}>
-                      Assinatura de Saída
+                      Assinatura de Entrega
                     </Text>
                     <Text style={styles.signatureDate}>
                       {saidaInspection.signedAt
                         ? new Date(saidaInspection.signedAt).toLocaleDateString(
-                            "pt-BR"
+                            "pt-BR",
                           )
                         : ""}
                     </Text>
@@ -646,7 +820,7 @@ export const InspectionPDF = ({
         </View>
       </Page>
 
-      {/* Páginas de Imagens das Vistorias */}
+      {/* Páginas de Imagens das Vistorias (Só gera as páginas das vistorias que tiverem fotos) */}
       {completedInspections.map(({ type, inspection }) => {
         const images = getInspectionImages(inspection);
         if (images.length === 0) return null;
@@ -659,11 +833,12 @@ export const InspectionPDF = ({
                   {inspectionTypeLabels[type] || type}
                 </Text>
                 <Text style={styles.inspectionPageSubtitle}>
-                  {images.length} foto{images.length !== 1 ? "s" : ""}{" "}
-                  registrada{images.length !== 1 ? "s" : ""}
+                  Galeria de Fotos • {images.length} registro
+                  {images.length !== 1 ? "s" : ""}
                 </Text>
               </View>
               <Text style={{ fontSize: 9, color: "#94A3B8" }}>
+                Concluída em:{" "}
                 {inspection?.createdAt
                   ? new Date(inspection.createdAt).toLocaleDateString("pt-BR")
                   : ""}
@@ -675,6 +850,21 @@ export const InspectionPDF = ({
                 <View key={idx} style={styles.imageCard}>
                   <Image src={img.url} style={styles.inspectionImage} />
                   <Text style={styles.imageCaption}>{img.label}</Text>
+
+                  <Text
+                    style={[
+                      styles.imageStatusBadge,
+                      img.status === "ok"
+                        ? styles.imageStatusOk
+                        : styles.imageStatusWarning,
+                    ]}
+                  >
+                    {img.status === "ok" ? "OK SEM AVARIA" : "COM AVARIA"}
+                  </Text>
+
+                  {img.status === "com_avaria" && (
+                    <Text style={styles.imageSubcaption}>{img.damageInfo}</Text>
+                  )}
                 </View>
               ))}
             </View>
@@ -686,7 +876,7 @@ export const InspectionPDF = ({
                 )}
               </View>
               <Text style={styles.footerInfo}>
-                {inspectionTypeLabels[type]} • Página de Fotos
+                {inspectionTypeLabels[type]} • Anexo Fotográfico
               </Text>
             </View>
           </Page>

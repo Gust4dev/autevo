@@ -959,6 +959,81 @@ export default function NewOrderPage() {
           )}
         </div>
       </Card>
+
+      {/* Custom Service Dialog */}
+      <Dialog open={customServiceOpen} onOpenChange={setCustomServiceOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Serviço Personalizado</DialogTitle>
+            <DialogDescription>
+              Adicione um serviço que não está no catálogo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome do Serviço</Label>
+              <Input
+                placeholder="Ex: Refazer fiação"
+                value={customServiceData.name}
+                onChange={(e) =>
+                  setCustomServiceData((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Preço (R$)</Label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={customServiceData.price}
+                onChange={(e) =>
+                  setCustomServiceData((prev) => ({
+                    ...prev,
+                    price: e.target.value,
+                  }))
+                }
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCustomServiceOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                const numPrice = Number(customServiceData.price) || 0;
+                setOrderData((prev) => ({
+                  ...prev,
+                  items: [
+                    ...prev.items,
+                    {
+                      tempId: Math.random().toString(36).substr(2, 9),
+                      name: customServiceData.name || "Serviço Personalizado",
+                      customName:
+                        customServiceData.name || "Serviço Personalizado",
+                      price: numPrice,
+                      quantity: 1,
+                    },
+                  ],
+                }));
+                setCustomServiceData({ name: "", price: "" });
+                setCustomServiceOpen(false);
+              }}
+              disabled={!customServiceData.name}
+            >
+              Adicionar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

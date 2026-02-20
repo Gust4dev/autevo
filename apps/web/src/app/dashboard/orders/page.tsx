@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -50,12 +50,55 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | undefined>(
+    undefined,
+  );
+  const [isClientObjLoaded, setIsClientObjLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedSortBy = localStorage.getItem("ordersSortBy");
+      const savedSortOrder = localStorage.getItem("ordersSortOrder") as
+        | "asc"
+        | "desc"
+        | null;
+      const savedStatuses = localStorage.getItem("ordersStatuses");
+      const savedSearch = localStorage.getItem("ordersSearch");
+
+      if (savedSortBy) setSortBy(savedSortBy);
+      if (savedSortOrder) setSortOrder(savedSortOrder);
+      if (savedStatuses) setSelectedStatuses(JSON.parse(savedStatuses));
+      if (savedSearch) setSearch(savedSearch);
+    } catch (e) {
+      // Ignore parse errors from localStorage and fallback to defaults
+    } finally {
+      setIsClientObjLoaded(true);
+    }
+  }, []);
+
+  // Sync to localStorage on change
+  useEffect(() => {
+    if (isClientObjLoaded) {
+      if (sortBy) localStorage.setItem("ordersSortBy", sortBy);
+      else localStorage.removeItem("ordersSortBy");
+
+      if (sortOrder) localStorage.setItem("ordersSortOrder", sortOrder);
+      else localStorage.removeItem("ordersSortOrder");
+
+      localStorage.setItem("ordersStatuses", JSON.stringify(selectedStatuses));
+      localStorage.setItem("ordersSearch", search);
+    }
+  }, [sortBy, sortOrder, selectedStatuses, search, isClientObjLoaded]);
 
   const { data, isLoading } = trpc.order.list.useQuery(
     {
       page,
-      limit: 20,
+      limit: 10,
       search: search || undefined,
+      sortBy,
+      sortOrder,
       status:
         selectedStatuses.length > 0
           ? (selectedStatuses as (
@@ -69,6 +112,7 @@ export default function OrdersPage() {
           : undefined,
     },
     {
+      enabled: isClientObjLoaded,
       refetchInterval: 5000,
     },
   );
@@ -116,6 +160,7 @@ export default function OrdersPage() {
     {
       key: "vehicle",
       header: "Cliente / Veículo",
+      sortable: true,
       render: (order) => (
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
@@ -148,11 +193,13 @@ export default function OrdersPage() {
     {
       key: "status",
       header: "Status",
+      sortable: true,
       render: (order) => <StatusBadge status={order.status} />,
     },
     {
       key: "total",
       header: "Valor",
+      sortable: true,
       render: (order) => (
         <span className="font-semibold">
           {formatCurrency(Number(order.total))}
@@ -162,6 +209,7 @@ export default function OrdersPage() {
     {
       key: "assignedTo",
       header: "Responsável",
+      sortable: true,
       render: (order) => (
         <span className="text-sm">{order.assignedTo?.name || "-"}</span>
       ),
@@ -262,6 +310,16 @@ export default function OrdersPage() {
           totalPages={data?.pages || 1}
           total={data?.total || 0}
           onPageChange={setPage}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(key) => {
+            if (sortBy === key) {
+              setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+            } else {
+              setSortBy(key);
+              setSortOrder("asc");
+            }
+          }}
           searchValue={search}
           onSearchChange={setSearch}
           searchPlaceholder="Buscar por código, placa ou cliente..."

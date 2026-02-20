@@ -21,7 +21,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
   const [iconBase64, setIconBase64] = useState<string | null>(null);
 
   const { data: publicStatus, isLoading } = trpc.order.getPublicStatus.useQuery(
-    { orderId }
+    { orderId },
   );
 
   useEffect(() => {
@@ -70,20 +70,36 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
             // Convert item photos
             const convertedItems = await Promise.all(
               inspection.items.map(async (item) => {
+                let newPhotoUrl = item.photoUrl;
+                const newPhotos: string[] = [];
+
                 if (item.photoUrl) {
                   try {
                     let photoUrlToFetch = item.photoUrl;
                     if (item.photoUrl.startsWith("/")) {
                       photoUrlToFetch = `${window.location.origin}${item.photoUrl}`;
                     }
-                    const base64 = await convertUrlToPngBase64(photoUrlToFetch);
-                    return { ...item, photoUrl: base64 };
-                  } catch (e) {
-                    return item;
+                    newPhotoUrl = await convertUrlToPngBase64(photoUrlToFetch);
+                  } catch (e) {}
+                }
+
+                if (item.photos && item.photos.length > 0) {
+                  for (const photo of item.photos) {
+                    try {
+                      let photoUrlToFetch = photo;
+                      if (photo.startsWith("/")) {
+                        photoUrlToFetch = `${window.location.origin}${photo}`;
+                      }
+                      const b64 = await convertUrlToPngBase64(photoUrlToFetch);
+                      newPhotos.push(b64);
+                    } catch (e) {
+                      newPhotos.push(photo);
+                    }
                   }
                 }
-                return item;
-              })
+
+                return { ...item, photoUrl: newPhotoUrl, photos: newPhotos };
+              }),
             );
 
             // Convert damage photos
@@ -102,7 +118,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
                   }
                 }
                 return damage;
-              })
+              }),
             );
 
             return {
@@ -110,7 +126,7 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
               items: convertedItems,
               damages: convertedDamages,
             };
-          })
+          }),
         );
         setProcessedInspections(convertedInspections);
       } else {
