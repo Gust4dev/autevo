@@ -150,7 +150,7 @@ jobs:
           DATABASE_URL: "postgresql://user:pass@localhost:5432/test_db"
 
       - name: Run Vitest (Unit & Integration)
-        run: pnpm test
+        run: pnpm --filter web run test
         env:
           DATABASE_URL: "postgresql://user:pass@localhost:5432/test_db"
 
@@ -203,9 +203,11 @@ jobs:
           DATABASE_URL: "postgresql://user:pass@localhost:5432/e2e_db"
 
       - name: Inject Clerk Auth Session
+        env:
+          AUTH_JSON: ${{ secrets.PLAYWRIGHT_AUTH_JSON }}
         run: |
           mkdir -p apps/web/playwright/.auth
-          echo "${{ secrets.PLAYWRIGHT_AUTH_JSON }}" > apps/web/playwright/.auth/user.json
+          echo "$AUTH_JSON" > apps/web/playwright/.auth/user.json
 
       - name: Build App for E2E
         run: pnpm build
