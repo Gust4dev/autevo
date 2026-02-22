@@ -23,8 +23,8 @@ export default defineConfig({
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
 
-        // ENFORCE visual browser specifically for manual auth steps
-        headless: false,
+        // ENFORCE visual browser locally, but strictly headless in CI
+        headless: !!process.env.CI,
     },
 
     /* Configure projects for major browsers */

@@ -11,5 +11,6 @@ export default defineConfig({
             '@': resolve(__dirname, './src')
         },
         testTimeout: 120000,
+        exclude: ['node_modules', 'dist', '.idea', '.git', '.cache', 'e2e/**'],
     },
 })
