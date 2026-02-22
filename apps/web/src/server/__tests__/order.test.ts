@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { appRouter } from '../routers/_app';
 import { prisma } from '@autevo/database';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const createTestCaller = (userContext: any) => {
     return appRouter.createCaller({
         db: prisma,

@@ -50,3 +50,9 @@ packages/database/prisma/*.db-journal
 
 # TS Build Info
 **/*.tsbuildinfo
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.auth/
+*.zip
