@@ -34,6 +34,24 @@ async function seed() {
         const tenantId = metadata.tenantId || 'e2e-tenant-1234';
         const dbUserId = metadata.dbUserId || 'e2e-user-1234';
 
+        console.log(`📡 Sincronizando Metadata do Clerk (Role: ADMIN_SAAS, tenantStatus: ACTIVE)...`);
+        await fetch(`https://api.clerk.com/v1/users/${clerkUserId}/metadata`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${clerkSecret}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                public_metadata: {
+                    tenantId: tenantId,
+                    dbUserId: dbUserId,
+                    role: 'ADMIN_SAAS',
+                    tenantStatus: 'ACTIVE',
+                    needsOnboarding: false
+                }
+            })
+        });
+
         console.log(`⚙️ Injetando Tenant ${tenantId} e User ${dbUserId} no DB Postgres...`);
 
         // Create Tenant
