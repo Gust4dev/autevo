@@ -238,7 +238,7 @@ jobs:
           pnpm --filter web run test:e2e
         env:
           DATABASE_URL: "postgresql://user:pass@localhost:5432/e2e_db"
-          PLAYWRIGHT_TEST_BASE_URL: "http://localhost:3000"
+          PLAYWRIGHT_TEST_BASE_URL: "http://127.0.0.1:3000"
           # Next.js Server requires the real Secret Key to boot and validate the injected session cookies
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
