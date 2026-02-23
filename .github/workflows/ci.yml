@@ -225,10 +225,7 @@ jobs:
           STRIPE_PRICE_ID_FOUNDER: "price_placeholder"
 
       - name: Run Playwright Tests
-        run: |
-          pnpm --filter web start &
-          sleep 10
-          pnpm --filter web run test:e2e
+        run: pnpm --filter web run test:e2e
         env:
           DATABASE_URL: "postgresql://user:pass@localhost:5432/e2e_db"
           PLAYWRIGHT_TEST_BASE_URL: "http://localhost:3000"
