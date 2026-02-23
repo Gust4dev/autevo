@@ -1,4 +1,9 @@
 import { PrismaClient } from '@autevo/database';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Load .env.local explicitly for local dev runs
+dotenv.config({ path: path.join(__dirname, '../.env.local') });
 
 const prisma = new PrismaClient();
 const CLERK_EMAIL = 'admin+clerk_test@admin.com';
