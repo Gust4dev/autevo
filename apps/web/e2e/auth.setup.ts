@@ -12,6 +12,13 @@ setup('authenticate as test user', async ({ page }) => {
     console.log('Utilizando credenciais de Teste do Clerk: admin+clerk_test@admin.com');
     console.log('========================================================================\n');
 
+    // Em CI, o user.json já é injetado pelos Secrets do GitHub Actions.
+    // Tentar fazer login via UI vai falhar no Headless ou dar timeout.
+    if (process.env.CI) {
+        console.log('Ambiente CI detectado. Pulando o fluxo visual de Login e confiando no user.json injetado...');
+        return;
+    }
+
     await page.goto('http://localhost:3000/sign-in');
 
     // 1. Email
