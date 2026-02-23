@@ -209,6 +209,12 @@ jobs:
           mkdir -p apps/web/playwright/.auth
           echo "$AUTH_JSON" > apps/web/playwright/.auth/user.json
 
+      - name: Seed E2E DB with Clerk User
+        run: pnpm exec tsx apps/web/e2e/seed-e2e.ts
+        env:
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/e2e_db"
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+
       - name: Build App for E2E
         run: pnpm build
         env:
