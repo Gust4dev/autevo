@@ -1,4 +1,4 @@
-import { test as setup, expect } from '@playwright/test';
+import { expect, test as setup } from '@playwright/test';
 import * as path from 'path';
 
 const authFile = path.join(__dirname, '../playwright/.auth/user.json');
@@ -12,10 +12,45 @@ setup('authenticate as test user', async ({ page }) => {
     console.log('Utilizando credenciais de Teste do Clerk: admin+clerk_test@admin.com');
     console.log('========================================================================\n');
 
-    // Em CI, o user.json já é injetado pelos Secrets do GitHub Actions.
-    // Tentar fazer login via UI vai falhar no Headless ou dar timeout.
+    // Em CI, nós injetamos o login gerando um Ticket Bypass pela API do Clerk,
+    // garantindo que o Playwright nunca encontre tokens expirados nem o Cloudflare Turnstile.
     if (process.env.CI) {
-        console.log('Ambiente CI detectado. Pulando o fluxo visual de Login e confiando no user.json injetado...');
+        console.log('Ambiente CI detectado. Gerando Ticket de Login dinâmico via Clerk API...');
+        const clerkSecret = process.env.CLERK_SECRET_KEY;
+        if (!clerkSecret) throw new Error('CLERK_SECRET_KEY must be provided in CI');
+
+        // Fetch User ID
+        const usersRes = await fetch(`https://api.clerk.com/v1/users?email_address=admin+clerk_test@admin.com`, {
+            headers: { Authorization: `Bearer ${clerkSecret}` }
+        });
+
+        if (!usersRes.ok) throw new Error(`Clerk Auth failed: ${usersRes.statusText}`);
+        const users = await usersRes.json();
+        if (!users || users.length === 0) throw new Error('Test user not found in Clerk');
+        const userId = users[0].id;
+
+        // Generate Sign-In Token (Ticket)
+        const ticketRes = await fetch(`https://api.clerk.com/v1/sign_in_tokens`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${clerkSecret}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ user_id: userId })
+        });
+        if (!ticketRes.ok) throw new Error(`Clerk Ticket failed: ${ticketRes.statusText}`);
+
+        const ticket = await ticketRes.json();
+
+        // URL with redirect
+        const loginUrl = `${ticket.url}&redirect_url=http://localhost:3000/dashboard/orders`;
+
+        await page.goto(loginUrl);
+        await page.waitForURL('**/dashboard/**', { timeout: 30000 });
+
+        // Save the dynamic session to user.json for the next tests
+        await page.context().storageState({ path: authFile });
+        console.log('✅ Sessão dinâmica Clerk salva com sucesso!');
         return;
     }
 

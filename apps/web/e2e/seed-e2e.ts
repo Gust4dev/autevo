@@ -1,28 +1,7 @@
 import { PrismaClient } from '@autevo/database';
-import fs from 'fs';
-import path from 'path';
 
 const prisma = new PrismaClient();
-
-function getClerkIdFromAuthJson(): string | null {
-    try {
-        const authPath = path.join(__dirname, '../playwright/.auth/user.json');
-        if (!fs.existsSync(authPath)) return null;
-
-        const authData = JSON.parse(fs.readFileSync(authPath, 'utf8'));
-        const sessionCookie = authData.cookies?.find((c: any) => c.name.startsWith('__session'));
-        if (!sessionCookie) return null;
-
-        const tokenPayload = sessionCookie.value.split('.')[1];
-        if (!tokenPayload) return null;
-
-        const decoded = JSON.parse(Buffer.from(tokenPayload, 'base64').toString('utf8'));
-        return decoded.sub; // Clerk ID is always 'sub'
-    } catch (e) {
-        console.error('Failed to parse user.json for Clerk ID', e);
-        return null;
-    }
-}
+const CLERK_EMAIL = 'admin+clerk_test@admin.com';
 
 async function seed() {
     const clerkSecret = process.env.CLERK_SECRET_KEY;
@@ -31,15 +10,9 @@ async function seed() {
         return;
     }
 
-    const clerkUserId = getClerkIdFromAuthJson();
-    if (!clerkUserId) {
-        console.warn('⚠️ No valid user.json or Clerk session cookie found. Skipping E2E DB Seed.');
-        return;
-    }
-
     try {
-        console.log(`🔍 Buscando metadata do usuário E2E no Clerk: ${clerkUserId}`);
-        const response = await fetch(`https://api.clerk.com/v1/users/${clerkUserId}`, {
+        console.log(`🔍 Buscando metadata do usuário E2E no Clerk pelo email: ${CLERK_EMAIL}`);
+        const response = await fetch(`https://api.clerk.com/v1/users?email_address=${CLERK_EMAIL}`, {
             headers: {
                 'Authorization': `Bearer ${clerkSecret}`
             }
@@ -49,8 +22,14 @@ async function seed() {
             throw new Error(`Clerk API erro: ${response.statusText}`);
         }
 
-        const user = await response.json();
-        const metadata = user.public_metadata;
+        const users = await response.json();
+        if (!users || users.length === 0) {
+            throw new Error(`Nenhum usuário Clerk encontrado com o email ${CLERK_EMAIL}`);
+        }
+
+        const clerkUser = users[0];
+        const clerkUserId = clerkUser.id;
+        const metadata = clerkUser.public_metadata;
 
         const tenantId = metadata.tenantId || 'e2e-tenant-1234';
         const dbUserId = metadata.dbUserId || 'e2e-user-1234';
@@ -83,7 +62,7 @@ async function seed() {
             create: {
                 id: dbUserId,
                 clerkId: clerkUserId,
-                email: 'admin+clerk_test@admin.com',
+                email: CLERK_EMAIL,
                 name: 'Robô E2E',
                 role: 'ADMIN_SAAS',
                 tenantId: tenantId,
