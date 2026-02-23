@@ -20,7 +20,8 @@ setup('authenticate as test user', async ({ page }) => {
         if (!clerkSecret) throw new Error('CLERK_SECRET_KEY must be provided in CI');
 
         // Fetch User ID
-        const usersRes = await fetch(`https://api.clerk.com/v1/users?email_address=admin+clerk_test@admin.com`, {
+        const email = 'admin+clerk_test@admin.com';
+        const usersRes = await fetch(`https://api.clerk.com/v1/users?email_address=${encodeURIComponent(email)}`, {
             headers: { Authorization: `Bearer ${clerkSecret}` }
         });
 

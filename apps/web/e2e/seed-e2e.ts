@@ -12,7 +12,7 @@ async function seed() {
 
     try {
         console.log(`🔍 Buscando metadata do usuário E2E no Clerk pelo email: ${CLERK_EMAIL}`);
-        const response = await fetch(`https://api.clerk.com/v1/users?email_address=${CLERK_EMAIL}`, {
+        const response = await fetch(`https://api.clerk.com/v1/users?email_address=${encodeURIComponent(CLERK_EMAIL)}`, {
             headers: {
                 'Authorization': `Bearer ${clerkSecret}`
             }
