@@ -15,7 +15,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type PublicStatus = RouterOutputs["order"]["getPublicStatus"] & {
   vehiclePlate?: string | null;
-  products?: { name: string; total: number }[];
+  products?: { name: string; quantity: number }[];
   payments?: { amount: number; method: string; paidAt: Date }[];
   subtotal?: number;
   discountType?: string | null;
@@ -631,7 +631,7 @@ export const InspectionPDF = ({
                       {String(product.name)}
                     </Text>
                     <Text style={[styles.cellTextBold, styles.col2]}>
-                      {formatCurrency(product.total)}
+                      {product.quantity} un.
                     </Text>
                   </View>
                 ))}

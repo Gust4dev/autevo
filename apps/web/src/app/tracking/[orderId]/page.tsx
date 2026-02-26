@@ -136,9 +136,12 @@ export default function TrackingPage({ params }: PageProps) {
     setTermsAccepted(true);
   };
 
-  // Real-time polling every 5 seconds
-  const { data, isLoading, error, refetch } =
-    trpc.order.getPublicStatus.useQuery({ orderId }, { refetchInterval: 5000 });
+  // Real-time polling every 30 seconds
+  const { data, isLoading, error, refetch, dataUpdatedAt } =
+    trpc.order.getPublicStatus.useQuery(
+      { orderId },
+      { refetchInterval: 30000 },
+    );
 
   const verifyPhoneMutation = trpc.order.verifyTrackingPhone.useMutation({
     onSuccess: (result) => {
@@ -173,7 +176,7 @@ export default function TrackingPage({ params }: PageProps) {
     signatureBase64: string,
     metadata?: SignatureMetadata,
   ) => {
-    if (!phoneVerified || phoneDigits.length !== 4) {
+    if (!phoneVerified || phoneDigits.length < 8) {
       toast.error("Verificação de telefone necessária");
       return;
     }
@@ -181,7 +184,7 @@ export default function TrackingPage({ params }: PageProps) {
       orderId,
       inspectionId,
       signatureBase64,
-      phoneLastDigits: phoneDigits,
+      phoneExact: phoneDigits,
     });
   };
 
@@ -492,12 +495,21 @@ export default function TrackingPage({ params }: PageProps) {
             <h1 className="text-3xl font-bold tracking-tight">
               Olá, <span style={{ color: primaryColor }}>{customerName}</span>
             </h1>
-            <p className="text-muted-foreground text-sm flex items-center gap-2">
-              Acompanhando{" "}
-              <span className="font-semibold text-foreground bg-muted px-2 py-0.5 rounded-md text-xs">
-                {vehiclePlate || vehicleName}
-              </span>
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-muted-foreground text-sm flex items-center gap-2">
+                Acompanhando{" "}
+                <span className="font-semibold text-foreground bg-muted px-2 py-0.5 rounded-md text-xs">
+                  {vehiclePlate || vehicleName}
+                </span>
+              </p>
+              {dataUpdatedAt && (
+                <p className="text-xs text-muted-foreground/70 flex items-center gap-1 mt-1">
+                  <Clock className="w-3 h-3" />
+                  Última atualização:{" "}
+                  <FormattedDate date={new Date(dataUpdatedAt)} />
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -563,36 +575,36 @@ export default function TrackingPage({ params }: PageProps) {
               </div>
               <CardContent className="p-6 space-y-4">
                 <p className="text-sm text-muted-foreground text-center">
-                  Para visualizar as fotos da vistoria e assinar, digite os{" "}
-                  <strong>4 últimos dígitos</strong> do telefone cadastrado.
+                  Para visualizar as fotos da vistoria e assinar, digite seu{" "}
+                  <strong>número de celular</strong> cadastrado na oficina.
                 </p>
                 <input
                   type="tel"
-                  maxLength={4}
+                  maxLength={11}
                   value={phoneDigits}
                   onChange={(e) =>
                     setPhoneDigits(
-                      e.target.value.replace(/\D/g, "").slice(0, 4),
+                      e.target.value.replace(/\D/g, "").slice(0, 11),
                     )
                   }
-                  placeholder="0000"
-                  className="w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border-2 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="11999999999"
+                  className="w-full px-4 py-3 text-center text-xl font-mono tracking-widest border-2 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   style={{
                     borderColor:
-                      phoneDigits.length === 4 ? primaryColor : undefined,
+                      phoneDigits.length >= 8 ? primaryColor : undefined,
                   }}
                 />
                 <Button
                   onClick={() => {
-                    if (phoneDigits.length === 4) {
+                    if (phoneDigits.length >= 8) {
                       verifyPhoneMutation.mutate({
                         orderId,
-                        phoneLastDigits: phoneDigits,
+                        phoneExact: phoneDigits,
                       });
                     }
                   }}
                   disabled={
-                    phoneDigits.length !== 4 || verifyPhoneMutation.isPending
+                    phoneDigits.length < 8 || verifyPhoneMutation.isPending
                   }
                   className="w-full h-11 font-bold"
                   style={{ backgroundColor: primaryColor }}

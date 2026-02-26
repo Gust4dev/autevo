@@ -376,7 +376,7 @@ model OrderItem {
 
 model OrderItemCommission {
   id              String                @id @default(cuid())
-  orderItemId     String                @unique
+  orderItemId     String
   orderItem       OrderItem             @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   userId          String
   user            User                  @relation(fields: [userId], references: [id])

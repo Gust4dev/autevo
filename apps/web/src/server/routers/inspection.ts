@@ -665,7 +665,7 @@ export const inspectionRouter = router({
             orderId: z.string(),
             inspectionId: z.string(),
             signatureBase64: z.string(),
-            phoneLastDigits: z.string().length(4),
+            phoneExact: z.string().regex(/^\d{8,11}$/, 'Número inválido'),
         }))
         .mutation(async ({ ctx, input }) => {
             const inspection = await ctx.db.inspection.findUnique({
@@ -714,12 +714,14 @@ export const inspectionRouter = router({
             }
 
             const phoneDigitsOnly = customerPhone.replace(/\D/g, '');
-            const lastFourDigits = phoneDigitsOnly.slice(-4);
+            const inputDigits = input.phoneExact.replace(/\D/g, '');
 
-            if (input.phoneLastDigits !== lastFourDigits) {
+            const isValid = (phoneDigitsOnly.endsWith(inputDigits) || inputDigits.endsWith(phoneDigitsOnly)) && Math.min(phoneDigitsOnly.length, inputDigits.length) >= 8;
+
+            if (!isValid) {
                 throw new TRPCError({
                     code: 'UNAUTHORIZED',
-                    message: 'Dígitos do telefone não conferem',
+                    message: 'Dígitos do telefone não conferem com o cadastro',
                 });
             }
 

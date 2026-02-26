@@ -20,19 +20,18 @@ test.describe('Feature 0: Legal Pages — Public Access', () => {
         await page.goto(`${BASE}/terms`);
 
         await expect(page).toHaveTitle(/Termos de Uso/);
-        await expect(page.locator('h1')).toContainText('Termos de Uso');
+        await expect(page.locator('h1')).toContainText('Política de Privacidade e Protocolo de Tratamento de Dados');
 
         const clauses = [
-            '1. Objeto',
-            '2. Licença de Uso',
-            '3. Responsabilidades do Contratante',
-            '4. Responsabilidades da Autevo',
-            '5. Proteção de Dados Pessoais',
-            '6. Planos, Trial e Pagamento',
-            '7. Cancelamento e Portabilidade',
-            '8. Propriedade Intelectual',
-            '9. Limitação de Responsabilidade',
-            '10. Foro',
+            '1. Definições e Estrutura Jurídica',
+            '2. Âmbito da Recolha e Natureza dos Dados',
+            '3. Bases Legais e Finalidades do Tratamento',
+            '4. Arquitetura de Segurança e Isolamento de Dados',
+            '5. Partilha Controlada com Terceiros',
+            '6. Direitos dos Titulares e Canais de Exercício',
+            '7. Protocolo de Retenção e Eliminação Definitiva',
+            '8. Transferência Internacional e Cookies',
+            '9. Gestão de Incidentes e Alterações',
         ];
 
         for (const clause of clauses) {
@@ -46,11 +45,11 @@ test.describe('Feature 0: Legal Pages — Public Access', () => {
         await page.goto(`${BASE}/privacy`);
 
         await expect(page).toHaveTitle(/Política de Privacidade/);
-        await expect(page.locator('h1')).toContainText('Política de Privacidade');
+        await expect(page.locator('h1')).toContainText('Política de Privacidade e Tratamento de Dados');
 
-        await expect(page.locator('text=Dados Coletados')).toBeVisible();
-        await expect(page.locator('text=Direitos do Titular')).toBeVisible();
-        await expect(page.locator('text=Retenção de Dados')).toBeVisible();
+        await expect(page.locator('text=Âmbito da Recolha de Dados')).toBeVisible();
+        await expect(page.locator('text=Direitos dos Titulares')).toBeVisible();
+        await expect(page.locator('text=Retenção e Eliminação de Dados')).toBeVisible();
     });
 
     test('Landing page footer links point to /terms and /privacy', async ({ page, context }) => {
@@ -89,13 +88,13 @@ test.describe('Feature 1: Public Approval Page — Expired/Invalid Token', () =>
 test.describe('Middleware: Public Routes Accessible Without Auth', () => {
     test('/terms is accessible without login', async ({ page }) => {
         await page.goto(`${BASE}/terms`);
-        await expect(page.locator('h1')).toContainText('Termos de Uso');
+        await expect(page.locator('h1')).toContainText('Política de Privacidade e Protocolo de Tratamento de Dados');
         expect(page.url()).not.toContain('sign-in');
     });
 
     test('/privacy is accessible without login', async ({ page }) => {
         await page.goto(`${BASE}/privacy`);
-        await expect(page.locator('h1')).toContainText('Política de Privacidade');
+        await expect(page.locator('h1')).toContainText('Política de Privacidade e Tratamento de Dados');
         expect(page.url()).not.toContain('sign-in');
     });
 

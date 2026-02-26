@@ -2,8 +2,8 @@ import { Prisma } from '@prisma/client';
 
 export function tenantExtension(tenantId: string | null) {
     if (!Prisma.dmmf) {
-        // Fallback for cases where DMMF might not be loaded initially
-        return Prisma.defineExtension((client) => client);
+        // [CRÍTICO] Fallback removido: Não podemos operar sem DMMF, ou vazaremos dados de múltiplos tenants.
+        throw new Error("[SECURITY_FATAL] Prisma DMMF indisponível. Isolamento de Tenant comprometido. Abortando execução.");
     }
 
     // Models that EXPLICITLY have tenantId in schema.prisma

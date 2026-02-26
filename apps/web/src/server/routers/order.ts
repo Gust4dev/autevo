@@ -808,18 +808,25 @@ export const orderRouter = router({
                     const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
 
                     if (commissionValue > 0) {
-                        await ctx.db.orderItemCommission.upsert({
-                            where: { orderItemId: item.id },
-                            create: {
-                                tenantId: ctx.tenantId!,
-                                orderItemId: item.id,
-                                userId: order.assignedToId,
-                                commissionValue,
-                            },
-                            update: {
-                                commissionValue, // Update in case price/quantity changed before completion
-                            }
+                        const existingCommission = await ctx.db.orderItemCommission.findFirst({
+                            where: { orderItemId: item.id, settlementId: null }
                         });
+
+                        if (existingCommission) {
+                            await ctx.db.orderItemCommission.update({
+                                where: { id: existingCommission.id },
+                                data: { commissionValue }
+                            });
+                        } else {
+                            await ctx.db.orderItemCommission.create({
+                                data: {
+                                    tenantId: ctx.tenantId!,
+                                    orderItemId: item.id,
+                                    userId: order.assignedToId,
+                                    commissionValue,
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -1213,18 +1220,25 @@ export const orderRouter = router({
                         const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
 
                         if (commissionValue > 0) {
-                            await ctx.db.orderItemCommission.upsert({
-                                where: { orderItemId: item.id },
-                                create: {
-                                    tenantId: ctx.tenantId!,
-                                    orderItemId: item.id,
-                                    userId: completedOrder.assignedToId,
-                                    commissionValue,
-                                },
-                                update: {
-                                    commissionValue,
-                                }
+                            const existingCommission = await ctx.db.orderItemCommission.findFirst({
+                                where: { orderItemId: item.id, settlementId: null }
                             });
+
+                            if (existingCommission) {
+                                await ctx.db.orderItemCommission.update({
+                                    where: { id: existingCommission.id },
+                                    data: { commissionValue }
+                                });
+                            } else {
+                                await ctx.db.orderItemCommission.create({
+                                    data: {
+                                        tenantId: ctx.tenantId!,
+                                        orderItemId: item.id,
+                                        userId: completedOrder.assignedToId,
+                                        commissionValue,
+                                    }
+                                });
+                            }
                         }
                     }
                 }
@@ -1414,6 +1428,31 @@ export const orderRouter = router({
 
     getPublicStatus: publicProcedure
         .input(z.object({ orderId: z.string() }))
+        .output(z.object({
+            id: z.string(),
+            status: z.nativeEnum(PrismaOrderStatus).or(z.string()),
+            customerName: z.string(),
+            vehicleName: z.string(),
+            vehicleColor: z.string(),
+            vehiclePlate: z.string().nullable(),
+            tenantContact: z.object({
+                name: z.string(),
+                whatsapp: z.string().nullable(),
+                phone: z.string().nullable(),
+                logo: z.string().nullable(),
+                primaryColor: z.string(),
+                secondaryColor: z.string(),
+                inspectionSignature: z.boolean(),
+            }),
+            services: z.array(z.object({ name: z.string(), total: z.number() })),
+            products: z.array(z.object({ name: z.string(), quantity: z.number() })),
+            payments: z.array(z.object({ amount: z.number(), method: z.string(), paidAt: z.date() })),
+            subtotal: z.number(),
+            discountType: z.string().nullable(),
+            discountValue: z.number(),
+            total: z.number(),
+            inspections: z.any(),
+        }))
         .query(async ({ ctx, input }) => {
             try {
                 const order = await ctx.db.serviceOrder.findUnique({
@@ -1572,12 +1611,13 @@ export const orderRouter = router({
     verifyTrackingPhone: publicProcedure
         .input(z.object({
             orderId: z.string(),
-            phoneLastDigits: z.string().length(4, 'Obrigatório 4 dígitos')
+            phoneExact: z.string().regex(/^\d{8,11}$/, 'Número inválido. Digite apenas números')
         }))
         .mutation(async ({ ctx, input }) => {
             const order = await ctx.db.serviceOrder.findUnique({
                 where: { id: input.orderId },
                 select: {
+                    tenantId: true,
                     customer: { select: { phone: true } },
                     vehicle: { select: { customer: { select: { phone: true } } } }
                 }
@@ -1585,13 +1625,42 @@ export const orderRouter = router({
 
             if (!order) return { isValid: false };
 
+            // 🛡️ SECURITY: Rate limit (5 tentativas por minuto para mitigar brute-force)
+            const oneMinuteAgo = new Date(Date.now() - 60000);
+            const recentFails = await ctx.db.auditLog.count({
+                where: {
+                    action: 'TRACKING_AUTH_FAILED',
+                    entityType: 'ServiceOrder',
+                    entityId: input.orderId,
+                    createdAt: { gte: oneMinuteAgo }
+                }
+            });
+
+            if (recentFails >= 5) {
+                throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Muitas tentativas inválidas. Acesso temporariamente bloqueado. Tente novamente em 1 minuto.' });
+            }
+
             const phone = order.customer?.phone || order.vehicle?.customer?.phone;
             if (!phone) return { isValid: false };
 
             const digitsOnly = phone.replace(/\D/g, '');
-            const lastFour = digitsOnly.slice(-4);
+            const inputDigits = input.phoneExact.replace(/\D/g, '');
 
-            return { isValid: lastFour === input.phoneLastDigits };
+            const isValid = (digitsOnly.endsWith(inputDigits) || inputDigits.endsWith(digitsOnly)) && Math.min(digitsOnly.length, inputDigits.length) >= 8;
+
+            if (!isValid) {
+                await ctx.db.auditLog.create({
+                    data: {
+                        tenantId: order.tenantId,
+                        action: 'TRACKING_AUTH_FAILED',
+                        entityType: 'ServiceOrder',
+                        entityId: input.orderId,
+                        metadata: { attempted: "MASKED" } as any
+                    }
+                });
+            }
+
+            return { isValid };
         }),
 
     generateApprovalLink: protectedProcedure
