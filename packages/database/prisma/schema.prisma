@@ -382,6 +382,8 @@ model OrderItemCommission {
   user            User                  @relation(fields: [userId], references: [id])
   commissionValue Decimal               @db.Decimal(10, 2)
   calculatedAt    DateTime              @default(now())
+  status          String                @default("ACTIVE") // ACTIVE, CANCELLED, REVERSED
+  cancelledAt     DateTime?
   settlementId    String?
   settlement      CommissionSettlement? @relation(fields: [settlementId], references: [id])
   tenantId        String

@@ -85,7 +85,7 @@ export function tenantExtension(tenantId: string | null) {
                         }
 
                         // For tenant-specific models, inject tenantId filter
-                        if (tenantId && ['findFirst', 'findMany', 'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany'].includes(operation)) {
+                        if (tenantId && ['findFirst', 'findUnique', 'findMany', 'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany'].includes(operation)) {
                             const newArgs = { ...args } as any;
                             newArgs.where = {
                                 ...newArgs.where,

@@ -91,21 +91,20 @@ export const orderRouter = router({
             }
 
             const order = await ctx.db.$transaction(async (tx: any) => {
-                // 🔒 PESSIMISTIC LOCK: Tenant Sequence (Sprint 1.3)
-                let sequence = await tx.tenantSequence.findUnique({
-                    where: { tenantId: ctx.tenantId! }
-                });
+                // 🔒 ATOMIC LOCK: Upsert + UPDATE RETURNING (eliminates race condition)
+                await tx.$executeRaw`
+                    INSERT INTO "TenantSequence" ("id", "tenantId", "prefix", "currentValue", "updatedAt")
+                    VALUES (gen_random_uuid(), ${ctx.tenantId!}, 'OS', 0, NOW())
+                    ON CONFLICT ("tenantId") DO NOTHING
+                `;
 
-                if (!sequence) {
-                    sequence = await tx.tenantSequence.create({
-                        data: { tenantId: ctx.tenantId!, currentValue: 1 }
-                    });
-                } else {
-                    sequence = await tx.tenantSequence.update({
-                        where: { tenantId: ctx.tenantId! },
-                        data: { currentValue: { increment: 1 } }
-                    });
-                }
+                const [sequence] = await tx.$queryRaw<Array<{ prefix: string; currentValue: number }>>`
+                    UPDATE "TenantSequence"
+                    SET "currentValue" = "currentValue" + 1, "updatedAt" = NOW()
+                    WHERE "tenantId" = ${ctx.tenantId!}
+                    RETURNING "prefix", "currentValue"
+                `;
+
                 const orderCode = `${sequence.prefix}-${sequence.currentValue.toString().padStart(4, '0')}`;
 
                 return tx.serviceOrder.create({
@@ -809,7 +808,7 @@ export const orderRouter = router({
 
                     if (commissionValue > 0) {
                         const existingCommission = await ctx.db.orderItemCommission.findFirst({
-                            where: { orderItemId: item.id, settlementId: null }
+                            where: { orderItemId: item.id, settlementId: null, status: 'ACTIVE' }
                         });
 
                         if (existingCommission) {
@@ -882,42 +881,15 @@ export const orderRouter = router({
             // 🚫 GATILHO DE CANCELAMENTO OU VOLTA DE STATUS: Estornar estoque e deletar comissões (Sprint 2.1)
             const isReverting = existing.inventoryDeducted && (input.status === 'CANCELADO' || input.status === 'AGENDADO' || input.status === 'EM_VISTORIA');
             if (isReverting) {
-                // 1. Deletar comissões e gerar estorno negativo se já pagas (Sprint 3.2)
-                const itemsWithCommissions = await ctx.db.orderItem.findMany({
-                    where: { orderId: order.id },
-                    include: { commissions: true }
-                });
-
-                for (const item of itemsWithCommissions) {
-                    for (const commission of item.commissions) {
-                        if (commission.settlementId) {
-                            // Already paid - Generate Negative Refund
-                            await ctx.db.orderItemCommission.create({
-                                data: {
-                                    tenantId: ctx.tenantId!,
-                                    orderItemId: item.id, // Or maybe we should link it differently? Actually, orderItemId is unique.
-                                    // Wait, OrderItemCommission has a unique constraint on orderItemId! 
-                                    // So we cannot create another orderItemCommission with the same orderItemId.
-                                    // Let's create a new dummy item or just update the existing commission?
-                                    // No, update is better to remove the positive value and insert negative?
-                                    // Or we can just create a negative AuditLog/Finance event, but the user requested:
-                                    // "o sistema deve gerar uma nova linha em OrderItemCommission com o valor de -100.00"
-                                    // Since OrderItemCommission.orderItemId is @unique in schema.prisma, we can't create multiple.
-                                    // Let's drop the unique constraint or update the commission value to negative?
-                                    // Wait, if it's already settled, changing the value to negative might break the past settlement sum.
-                                    // Real solution: update the schema OR we handle it via a new dummy refund OrderItem on this order.
-                                    // Actually, we can just edit the existing commission and set `commissionValue` to negative if we don't care about the previous record, but let's just create a new OrderItem "ESTORNO" for safe keeping:
-                                }
-                            });
-                            // Actually, I cannot modify schema.prisma right now without a new migration. Let's just update the commission or bypass.
-                        }
-                    }
-                }
-
-                await ctx.db.orderItemCommission.deleteMany({
+                // 1. Soft-cancel ALL commissions (preserva trilha de auditoria)
+                await ctx.db.orderItemCommission.updateMany({
                     where: {
                         orderItem: { orderId: order.id },
-                        settlementId: null // Only delete un-settled ones
+                        status: 'ACTIVE',
+                    },
+                    data: {
+                        status: 'CANCELLED',
+                        cancelledAt: new Date(),
                     }
                 });
 
@@ -939,10 +911,19 @@ export const orderRouter = router({
                                 continue;
                             }
 
-                            await tx.product.update({
+                            const productExists = await tx.product.findUnique({
                                 where: { id: op.productId },
-                                data: { stock: { increment: op.quantity } }
+                                select: { id: true }
                             });
+
+                            if (productExists) {
+                                await tx.product.update({
+                                    where: { id: op.productId },
+                                    data: { stock: { increment: op.quantity } }
+                                });
+                            } else {
+                                console.warn(`[STOCK_REVERSAL] Product ${op.productId} was deleted. Skipping stock increment for OS #${order.code}. Audit trail preserved via StockMovement.`);
+                            }
 
                             // Find the original movement
                             const origMove = await tx.stockMovement.findFirst({
@@ -1221,7 +1202,7 @@ export const orderRouter = router({
 
                         if (commissionValue > 0) {
                             const existingCommission = await ctx.db.orderItemCommission.findFirst({
-                                where: { orderItemId: item.id, settlementId: null }
+                                where: { orderItemId: item.id, settlementId: null, status: 'ACTIVE' }
                             });
 
                             if (existingCommission) {
@@ -1334,6 +1315,7 @@ export const orderRouter = router({
 
             const where: any = {
                 settlementId: null,
+                status: 'ACTIVE',
             };
 
             if (isMember) {
@@ -1383,6 +1365,7 @@ export const orderRouter = router({
                     id: { in: input.commissionIds },
                     userId: input.userId,
                     settlementId: null,
+                    status: 'ACTIVE',
                 }
             });
 
@@ -1451,7 +1434,32 @@ export const orderRouter = router({
             discountType: z.string().nullable(),
             discountValue: z.number(),
             total: z.number(),
-            inspections: z.any(),
+            inspections: z.array(z.object({
+                id: z.string(),
+                type: z.string(),
+                status: z.string(),
+                signatureUrl: z.string().nullable(),
+                signedAt: z.date().nullable(),
+                createdAt: z.date(),
+                canSign: z.boolean(),
+                items: z.array(z.object({
+                    id: z.string(),
+                    category: z.string(),
+                    label: z.string(),
+                    status: z.string(),
+                    photoUrl: z.string().nullable(),
+                    photos: z.array(z.string()),
+                    isCritical: z.boolean().nullable(),
+                    damageType: z.string().nullable(),
+                    severity: z.string().nullable(),
+                })),
+                damages: z.array(z.object({
+                    id: z.string(),
+                    position: z.string(),
+                    damageType: z.string(),
+                    photoUrl: z.string().nullable(),
+                })),
+            })),
         }))
         .query(async ({ ctx, input }) => {
             try {
@@ -1584,7 +1592,6 @@ export const orderRouter = router({
                                 status: item.status,
                                 photoUrl: item.photoUrl,
                                 photos: item.photos || [],
-                                notes: item.notes,
                                 isCritical: item.isCritical,
                                 damageType: item.damageType,
                                 severity: item.severity,
@@ -1593,7 +1600,6 @@ export const orderRouter = router({
                                 id: d.id,
                                 position: d.position,
                                 damageType: d.damageType,
-                                notes: d.notes,
                                 photoUrl: d.photoUrl,
                             })),
                         };

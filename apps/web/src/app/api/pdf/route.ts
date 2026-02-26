@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import { Readable } from 'stream';
 import { prisma } from '@autevo/database';
 import { renderToStream } from '@react-pdf/renderer';
 import { InspectionPDF } from '@/components/pdfs/InspectionPDF';
@@ -18,15 +20,6 @@ const s3 = new S3Client({
     },
     forcePathStyle: true,
 });
-
-async function streamToBuffer(stream: any): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-        const buffers: Buffer[] = [];
-        stream.on('data', (data: any) => buffers.push(data));
-        stream.on('end', () => resolve(Buffer.concat(buffers)));
-        stream.on('error', reject);
-    });
-}
 
 export async function POST(req: Request) {
     try {
@@ -51,23 +44,28 @@ export async function POST(req: Request) {
         const trackingUrl = `${baseUrl}/tracking/${orderId}`;
         const qrCodeUrl = await QRCode.toDataURL(trackingUrl, { width: 300, margin: 2 });
 
-        // Generate PDF Buffer purely via React-PDF (No Puppeteer/Chromium = Fast & Secure)
-        // Since it's a .ts file and not .tsx, we invoke the component as a function directly.
+        // Generate PDF stream via React-PDF (No Puppeteer/Chromium = Fast & Secure)
         const pdfStream = await renderToStream(
             InspectionPDF({ data, qrCodeUrl, trackingUrl })
         );
-        const pdfBuffer = await streamToBuffer(pdfStream);
 
-        // 🚀 Upload to S3/Supabase Storage
+        // 🚀 Stream directly to S3 (eliminates OOM for large PDFs)
         const fileName = `pdfs/os-${orderId}-${Date.now()}.pdf`;
 
-        await s3.send(new PutObjectCommand({
-            Bucket: process.env.AWS_BUCKET_NAME,
-            Key: fileName,
-            Body: pdfBuffer,
-            ContentType: 'application/pdf',
-            CacheControl: 'max-age=31536000',
-        }));
+        const upload = new Upload({
+            client: s3,
+            params: {
+                Bucket: process.env.AWS_BUCKET_NAME!,
+                Key: fileName,
+                Body: Readable.fromWeb(pdfStream as any),
+                ContentType: 'application/pdf',
+                CacheControl: 'max-age=31536000',
+            },
+            queueSize: 4,
+            partSize: 5 * 1024 * 1024,
+        });
+
+        await upload.done();
 
         const endpoint = process.env.AWS_ENDPOINT || '';
         const isSupabase = endpoint.includes('supabase.co');
