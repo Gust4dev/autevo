@@ -592,21 +592,17 @@ export default function TrackingPage({ params }: PageProps) {
                     }
                   }}
                   disabled={
-                    phoneDigits.length !== 4 ||
-                    verifyPhoneMutation.isLoading ||
-                    verifyPhoneMutation.isPending
+                    phoneDigits.length !== 4 || verifyPhoneMutation.isPending
                   }
                   className="w-full h-11 font-bold"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  {verifyPhoneMutation.isPending ||
-                  verifyPhoneMutation.isLoading ? (
+                  {verifyPhoneMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Phone className="mr-2 h-4 w-4" />
                   )}
-                  {verifyPhoneMutation.isPending ||
-                  verifyPhoneMutation.isLoading
+                  {verifyPhoneMutation.isPending
                     ? "Verificando..."
                     : "Verificar e Ver Fotos"}
                 </Button>

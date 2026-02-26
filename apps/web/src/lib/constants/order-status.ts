@@ -14,6 +14,12 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, OrderStatusConfig> = {
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
     },
+    AGUARDANDO_APROVACAO: {
+        label: 'Aguardando Aprov.',
+        variant: 'secondary',
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-100',
+    },
     EM_VISTORIA: {
         label: 'Em Vistoria',
         variant: 'outline',

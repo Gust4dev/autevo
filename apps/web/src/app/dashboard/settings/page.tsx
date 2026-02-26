@@ -1087,7 +1087,7 @@ function SequenceConfig() {
 
   const orderCountQuery = trpc.order.list.useQuery(
     { page: 1, limit: 1 },
-    { select: (data) => data.pagination.total },
+    { select: (data) => data.total },
   );
 
   const sequenceMutation = trpc.tenant.setInitialSequence.useMutation({

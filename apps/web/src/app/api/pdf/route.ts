@@ -45,7 +45,6 @@ export async function POST(req: Request) {
             // Fallback para caminhos comuns
             const executablePath = process.platform === 'win32'
                 ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-                // @ts-expect-error
                 : process.platform === 'linux' ? '/usr/bin/google-chrome' : '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
             browser = await puppeteer.launch({
