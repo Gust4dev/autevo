@@ -228,6 +228,56 @@ export const inspectionRouter = router({
                 });
             }
 
+            let sourceInspectionId: string | null = null;
+
+            if (input.type === 'final') {
+                const entryInspection = await ctx.db.inspection.findUnique({
+                    where: { orderId_type: { orderId: input.orderId, type: 'entrada' } },
+                    include: { items: true, damages: true },
+                });
+
+                if (entryInspection) {
+                    sourceInspectionId = entryInspection.id;
+
+                    const inspection = await ctx.db.inspection.create({
+                        data: {
+                            tenantId: ctx.tenantId!,
+                            orderId: input.orderId,
+                            type: input.type,
+                            status: 'em_andamento',
+                            sourceInspectionId,
+                            items: {
+                                create: entryInspection.items.map((item: any) => ({
+                                    tenantId: ctx.tenantId!,
+                                    category: item.category,
+                                    itemKey: item.itemKey,
+                                    label: item.label,
+                                    isRequired: item.isRequired,
+                                    isCritical: item.isCritical,
+                                    status: item.status,
+                                    photoUrl: item.photoUrl,
+                                    photos: item.photos,
+                                    notes: item.notes,
+                                    damageType: item.damageType,
+                                    severity: item.severity,
+                                })),
+                            },
+                            damages: {
+                                create: entryInspection.damages.map((d: any) => ({
+                                    position: d.position,
+                                    damageType: d.damageType,
+                                    notes: d.notes,
+                                    photoUrl: d.photoUrl,
+                                })),
+                            },
+                        },
+                        include: { items: true, damages: true },
+                    });
+
+                    return inspection;
+                }
+            }
+
             const checklistItems = generateChecklistItems();
 
             const inspection = await ctx.db.inspection.create({
@@ -236,6 +286,7 @@ export const inspectionRouter = router({
                     orderId: input.orderId,
                     type: input.type,
                     status: 'em_andamento',
+                    sourceInspectionId,
                     items: {
                         create: checklistItems.map(item => ({
                             tenantId: ctx.tenantId!,
@@ -626,11 +677,13 @@ export const inspectionRouter = router({
                             id: true,
                             code: true,
                             tenantId: true,
+                            status: true,
+                            customer: {
+                                select: { phone: true }
+                            },
                             vehicle: {
                                 select: {
-                                    customer: {
-                                        select: { phone: true }
-                                    }
+                                    customer: { select: { phone: true } }
                                 }
                             }
                         }
@@ -652,11 +705,11 @@ export const inspectionRouter = router({
                 });
             }
 
-            const customerPhone = inspection.order.vehicle.customer?.phone;
-            if (!customerPhone) {
+            const customerPhone = inspection.order.customer?.phone || inspection.order.vehicle?.customer?.phone;
+            if (!customerPhone || customerPhone.trim().length === 0) {
                 throw new TRPCError({
                     code: 'BAD_REQUEST',
-                    message: 'Cliente não possui telefone cadastrado',
+                    message: 'Telefone do cliente não está cadastrado. Solicite à oficina que atualize seu cadastro.',
                 });
             }
 
@@ -698,14 +751,33 @@ export const inspectionRouter = router({
 
             const signatureUrl = await uploadFile(buffer, fileName, 'image/png', uploadContext);
 
-            const updated = await ctx.db.inspection.update({
-                where: { id: input.inspectionId },
-                data: {
-                    signatureUrl,
-                    signedAt: new Date(),
-                    signedVia: 'public_tracking',
-                    status: 'concluida',
-                },
+            const updated = await ctx.db.$transaction(async (tx) => {
+                const updatedInspection = await tx.inspection.update({
+                    where: { id: input.inspectionId },
+                    data: {
+                        signatureUrl,
+                        signedAt: new Date(),
+                        signedVia: 'public_tracking',
+                        status: 'concluida',
+                    },
+                });
+
+                if (inspection.type === 'entrada') {
+                    await tx.serviceOrder.update({
+                        where: { id: inspection.order.id },
+                        data: {
+                            approvedAt: new Date(),
+                            termsAcceptedAt: new Date(),
+                            approvalDate: new Date(),
+                            approvalToken: null,
+                            approvalTokenExpiry: null,
+                            // If the order was just waiting for approval, push it forward to scheduled/in-progress
+                            ...(inspection.order.status === 'AGUARDANDO_APROVACAO' ? { status: 'AGENDADO' } : {})
+                        },
+                    });
+                }
+
+                return updatedInspection;
             });
 
             return updated;

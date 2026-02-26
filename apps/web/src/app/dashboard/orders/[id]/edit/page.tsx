@@ -35,6 +35,7 @@ import {
 import { StatusBadge } from "@/components/orders";
 import { trpc } from "@/lib/trpc/provider";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/formatters";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -70,7 +71,7 @@ export default function EditOrderPage({ params }: PageProps) {
       router.push(`/dashboard/orders/${id}`);
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao atualizar ordem");
+      toast.error(getErrorMessage(error));
     },
   });
 

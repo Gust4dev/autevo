@@ -594,6 +594,29 @@ function TeamTab({ data, isLoading, formatCurrency }: any) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* CTA: Acerto de Comissões */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6">
+          <div className="flex items-center gap-4">
+            <div className="rounded-xl bg-primary/10 p-3">
+              <DollarSign className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-bold text-lg">Acerto de Comissões</p>
+              <p className="text-sm text-muted-foreground">
+                Selecione, revise e pague as comissões pendentes da equipe.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="lg" className="shadow-md w-full sm:w-auto">
+            <Link href="/dashboard/financial/commissions">
+              <Receipt className="mr-2 h-4 w-4" />
+              Gerenciar Comissões
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

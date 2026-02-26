@@ -207,7 +207,6 @@ export const productRouter = router({
                 });
             }
 
-            // Update stock and create movement
             const [product] = await ctx.db.$transaction([
                 ctx.db.product.update({
                     where: { id: input.id },
@@ -224,6 +223,20 @@ export const productRouter = router({
                     },
                 }),
             ]);
+
+            if (input.type === 'ENTRADA' && input.quantity > 0) {
+                await ctx.db.pendingRestock.updateMany({
+                    where: {
+                        productId: input.id,
+                        tenantId: ctx.tenantId!,
+                        resolved: false,
+                    },
+                    data: {
+                        resolved: true,
+                        resolvedAt: new Date(),
+                    },
+                });
+            }
 
             return product;
         }),

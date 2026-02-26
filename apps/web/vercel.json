@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/warmup",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-expired-tokens",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/update-founder-subscriptions",
+      "schedule": "0 4 * * *"
     }
   ]
 }

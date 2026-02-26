@@ -113,6 +113,8 @@ export default function TrackingPage({ params }: PageProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [signingInspectionId, setSigningInspectionId] = useState<string | null>(
     null,
   );
@@ -123,15 +125,42 @@ export default function TrackingPage({ params }: PageProps) {
 
   const utils = trpc.useUtils();
 
+  // Check localStorage for terms acceptance on mount
+  useEffect(() => {
+    const accepted = localStorage.getItem(`tracking-terms-${orderId}`);
+    if (accepted === "true") setTermsAccepted(true);
+  }, [orderId]);
+
+  const handleAcceptTerms = () => {
+    localStorage.setItem(`tracking-terms-${orderId}`, "true");
+    setTermsAccepted(true);
+  };
+
   // Real-time polling every 5 seconds
   const { data, isLoading, error, refetch } =
     trpc.order.getPublicStatus.useQuery({ orderId }, { refetchInterval: 5000 });
+
+  const verifyPhoneMutation = trpc.order.verifyTrackingPhone.useMutation({
+    onSuccess: (result) => {
+      if (result.isValid) {
+        setPhoneVerified(true);
+        toast.success("Identidade verificada com sucesso!");
+      } else {
+        toast.error("Dígitos não conferem", {
+          description:
+            "Certifique-se de usar os 4 últimos dígitos do seu número cadastrado na oficina.",
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao verificar telefone");
+    },
+  });
 
   const saveSignature = trpc.inspection.savePublicSignature.useMutation({
     onSuccess: () => {
       toast.success("Assinatura registrada com sucesso!");
       setSigningInspectionId(null);
-      setPhoneDigits("");
       refetch();
     },
     onError: (error) => {
@@ -144,8 +173,8 @@ export default function TrackingPage({ params }: PageProps) {
     signatureBase64: string,
     metadata?: SignatureMetadata,
   ) => {
-    if (phoneDigits.length !== 4) {
-      toast.error("Digite os 4 últimos dígitos do seu telefone");
+    if (!phoneVerified || phoneDigits.length !== 4) {
+      toast.error("Verificação de telefone necessária");
       return;
     }
     saveSignature.mutate({
@@ -243,6 +272,157 @@ export default function TrackingPage({ params }: PageProps) {
       "_blank",
     );
   };
+
+  // Terms acceptance gate
+  if (!termsAccepted) {
+    return (
+      <div className="min-h-screen bg-muted/5 font-sans flex items-center justify-center p-6">
+        <Card className="max-w-md w-full border-0 shadow-2xl overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-r from-primary to-primary/60" />
+          <CardHeader className="text-center pt-8 pb-4">
+            <div className="mx-auto mb-4 p-3 rounded-full bg-primary/10 w-fit">
+              <ShieldCheck className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-xl">Termos de Uso</CardTitle>
+            <p className="text-sm text-muted-foreground mt-2">
+              Para acessar o acompanhamento do seu veículo, leia e aceite nossos
+              termos.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 px-6 pb-8">
+            <div className="max-h-64 overflow-y-auto rounded-lg border bg-muted/30 p-4 text-xs text-muted-foreground leading-relaxed space-y-3">
+              <p className="font-semibold text-foreground text-sm">
+                TERMOS DE USO E CONDIÇÕES DE ACOMPANHAMENTO VEICULAR — PROTOCOLO
+                DIGITAL
+              </p>
+
+              <p>
+                <strong>PREÂMBULO</strong>
+                <br />O presente instrumento regula as condições de acesso à
+                interface de rastreio, vistoria e aprovação de orçamentos
+                vinculada ao seu veículo. Ao acessar este ambiente digital, você
+                (&quot;CLIENTE&quot;) manifesta concordância integral e
+                irretratável com as diretrizes de segurança, privacidade e
+                validade jurídica aqui estabelecidas.
+              </p>
+
+              <p>
+                <strong>1. DA NATUREZA DO ACESSO E SEGURANÇA</strong>
+              </p>
+              <p>
+                <strong>1.1.</strong> Este acesso é gerado exclusivamente para o
+                CLIENTE, possuindo caráter individual, intransferível e
+                temporário.
+              </p>
+              <p>
+                <strong>1.2.</strong> A visualização dos dados está condicionada
+                à validação de identidade (ex: últimos dígitos do telefone
+                cadastrado). O fornecimento correto dos dados de validação
+                presume a autoria do acesso.
+              </p>
+              <p>
+                <strong>1.3.</strong> O compartilhamento deste link com
+                terceiros é de responsabilidade exclusiva do CLIENTE. Qualquer
+                aprovação ou assinatura realizada por terceiros de posse do link
+                será considerada válida e vinculante.
+              </p>
+
+              <p>
+                <strong>2. DA VISTORIA DIGITAL E PRODUÇÃO DE PROVAS</strong>
+              </p>
+              <p>
+                <strong>2.1.</strong> O sistema de vistoria utiliza tecnologia
+                de congelamento de dados. As imagens refletem o estado do
+                veículo no momento da entrada ou saída.
+              </p>
+              <p>
+                <strong>2.2.</strong> É obrigação do CLIENTE revisar
+                minuciosamente todas as fotografias e apontamentos técnicos
+                antes de prosseguir com qualquer assinatura.
+              </p>
+              <p>
+                <strong>2.3.</strong> Ao assinar a vistoria de entrada, o
+                CLIENTE declara concordância com o estado reportado, renunciando
+                a reclamações posteriores sobre avarias não registradas.
+              </p>
+
+              <p>
+                <strong>3. DA ASSINATURA ELETRÔNICA E VALIDADE JURÍDICA</strong>
+              </p>
+              <p>
+                <strong>3.1.</strong> A assinatura digital realizada nesta
+                plataforma possui plena eficácia probatória nos termos da Lei nº
+                14.063/2020 e da MP nº 2.200-2/2001.
+              </p>
+              <p>
+                <strong>3.2.</strong> O sistema captura automaticamente:
+                Endereço IP, Geolocalização (GPS), User-Agent do dispositivo e
+                Carimbo de tempo (Timestamp).
+              </p>
+              <p>
+                <strong>3.3.</strong> O aceite eletrônico e/ou a assinatura
+                constituem manifestação de vontade inequívoca para autorização
+                de serviços e reconhecimento de dívida.
+              </p>
+
+              <p>
+                <strong>4. DA APROVAÇÃO DE ORÇAMENTOS</strong>
+              </p>
+              <p>
+                <strong>4.1.</strong> A aprovação digital autoriza a oficina a
+                iniciar imediatamente os procedimentos técnicos.
+              </p>
+              <p>
+                <strong>4.2.</strong> Uma vez aprovado digitalmente, o pedido
+                torna-se irretratável. Cancelamentos após o início estarão
+                sujeitos à cobrança de mão de obra e insumos já despendidos.
+              </p>
+
+              <p>
+                <strong>5. PRIVACIDADE (LGPD)</strong>
+              </p>
+              <p>
+                <strong>5.1.</strong> O CLIENTE consente com a coleta de imagens
+                do veículo e tratamento de dados pessoais necessários para a
+                prestação de serviço automotivo e segurança jurídica.
+              </p>
+              <p>
+                <strong>5.2.</strong> Os metadados técnicos serão armazenados
+                pelo prazo legal para fins de defesa de direitos em processos
+                judiciais ou administrativos.
+              </p>
+
+              <p>
+                <strong>6. DISPOSIÇÕES GERAIS</strong>
+              </p>
+              <p>
+                <strong>6.1.</strong> A oficina reserva-se o direito de expirar
+                o link após a entrega do veículo e conclusão do ciclo
+                financeiro.
+              </p>
+              <p>
+                <strong>6.2.</strong> Fica eleito o foro da comarca de prestação
+                do serviço para dirimir quaisquer litígios.
+              </p>
+
+              <p className="italic border-t pt-2 mt-2">
+                Ao clicar em &quot;Li e Aceito os Termos&quot;, você declara
+                estar plenamente ciente das condições acima e autoriza o
+                registro de seus metadados como prova de leitura e aceite.
+              </p>
+            </div>
+            <Button
+              onClick={handleAcceptTerms}
+              className="w-full h-12 text-base font-bold shadow-lg"
+            >
+              <Check className="mr-2 h-5 w-5" />
+              Li e Aceito os Termos
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/5 font-sans pb-32 animate-in fade-in duration-500">
@@ -368,8 +548,75 @@ export default function TrackingPage({ params }: PageProps) {
           </CardContent>
         </Card>
 
-        {/* Dynamic Inspections (Gallery) */}
-        {inspections && inspections.length > 0 && (
+        {/* Phone Verification Gate for Gallery & Signature */}
+        {inspections && inspections.length > 0 && !phoneVerified && (
+          <div className="mt-8">
+            <Card className="border-0 shadow-lg overflow-hidden">
+              <div className="px-4 py-3 bg-muted/30 border-b flex items-center gap-2">
+                <Phone
+                  className="h-4 w-4 text-primary"
+                  style={{ color: primaryColor }}
+                />
+                <span className="font-medium text-sm">
+                  Verificação de Identidade
+                </span>
+              </div>
+              <CardContent className="p-6 space-y-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Para visualizar as fotos da vistoria e assinar, digite os{" "}
+                  <strong>4 últimos dígitos</strong> do telefone cadastrado.
+                </p>
+                <input
+                  type="tel"
+                  maxLength={4}
+                  value={phoneDigits}
+                  onChange={(e) =>
+                    setPhoneDigits(
+                      e.target.value.replace(/\D/g, "").slice(0, 4),
+                    )
+                  }
+                  placeholder="0000"
+                  className="w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border-2 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  style={{
+                    borderColor:
+                      phoneDigits.length === 4 ? primaryColor : undefined,
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    if (phoneDigits.length === 4) {
+                      verifyPhoneMutation.mutate({
+                        orderId,
+                        phoneLastDigits: phoneDigits,
+                      });
+                    }
+                  }}
+                  disabled={
+                    phoneDigits.length !== 4 ||
+                    verifyPhoneMutation.isLoading ||
+                    verifyPhoneMutation.isPending
+                  }
+                  className="w-full h-11 font-bold"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {verifyPhoneMutation.isPending ||
+                  verifyPhoneMutation.isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Phone className="mr-2 h-4 w-4" />
+                  )}
+                  {verifyPhoneMutation.isPending ||
+                  verifyPhoneMutation.isLoading
+                    ? "Verificando..."
+                    : "Verificar e Ver Fotos"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Dynamic Inspections (Gallery) — only after phone verified */}
+        {phoneVerified && inspections && inspections.length > 0 && (
           <div className="mt-8 space-y-6">
             <div className="flex items-center justify-between px-2">
               <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -393,17 +640,9 @@ export default function TrackingPage({ params }: PageProps) {
 
             <div className="space-y-4">
               {inspections.map((inspection, i) => {
-                // Check if it has photos OR if it is finalized (for exit inspection we might want to show it even without photos if user insists, but typically gallery needs photos)
-                // User said: "o cliente consiga ver todas as imagens ... porem nao deve aparecer se nao for feita"
-                // User also said: "de saida nao aparece" (exit does not appear)
-
                 const hasPhotos =
                   inspection.items.some((k) => k.photoUrl) ||
                   inspection.damages.some((d) => d.photoUrl);
-
-                // If inspection is 'final' (exit) and is 'concluida' (done), we might want to show it?
-                // But if it has no photos, what do we show in a gallery?
-                // If user complains it doesn't appear, likely they EXPECT photos to be there.
 
                 if (!hasPhotos) return null;
 
@@ -445,70 +684,57 @@ export default function TrackingPage({ params }: PageProps) {
                       </div>
 
                       <CardContent className="p-3">
-                        {!hasPhotos ? (
-                          <div className="flex flex-col items-center justify-center py-6 text-muted-foreground bg-muted/20 rounded-lg">
-                            <ImageIcon className="h-8 w-8 opacity-20 mb-2" />
-                            <p className="text-xs font-medium">
-                              Sem registros fotográficos
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-3 gap-2">
-                            {/* Damages first */}
-                            {inspection.damages
-                              .filter((d) => d.photoUrl)
-                              .map((d) => (
-                                <motion.button
-                                  key={d.id}
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={() => setLightboxImage(d.photoUrl!)}
-                                  className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
+                        <div className="grid grid-cols-3 gap-2">
+                          {inspection.damages
+                            .filter((d) => d.photoUrl)
+                            .map((d) => (
+                              <motion.button
+                                key={d.id}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => setLightboxImage(d.photoUrl!)}
+                                className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
+                              >
+                                <img
+                                  src={d.photoUrl!}
+                                  alt="Dano"
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                                <Badge
+                                  variant="destructive"
+                                  className="absolute top-1 right-1 text-[8px] h-4 px-1 rounded-sm"
                                 >
-                                  <img
-                                    src={d.photoUrl!}
-                                    alt="Dano"
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                                  <Badge
-                                    variant="destructive"
-                                    className="absolute top-1 right-1 text-[8px] h-4 px-1 rounded-sm"
-                                  >
-                                    Avaria
-                                  </Badge>
-                                </motion.button>
-                              ))}
+                                  Avaria
+                                </Badge>
+                              </motion.button>
+                            ))}
 
-                            {/* Items */}
-                            {inspection.items
-                              .filter((i) => i.photoUrl)
-                              .map((item) => (
-                                <motion.button
-                                  key={item.id}
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={() =>
-                                    setLightboxImage(item.photoUrl!)
-                                  }
-                                  className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
-                                >
-                                  <img
-                                    src={item.photoUrl!}
-                                    alt={item.label}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <p className="text-[10px] text-white font-medium truncate">
-                                      {item.label}
-                                    </p>
-                                  </div>
-                                </motion.button>
-                              ))}
-                          </div>
-                        )}
+                          {inspection.items
+                            .filter((i) => i.photoUrl)
+                            .map((item) => (
+                              <motion.button
+                                key={item.id}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => setLightboxImage(item.photoUrl!)}
+                                className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
+                              >
+                                <img
+                                  src={item.photoUrl!}
+                                  alt={item.label}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <p className="text-[10px] text-white font-medium truncate">
+                                    {item.label}
+                                  </p>
+                                </div>
+                              </motion.button>
+                            ))}
+                        </div>
                       </CardContent>
                     </Card>
                   </motion.div>
@@ -518,8 +744,8 @@ export default function TrackingPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Signature Section - For inspections ready to sign */}
-        {inspections && inspections.some((i) => i.canSign) && (
+        {/* Signature Section - Only after phone verified, no second phone prompt */}
+        {phoneVerified && inspections && inspections.some((i) => i.canSign) && (
           <div className="mt-8 space-y-4">
             <div className="flex items-center justify-between px-2">
               <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -573,60 +799,20 @@ export default function TrackingPage({ params }: PageProps) {
                     </div>
 
                     <CardContent className="p-4 space-y-4">
-                      <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                        <p className="text-sm text-amber-800 dark:text-amber-200">
-                          Para confirmar a vistoria, digite os{" "}
-                          <strong>4 últimos dígitos</strong> do telefone
-                          cadastrado e assine abaixo.
-                        </p>
-                      </div>
+                      <SignaturePad
+                        onSave={(base64, metadata) =>
+                          handleSignature(inspection.id, base64, metadata)
+                        }
+                        placeholder="Assine aqui com o dedo"
+                        requireTerms
+                        termsText="Declaro que revisei as fotos da vistoria, confirmo o estado do veículo e autorizo a execução dos serviços descritos nesta ordem."
+                      />
 
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                          Últimos 4 dígitos do seu telefone
-                        </label>
-                        <input
-                          type="tel"
-                          maxLength={4}
-                          value={phoneDigits}
-                          onChange={(e) =>
-                            setPhoneDigits(
-                              e.target.value.replace(/\D/g, "").slice(0, 4),
-                            )
-                          }
-                          placeholder="0000"
-                          className="w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border-2 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                          style={{
-                            borderColor:
-                              phoneDigits.length === 4
-                                ? primaryColor
-                                : undefined,
-                          }}
-                        />
-                      </div>
-
-                      {phoneDigits.length === 4 && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          <SignaturePad
-                            onSave={(base64, metadata) =>
-                              handleSignature(inspection.id, base64, metadata)
-                            }
-                            placeholder="Assine aqui com o dedo"
-                            requireTerms
-                            termsText="Declaro que revisei as fotos da vistoria, confirmo o estado do veículo e autorizo a execução dos serviços descritos nesta ordem."
-                          />
-
-                          {saveSignature.isPending && (
-                            <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Salvando assinatura...
-                            </div>
-                          )}
-                        </motion.div>
+                      {saveSignature.isPending && (
+                        <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Salvando assinatura...
+                        </div>
                       )}
                     </CardContent>
                   </Card>

@@ -18,7 +18,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useUser } from "@clerk/nextjs";
-import { Loader2, Check, Store, User, MapPin, Palette } from "lucide-react";
+import {
+  Loader2,
+  Check,
+  Store,
+  User,
+  MapPin,
+  Palette,
+  FileText,
+} from "lucide-react";
 import { toast } from "sonner";
 
 // Schema matches the router input
@@ -33,6 +41,9 @@ const setupSchema = z.object({
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional(),
   address: z.string().optional(),
+  tosAccepted: z.boolean().refine((v) => v === true, {
+    message: "Você deve aceitar os Termos de Uso",
+  }),
 });
 
 type SetupFormData = z.infer<typeof setupSchema>;
@@ -53,6 +64,7 @@ export function SetupWizard() {
       email: "",
       phone: "",
       address: "",
+      tosAccepted: false,
     },
   });
 
@@ -90,11 +102,13 @@ export function SetupWizard() {
     setStep((s) => s - 1);
   };
 
+  const totalSteps = 4;
+
   return (
     <div className="w-full max-w-lg mx-auto">
       {/* Progress Steps */}
       <div className="flex items-center justify-between mb-8 px-4">
-        {[1, 2, 3].map((s) => (
+        {[1, 2, 3, 4].map((s) => (
           <div key={s} className="flex flex-col items-center gap-2">
             <div
               className={`
@@ -112,6 +126,7 @@ export function SetupWizard() {
               {s === 1 && "Perfil"}
               {s === 2 && "Empresa"}
               {s === 3 && "Detalhes"}
+              {s === 4 && "Termos"}
             </span>
           </div>
         ))}
@@ -126,11 +141,14 @@ export function SetupWizard() {
             {step === 1 && "Configuração de Perfil"}
             {step === 2 && "Identidade da Empresa"}
             {step === 3 && "Informações de Contato"}
+            {step === 4 && "Termos de Uso"}
           </CardTitle>
           <CardDescription>
             {step === 1 && "Vamos começar definindo seu papel na empresa."}
             {step === 2 && "Personalize a aparência do seu sistema."}
             {step === 3 && "Como seus clientes podem entrar em contato?"}
+            {step === 4 &&
+              "Leia e aceite os termos para começar a usar o Autevo."}
           </CardDescription>
         </CardHeader>
 
@@ -275,6 +293,118 @@ export function SetupWizard() {
                 </div>
               </div>
             )}
+
+            {/* STEP 4: TERMS OF SERVICE */}
+            {step === 4 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="border rounded-lg p-4 max-h-64 overflow-y-auto bg-muted/50 text-sm text-muted-foreground leading-relaxed space-y-3">
+                  <p className="font-semibold text-foreground">
+                    TERMOS DE USO — PLATAFORMA AUTEVO
+                  </p>
+                  <p className="font-semibold">1. Objeto</p>
+                  <p>
+                    O presente termo regula a utilização da plataforma Autevo,
+                    um sistema de gestão de oficinas mecânicas oferecido como
+                    software como serviço (SaaS). Ao utilizar a plataforma, o
+                    usuário concorda integralmente com estes termos.
+                  </p>
+                  <p className="font-semibold">2. Licença de Uso</p>
+                  <p>
+                    A Autevo concede ao contratante uma licença não exclusiva,
+                    intransferível e revogável para utilização da plataforma
+                    durante a vigência da assinatura ativa.
+                  </p>
+                  <p className="font-semibold">
+                    3. Responsabilidades do Contratante
+                  </p>
+                  <p>
+                    O contratante é responsável pela veracidade dos dados
+                    inseridos na plataforma, pela segurança das credenciais de
+                    acesso e pelo uso lícito do sistema conforme legislação
+                    vigente.
+                  </p>
+                  <p className="font-semibold">4. Proteção de Dados (LGPD)</p>
+                  <p>
+                    A Autevo atua como operadora dos dados pessoais inseridos
+                    pelo contratante. Os dados são armazenados em servidores
+                    seguros e não são compartilhados com terceiros, exceto
+                    quando necessário para a prestação do serviço (ex:
+                    processamento de pagamentos).
+                  </p>
+                  <p className="font-semibold">5. Disponibilidade e Suporte</p>
+                  <p>
+                    A Autevo se compromete a manter a plataforma disponível
+                    99.5% do tempo, exceto em períodos de manutenção programada.
+                    O suporte técnico é oferecido por e-mail e WhatsApp em
+                    horário comercial.
+                  </p>
+                  <p className="font-semibold">6. Pagamento e Cancelamento</p>
+                  <p>
+                    O contratante pode cancelar sua assinatura a qualquer
+                    momento. Após o cancelamento, os dados serão mantidos por 90
+                    dias para eventual portabilidade, após os quais serão
+                    permanentemente excluídos.
+                  </p>
+                  <p className="font-semibold">7. Propriedade Intelectual</p>
+                  <p>
+                    Todo o código-fonte, design, marca e conteúdo da plataforma
+                    Autevo são de propriedade exclusiva da empresa. O
+                    contratante detém a propriedade dos dados por ele inseridos.
+                  </p>
+                  <p className="font-semibold">
+                    8. Limitação de Responsabilidade
+                  </p>
+                  <p>
+                    A Autevo não se responsabiliza por danos indiretos, lucros
+                    cessantes ou prejuízos decorrentes de uso indevido da
+                    plataforma, falhas de conexão do contratante ou força maior.
+                  </p>
+                  <p className="font-semibold">9. Foro</p>
+                  <p>
+                    Fica eleito o foro da Comarca do domicílio da sede da Autevo
+                    para dirimir quaisquer questões oriundas deste termo.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 border rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="tosAccepted"
+                    className="mt-1 h-4 w-4 rounded border-gray-300"
+                    {...form.register("tosAccepted")}
+                  />
+                  <label
+                    htmlFor="tosAccepted"
+                    className="text-sm leading-relaxed"
+                  >
+                    Li e aceito os{" "}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline font-medium"
+                    >
+                      Termos de Uso
+                    </a>{" "}
+                    e a{" "}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline font-medium"
+                    >
+                      Política de Privacidade
+                    </a>{" "}
+                    da Autevo.
+                  </label>
+                </div>
+                {form.formState.errors.tosAccepted && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.tosAccepted.message}
+                  </p>
+                )}
+              </div>
+            )}
           </form>
         </CardContent>
         <CardFooter className="flex justify-between">
@@ -286,7 +416,7 @@ export function SetupWizard() {
             Voltar
           </Button>
 
-          {step < 3 ? (
+          {step < totalSteps ? (
             <Button onClick={nextStep}>Próximo</Button>
           ) : (
             <Button

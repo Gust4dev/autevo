@@ -229,10 +229,16 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col gap-4">
               <h4 className="text-white font-bold">Legal</h4>
-              <Link href="#" className="hover:text-red-500 transition-colors">
+              <Link
+                href="/terms"
+                className="hover:text-red-500 transition-colors"
+              >
                 Termos de Uso
               </Link>
-              <Link href="#" className="hover:text-red-500 transition-colors">
+              <Link
+                href="/privacy"
+                className="hover:text-red-500 transition-colors"
+              >
                 Privacidade
               </Link>
             </div>

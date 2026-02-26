@@ -10,8 +10,10 @@ import { httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import { useState } from "react";
 import superjson from "superjson";
+import { toast } from "sonner";
 import "@/lib/superjson-config"; // Register custom transformers
 import type { AppRouter } from "@/server/routers/_app";
+import { getErrorMessage } from "@/lib/formatters";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -36,12 +38,16 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         },
         queryCache: new QueryCache({
           onError: (error) => {
-            const message =
-              error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
             if (message.includes("Account suspended")) {
               window.location.href = "/suspended";
             } else if (message.includes("pending activation")) {
               window.location.href = "/activate";
+            } else if (
+              error instanceof Error &&
+              error.message.includes("BAD_REQUEST")
+            ) {
+              toast.error(message);
             }
           },
         }),
@@ -62,16 +68,17 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
             }
           },
           onError: (error) => {
-            const message =
-              error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
             if (message.includes("Account suspended")) {
               window.location.href = "/suspended";
             } else if (message.includes("pending activation")) {
               window.location.href = "/activate";
+            } else {
+              toast.error(message);
             }
           },
         }),
-      })
+      }),
   );
 
   const [trpcClient] = useState(() =>
@@ -87,7 +94,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
           transformer: superjson,
         }),
       ],
-    })
+    }),
   );
 
   return (

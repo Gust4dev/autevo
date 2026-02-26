@@ -38,6 +38,7 @@ import {
 } from "@/components/ui";
 import { trpc } from "@/lib/trpc/provider";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/formatters";
 
 interface SelectedItem {
   tempId: string;
@@ -122,7 +123,7 @@ export default function NewOrderPage() {
       // If successful, we can optionally move to next step or just show it's selected
     },
     onError: (err) => {
-      toast.error(err.message || "Erro ao criar veículo");
+      toast.error(getErrorMessage(err));
     },
   });
 
@@ -131,8 +132,8 @@ export default function NewOrderPage() {
       toast.success("Ordem de serviço criada com sucesso!");
       router.push("/dashboard/orders");
     },
-    onError: (error) => {
-      toast.error(error.message || "Erro ao criar ordem de serviço");
+    onError: (err) => {
+      toast.error(getErrorMessage(err));
     },
   });
 
@@ -209,7 +210,7 @@ export default function NewOrderPage() {
       // already handled in onSuccess, but simpler/safer here too
       setOrderData((prev) => ({ ...prev, vehicleId: v.id, customerId: "" }));
     } catch (e) {
-      // handled in onError
+      // Error handled by the mutation's onError hook already
     }
   };
 

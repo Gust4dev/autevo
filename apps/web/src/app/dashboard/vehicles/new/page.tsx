@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Save, Loader2, Search, User } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { 
-  Button, 
-  Card, 
-  CardContent, 
-  CardHeader, 
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save, Loader2, Search, User } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
   CardTitle,
   CardDescription,
   Input,
@@ -21,19 +21,32 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui';
-import { trpc } from '@/lib/trpc/provider';
-import { toast } from 'sonner';
-import { QuickCustomerForm } from '@/components/forms/QuickCustomerForm';
+} from "@/components/ui";
+import { trpc } from "@/lib/trpc/provider";
+import { toast } from "sonner";
+import { QuickCustomerForm } from "@/components/forms/QuickCustomerForm";
+
+const getErrorMessage = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("[") && message.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(message);
+      if (Array.isArray(parsed) && parsed[0]?.message) {
+        return parsed.map((e) => e.message).join(", ");
+      }
+    } catch {}
+  }
+  return message;
+};
 
 // Form validation schema
 const vehicleFormSchema = z.object({
-  plate: z.string().min(7, 'Placa inválida').max(8),
-  brand: z.string().min(2, 'Marca obrigatória'),
-  model: z.string().min(1, 'Modelo obrigatório'),
-  color: z.string().min(2, 'Cor obrigatória'),
+  plate: z.string().min(7, "Placa inválida").max(8),
+  brand: z.string().min(2, "Marca obrigatória"),
+  model: z.string().min(1, "Modelo obrigatório"),
+  color: z.string().min(2, "Cor obrigatória"),
   year: z.string().optional(),
-  customerId: z.string().min(1, 'Selecione um cliente'),
+  customerId: z.string().min(1, "Selecione um cliente"),
 });
 
 type VehicleFormData = z.infer<typeof vehicleFormSchema>;
@@ -41,9 +54,9 @@ type VehicleFormData = z.infer<typeof vehicleFormSchema>;
 export default function NewVehiclePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const preselectedCustomerId = searchParams.get('customerId');
-  
-  const [customerSearch, setCustomerSearch] = useState('');
+  const preselectedCustomerId = searchParams.get("customerId");
+
+  const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{
     id: string;
@@ -53,14 +66,14 @@ export default function NewVehiclePage() {
   const [isCreateCustomerOpen, setIsCreateCustomerOpen] = useState(false);
 
   const { data: customers = [] } = trpc.customer.search.useQuery(
-    { query: customerSearch || '' },
-    { enabled: customerSearch.length >= 2 }
+    { query: customerSearch || "" },
+    { enabled: customerSearch.length >= 2 },
   );
 
   // Load preselected customer
   const { data: preloadedCustomer } = trpc.customer.getById.useQuery(
     { id: preselectedCustomerId! },
-    { enabled: !!preselectedCustomerId && !selectedCustomer }
+    { enabled: !!preselectedCustomerId && !selectedCustomer },
   );
 
   // Set selected customer from preloaded
@@ -74,15 +87,15 @@ export default function NewVehiclePage() {
 
   const createMutation = trpc.vehicle.create.useMutation({
     onSuccess: () => {
-      toast.success('Veículo cadastrado com sucesso');
+      toast.success("Veículo cadastrado com sucesso");
       if (preselectedCustomerId) {
         router.push(`/dashboard/customers/${preselectedCustomerId}`);
       } else {
-        router.push('/dashboard/vehicles');
+        router.push("/dashboard/vehicles");
       }
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -94,18 +107,18 @@ export default function NewVehiclePage() {
   } = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleFormSchema),
     defaultValues: {
-      plate: '',
-      brand: '',
-      model: '',
-      color: '',
-      year: '',
-      customerId: preselectedCustomerId || '',
+      plate: "",
+      brand: "",
+      model: "",
+      color: "",
+      year: "",
+      customerId: preselectedCustomerId || "",
     },
   });
 
   const onSubmit = (data: VehicleFormData) => {
     createMutation.mutate({
-      plate: data.plate.replace('-', ''),
+      plate: data.plate.replace("-", ""),
       brand: data.brand,
       model: data.model,
       color: data.color,
@@ -116,16 +129,20 @@ export default function NewVehiclePage() {
 
   // Format plate as user types
   const formatPlate = (value: string) => {
-    const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (clean.length <= 3) return clean;
     if (clean.length <= 7) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
     return `${clean.slice(0, 3)}-${clean.slice(3, 7)}`;
   };
 
-  const selectCustomer = (customer: { id: string; name: string; phone: string }) => {
+  const selectCustomer = (customer: {
+    id: string;
+    name: string;
+    phone: string;
+  }) => {
     setSelectedCustomer(customer);
-    setValue('customerId', customer.id);
-    setCustomerSearch('');
+    setValue("customerId", customer.id);
+    setCustomerSearch("");
     setShowCustomerDropdown(false);
   };
 
@@ -134,7 +151,13 @@ export default function NewVehiclePage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href={preselectedCustomerId ? `/dashboard/customers/${preselectedCustomerId}` : '/dashboard/vehicles'}>
+          <Link
+            href={
+              preselectedCustomerId
+                ? `/dashboard/customers/${preselectedCustomerId}`
+                : "/dashboard/vehicles"
+            }
+          >
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
@@ -152,7 +175,8 @@ export default function NewVehiclePage() {
           <CardHeader>
             <CardTitle>Informações do Veículo</CardTitle>
             <CardDescription>
-              Preencha os dados do veículo. Campos marcados com * são obrigatórios.
+              Preencha os dados do veículo. Campos marcados com * são
+              obrigatórios.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -167,7 +191,9 @@ export default function NewVehiclePage() {
                     </div>
                     <div>
                       <p className="font-medium">{selectedCustomer.name}</p>
-                      <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedCustomer.phone}
+                      </p>
                     </div>
                   </div>
                   <Button
@@ -176,7 +202,7 @@ export default function NewVehiclePage() {
                     size="sm"
                     onClick={() => {
                       setSelectedCustomer(null);
-                      setValue('customerId', '');
+                      setValue("customerId", "");
                     }}
                   >
                     Alterar
@@ -200,16 +226,18 @@ export default function NewVehiclePage() {
                     <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg">
                       {customers.length === 0 ? (
                         <div className="p-4 text-center">
-                          <p className="text-sm text-muted-foreground mb-2">Nenhum cliente encontrado</p>
-                          <Button 
-                                type="button" 
-                                variant="outline" 
-                                size="sm" 
-                                className="w-full"
-                                onClick={() => setIsCreateCustomerOpen(true)}
-                            >
-                                + Cadastrar Novo Cliente
-                            </Button>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Nenhum cliente encontrado
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setIsCreateCustomerOpen(true)}
+                          >
+                            + Cadastrar Novo Cliente
+                          </Button>
                         </div>
                       ) : (
                         customers.map((customer) => (
@@ -224,7 +252,9 @@ export default function NewVehiclePage() {
                             </div>
                             <div>
                               <p className="font-medium">{customer.name}</p>
-                              <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {customer.phone}
+                              </p>
                             </div>
                           </button>
                         ))
@@ -237,11 +267,13 @@ export default function NewVehiclePage() {
 
             {/* Plate */}
             <div className="space-y-2">
-              <Label htmlFor="plate" required>Placa</Label>
+              <Label htmlFor="plate" required>
+                Placa
+              </Label>
               <Input
                 id="plate"
                 placeholder="ABC-1234"
-                {...register('plate', {
+                {...register("plate", {
                   onChange: (e) => {
                     e.target.value = formatPlate(e.target.value);
                   },
@@ -254,20 +286,24 @@ export default function NewVehiclePage() {
             {/* Brand & Model */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="brand" required>Marca</Label>
+                <Label htmlFor="brand" required>
+                  Marca
+                </Label>
                 <Input
                   id="brand"
                   placeholder="Ex: BMW"
-                  {...register('brand')}
+                  {...register("brand")}
                   error={errors.brand?.message}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="model" required>Modelo</Label>
+                <Label htmlFor="model" required>
+                  Modelo
+                </Label>
                 <Input
                   id="model"
                   placeholder="Ex: X5"
-                  {...register('model')}
+                  {...register("model")}
                   error={errors.model?.message}
                 />
               </div>
@@ -276,11 +312,13 @@ export default function NewVehiclePage() {
             {/* Color & Year */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="color" required>Cor</Label>
+                <Label htmlFor="color" required>
+                  Cor
+                </Label>
                 <Input
                   id="color"
                   placeholder="Ex: Preta"
-                  {...register('color')}
+                  {...register("color")}
                   error={errors.color?.message}
                 />
               </div>
@@ -292,7 +330,7 @@ export default function NewVehiclePage() {
                   placeholder="Ex: 2024"
                   min="1900"
                   max="2030"
-                  {...register('year')}
+                  {...register("year")}
                   error={errors.year?.message}
                 />
               </div>
@@ -301,7 +339,13 @@ export default function NewVehiclePage() {
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button type="button" variant="outline" asChild>
-                <Link href={preselectedCustomerId ? `/dashboard/customers/${preselectedCustomerId}` : '/dashboard/vehicles'}>
+                <Link
+                  href={
+                    preselectedCustomerId
+                      ? `/dashboard/customers/${preselectedCustomerId}`
+                      : "/dashboard/vehicles"
+                  }
+                >
                   Cancelar
                 </Link>
               </Button>
@@ -322,22 +366,25 @@ export default function NewVehiclePage() {
           </CardContent>
         </Card>
       </form>
-      <Dialog open={isCreateCustomerOpen} onOpenChange={setIsCreateCustomerOpen}>
+      <Dialog
+        open={isCreateCustomerOpen}
+        onOpenChange={setIsCreateCustomerOpen}
+      >
         <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Novo Cliente</DialogTitle>
-                <DialogDescription>
-                    Cadastre rapidamente um cliente para vincular a este veículo.
-                </DialogDescription>
-            </DialogHeader>
-            <QuickCustomerForm 
-                onCancel={() => setIsCreateCustomerOpen(false)}
-                onSuccess={(customer) => {
-                    setIsCreateCustomerOpen(false);
-                    // Select the new customer
-                    selectCustomer(customer);
-                }}
-            />
+          <DialogHeader>
+            <DialogTitle>Novo Cliente</DialogTitle>
+            <DialogDescription>
+              Cadastre rapidamente um cliente para vincular a este veículo.
+            </DialogDescription>
+          </DialogHeader>
+          <QuickCustomerForm
+            onCancel={() => setIsCreateCustomerOpen(false)}
+            onSuccess={(customer) => {
+              setIsCreateCustomerOpen(false);
+              // Select the new customer
+              selectCustomer(customer);
+            }}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -13,3 +13,20 @@ export function formatBRL(value: number): string {
         currency: 'BRL',
     }).format(value);
 }
+
+export function getErrorMessage(error: unknown): string {
+    if (!error) return "Erro desconhecido";
+
+    const message = error instanceof Error ? error.message : String(error);
+    const trimmed = message.trim();
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
+                return parsed.map((e: any) => e.message).join(", ");
+            }
+        } catch { }
+    }
+    return message;
+}

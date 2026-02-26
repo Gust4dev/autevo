@@ -23,6 +23,9 @@ import {
   Globe,
   Database,
   Bell,
+  Hash,
+  Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { exportToExcel, formatFilenameDate } from "@/lib/export";
 import Link from "next/link";
@@ -84,6 +87,8 @@ export default function SettingsPage() {
     "NONE" | "ENTRY" | "EXIT" | "BOTH"
   >("NONE");
   const [inspectionSignature, setInspectionSignature] = useState(true);
+  const [requireApproval, setRequireApproval] = useState(false);
+  const [showWallet, setShowWallet] = useState(true);
   const [inactivityReminderEnabled, setInactivityReminderEnabled] =
     useState(false);
   const [customerInactivityDays, setCustomerInactivityDays] = useState(30);
@@ -202,6 +207,8 @@ export default function SettingsPage() {
 
       setInspectionRequired((settings as any).inspectionRequired || "NONE");
       setInspectionSignature((settings as any).inspectionSignature ?? true);
+      setRequireApproval((settings as any).requireApproval ?? false);
+      setShowWallet((settings as any).showWallet ?? true);
       setInactivityReminderEnabled(
         (settings as any).inactivityReminderEnabled ?? false,
       );
@@ -272,6 +279,8 @@ export default function SettingsPage() {
       slug: data.slug,
       inspectionRequired: inspectionRequired,
       inspectionSignature: inspectionSignature,
+      requireApproval: requireApproval,
+      showWallet: showWallet,
       customerInactivityDays: Math.max(
         7,
         Math.min(365, customerInactivityDays || 30),
@@ -747,6 +756,31 @@ export default function SettingsPage() {
                         />
                       </button>
                     </div>
+
+                    <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/20">
+                      <div className="space-y-0.5">
+                        <Label>Exigir aprovação antes de iniciar OS</Label>
+                        <p className="text-xs text-muted-foreground">
+                          O cliente deve aprovar o orçamento digitalmente antes
+                          da execução.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={requireApproval}
+                        onClick={() => setRequireApproval(!requireApproval)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          requireApproval ? "bg-primary" : "bg-muted"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            requireApproval ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -926,6 +960,48 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
+            {/* Numeração de OS */}
+            <SequenceConfig />
+
+            {/* Visibilidade da Carteira */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Comissões e Carteira
+                </CardTitle>
+                <CardDescription>
+                  Controle a visibilidade da aba "Carteira" para os funcionários
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/20">
+                  <div className="space-y-0.5">
+                    <Label>Exibir aba Carteira para funcionários</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Quando desativado, a aba de comissões não aparecerá para
+                      os membros da equipe.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showWallet}
+                    onClick={() => setShowWallet(!showWallet)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showWallet ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showWallet ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Notificações Push */}
             <Card>
               <CardHeader>
@@ -1001,6 +1077,137 @@ function InfoIcon({ className }: { className?: string }) {
       <path d="M12 16v-4" />
       <path d="M12 8h.01" />
     </svg>
+  );
+}
+
+function SequenceConfig() {
+  const [prefix, setPrefix] = useState("OS");
+  const [startValue, setStartValue] = useState(0);
+  const [isSaved, setIsSaved] = useState(false);
+
+  const orderCountQuery = trpc.order.list.useQuery(
+    { page: 1, limit: 1 },
+    { select: (data) => data.pagination.total },
+  );
+
+  const sequenceMutation = trpc.tenant.setInitialSequence.useMutation({
+    onSuccess: () => {
+      toast.success("Numeração configurada com sucesso!");
+      setIsSaved(true);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao configurar numeração");
+    },
+  });
+
+  const hasOrders = (orderCountQuery.data ?? 0) > 0;
+  const previewCode = `${prefix}-${(startValue + 1).toString().padStart(4, "0")}`;
+
+  const handleSave = () => {
+    if (hasOrders) return;
+    sequenceMutation.mutate({ prefix: prefix.toUpperCase(), startValue });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Hash className="h-5 w-5 text-primary" />
+          Numeração de OS
+        </CardTitle>
+        <CardDescription>
+          Configure o prefixo e a numeração inicial das ordens de serviço
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {hasOrders && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4">
+            <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Numeração bloqueada
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                A sequência não pode ser alterada após a criação da primeira OS
+                para evitar conflitos de numeração.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="seq-prefix">Prefixo</Label>
+            <Input
+              id="seq-prefix"
+              placeholder="OS"
+              value={prefix}
+              onChange={(e) =>
+                setPrefix(
+                  e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""),
+                )
+              }
+              maxLength={10}
+              disabled={hasOrders}
+              className="font-mono uppercase"
+            />
+            <p className="text-xs text-muted-foreground">
+              Letras maiúsculas, números e hífens
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="seq-start">Valor Inicial</Label>
+            <Input
+              id="seq-start"
+              type="number"
+              placeholder="0"
+              value={startValue}
+              onChange={(e) =>
+                setStartValue(
+                  Math.max(0, Math.min(99999, parseInt(e.target.value) || 0)),
+                )
+              }
+              min={0}
+              max={99999}
+              disabled={hasOrders}
+            />
+            <p className="text-xs text-muted-foreground">
+              A primeira OS será {previewCode}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
+          <div>
+            <p className="text-sm font-medium">Preview</p>
+            <p className="text-2xl font-mono font-bold text-primary">
+              {previewCode}
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={hasOrders || sequenceMutation.isPending || isSaved}
+            size="lg"
+          >
+            {sequenceMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Salvando...
+              </>
+            ) : isSaved ? (
+              <>Salvo ✓</>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Salvar Numeração
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

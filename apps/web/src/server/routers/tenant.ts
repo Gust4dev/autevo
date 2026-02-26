@@ -10,6 +10,7 @@ const setupSchema = z.object({
     email: z.string().email('Email inválido').optional().or(z.literal('')),
     phone: z.string().optional(),
     address: z.string().optional(),
+    tosAccepted: z.boolean().optional(),
 });
 
 export const tenantRouter = router({
@@ -26,22 +27,37 @@ export const tenantRouter = router({
                 });
             }
 
+            if (isInitialSetup && !input.tosAccepted) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: 'Você deve aceitar os Termos de Uso para continuar',
+                });
+            }
+
             await ctx.db.$transaction(async (tx: any) => {
                 await tx.user.update({
                     where: { id: ctx.user!.id },
                     data: { jobTitle: input.jobTitle },
                 });
 
+                const tenantData: Record<string, unknown> = {
+                    name: input.tenantName,
+                    primaryColor: input.primaryColor,
+                    logo: input.logo,
+                    email: input.email || null,
+                    phone: input.phone,
+                    address: input.address,
+                };
+
+                if (isInitialSetup && input.tosAccepted) {
+                    tenantData.tosAcceptedAt = new Date();
+                    tenantData.tosVersion = 'v1.0';
+                    tenantData.tosAcceptedByIp = (ctx as any).req?.headers?.['x-forwarded-for'] as string || 'unknown';
+                }
+
                 await tx.tenant.update({
                     where: { id: ctx.user!.tenantId! },
-                    data: {
-                        name: input.tenantName,
-                        primaryColor: input.primaryColor,
-                        logo: input.logo,
-                        email: input.email || null,
-                        phone: input.phone,
-                        address: input.address,
-                    },
+                    data: tenantData,
                 });
             });
 
@@ -50,6 +66,19 @@ export const tenantRouter = router({
             if (ctx.user?.clerkId) {
                 const { invalidateUserCache } = await import('@/lib/user-cache');
                 invalidateUserCache(ctx.user.clerkId);
+
+                // Sync tosVersion to Clerk publicMetadata for middleware check
+                if (isInitialSetup && input.tosAccepted) {
+                    const { clerkClient } = await import('@clerk/nextjs/server');
+                    const clerk = await clerkClient();
+                    const currentUser = await clerk.users.getUser(ctx.user.clerkId);
+                    await clerk.users.updateUser(ctx.user.clerkId, {
+                        publicMetadata: {
+                            ...currentUser.publicMetadata,
+                            tosVersion: 'v1.0',
+                        },
+                    }).catch(() => { });
+                }
             }
 
             // 2. Tenant status cache (Redis) - THIS IS CRITICAL
@@ -106,4 +135,44 @@ export const tenantRouter = router({
 
         return { success: true, tenantId: result.tenant.id };
     }),
+
+    setInitialSequence: protectedProcedure
+        .input(z.object({
+            prefix: z.string().min(1).max(10).regex(/^[A-Z0-9-]+$/, 'Prefixo deve conter apenas letras maiúsculas, números e hífens'),
+            startValue: z.number().min(0).max(99999).default(0),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            if (ctx.user?.role !== 'OWNER' && ctx.user?.role !== 'ADMIN_SAAS') {
+                throw new TRPCError({
+                    code: 'FORBIDDEN',
+                    message: 'Apenas o proprietário pode configurar a sequência',
+                });
+            }
+
+            const existingOrders = await ctx.db.serviceOrder.count({
+                where: { tenantId: ctx.tenantId! },
+            });
+
+            if (existingOrders > 0) {
+                throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: 'Não é possível alterar a sequência após criar ordens de serviço',
+                });
+            }
+
+            await ctx.db.tenantSequence.upsert({
+                where: { tenantId: ctx.tenantId! },
+                create: {
+                    tenantId: ctx.tenantId!,
+                    prefix: input.prefix,
+                    currentValue: input.startValue,
+                },
+                update: {
+                    prefix: input.prefix,
+                    currentValue: input.startValue,
+                },
+            });
+
+            return { success: true };
+        }),
 });

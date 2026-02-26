@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,6 +15,9 @@ import {
   Eye,
   Phone,
   ClipboardCheck,
+  Wallet,
+  DollarSign,
+  Loader2,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/provider";
 import { StatusBadge } from "@/components/orders";
@@ -216,9 +220,15 @@ function OrderCard({ order, onStatusUpdate, isUpdating }: OrderCardProps) {
 }
 
 export function TechnicianView() {
+  const [activeTab, setActiveTab] = useState<"orders" | "wallet">("orders");
   const utils = trpc.useUtils();
+  const settingsQuery = trpc.settings.get.useQuery();
+  const walletEnabled = (settingsQuery.data as any)?.showWallet !== false;
   const { data, isLoading } = trpc.order.getMyTasks.useQuery(undefined, {
     refetchInterval: 30000,
+  });
+  const commissionsQuery = trpc.order.getMyCommissions.useQuery(undefined, {
+    enabled: activeTab === "wallet" && walletEnabled,
   });
 
   const updateStatus = trpc.order.updateStatus.useMutation({
@@ -232,6 +242,12 @@ export function TechnicianView() {
   const handleStatusUpdate = (id: string, status: string) => {
     updateStatus.mutate({ id, status: status as any });
   };
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
 
   if (isLoading) {
     return (
@@ -249,78 +265,259 @@ export function TechnicianView() {
 
   return (
     <div className="space-y-6">
-      {/* Summary bar */}
-      <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
-        <div className="bg-primary/10 p-2 rounded-lg">
-          <Wrench className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold">
-            {totalActive === 0
-              ? "Nenhuma OS pendente"
-              : `${totalActive} OS${totalActive > 1 ? "s" : ""} pendente${totalActive > 1 ? "s" : ""}`}
+      {/* Tab Switcher */}
+      <div className="flex gap-1 p-1 bg-muted rounded-xl">
+        <button
+          onClick={() => setActiveTab("orders")}
+          className={cn(
+            "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+            activeTab === "orders"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Wrench className="h-4 w-4" /> Minhas OS
+        </button>
+        {walletEnabled && (
+          <button
+            onClick={() => setActiveTab("wallet")}
+            className={cn(
+              "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+              activeTab === "wallet"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Wallet className="h-4 w-4" /> Minha Carteira
+          </button>
+        )}
+      </div>
+
+      {activeTab === "wallet" && walletEnabled ? (
+        <WalletTab
+          data={commissionsQuery.data}
+          isLoading={commissionsQuery.isLoading}
+          formatCurrency={formatCurrency}
+        />
+      ) : (
+        <>
+          <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+            <div className="bg-primary/10 p-2 rounded-lg">
+              <Wrench className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">
+                {totalActive === 0
+                  ? "Nenhuma OS pendente"
+                  : `${totalActive} OS${totalActive > 1 ? "s" : ""} pendente${totalActive > 1 ? "s" : ""}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {todayOrders.length} para hoje · {upcomingOrders.length} nos
+                próximos dias
+              </p>
+            </div>
+          </div>
+
+          {todayOrders.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Hoje
+                </h2>
+                <Badge variant="secondary" className="text-xs">
+                  {todayOrders.length}
+                </Badge>
+              </div>
+              {todayOrders.map((order: any) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onStatusUpdate={handleStatusUpdate}
+                  isUpdating={updateStatus.isPending}
+                />
+              ))}
+            </section>
+          )}
+
+          {upcomingOrders.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Próximos Dias
+                </h2>
+                <Badge variant="secondary" className="text-xs">
+                  {upcomingOrders.length}
+                </Badge>
+              </div>
+              {upcomingOrders.map((order: any) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onStatusUpdate={handleStatusUpdate}
+                  isUpdating={updateStatus.isPending}
+                />
+              ))}
+            </section>
+          )}
+
+          {totalActive === 0 && (
+            <div className="text-center py-12 space-y-3">
+              <div className="text-5xl">🎉</div>
+              <p className="font-semibold">Tudo em dia!</p>
+              <p className="text-sm text-muted-foreground">
+                Nenhuma OS pendente para os próximos 7 dias.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+interface WalletTabProps {
+  data:
+    | {
+        totalPending: number;
+        totalPaid: number;
+        totalRefunded: number;
+        items: any[];
+      }
+    | undefined;
+  isLoading: boolean;
+  formatCurrency: (v: number) => string;
+}
+
+function WalletTab({ data, isLoading, formatCurrency }: WalletTabProps) {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Erro ao carregar comissões.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-center">
+          <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+            A Receber
           </p>
-          <p className="text-xs text-muted-foreground">
-            {todayOrders.length} para hoje · {upcomingOrders.length} nos
-            próximos dias
+          <p className="text-lg font-bold text-amber-800 dark:text-amber-200">
+            {formatCurrency(data.totalPending)}
+          </p>
+        </div>
+        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl p-3 text-center">
+          <p className="text-xs text-green-700 dark:text-green-300 font-medium">
+            Já Pago
+          </p>
+          <p className="text-lg font-bold text-green-800 dark:text-green-200">
+            {formatCurrency(data.totalPaid)}
+          </p>
+        </div>
+        <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3 text-center">
+          <p className="text-xs text-red-700 dark:text-red-300 font-medium">
+            Estornado
+          </p>
+          <p className="text-lg font-bold text-red-800 dark:text-red-200">
+            {formatCurrency(data.totalRefunded)}
           </p>
         </div>
       </div>
 
-      {/* Today */}
-      {todayOrders.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Hoje
-            </h2>
-            <Badge variant="secondary" className="text-xs">
-              {todayOrders.length}
-            </Badge>
-          </div>
-          {todayOrders.map((order: any) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              onStatusUpdate={handleStatusUpdate}
-              isUpdating={updateStatus.isPending}
-            />
-          ))}
-        </section>
-      )}
-
-      {/* Upcoming */}
-      {upcomingOrders.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Próximos Dias
-            </h2>
-            <Badge variant="secondary" className="text-xs">
-              {upcomingOrders.length}
-            </Badge>
-          </div>
-          {upcomingOrders.map((order: any) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              onStatusUpdate={handleStatusUpdate}
-              isUpdating={updateStatus.isPending}
-            />
-          ))}
-        </section>
-      )}
-
-      {/* Empty state */}
-      {totalActive === 0 && (
+      {/* Commission List */}
+      {data.items.length === 0 ? (
         <div className="text-center py-12 space-y-3">
-          <div className="text-5xl">🎉</div>
-          <p className="font-semibold">Tudo em dia!</p>
+          <div className="text-5xl">💰</div>
+          <p className="font-semibold">Nenhuma comissão</p>
           <p className="text-sm text-muted-foreground">
-            Nenhuma OS pendente para os próximos 7 dias.
+            Suas comissões aparecerão aqui conforme OS forem concluídas.
           </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {data.items.map((item: any) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between p-3 bg-card border rounded-xl"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={cn(
+                    "p-2 rounded-lg",
+                    item.isRefund
+                      ? "bg-red-100 dark:bg-red-950/40"
+                      : item.isPaid
+                        ? "bg-green-100 dark:bg-green-950/40"
+                        : "bg-amber-100 dark:bg-amber-950/40",
+                  )}
+                >
+                  <DollarSign
+                    className={cn(
+                      "h-4 w-4",
+                      item.isRefund
+                        ? "text-red-600"
+                        : item.isPaid
+                          ? "text-green-600"
+                          : "text-amber-600",
+                    )}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {item.serviceName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.orderCode}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right shrink-0 ml-2">
+                <p
+                  className={cn(
+                    "text-sm font-bold",
+                    item.isRefund
+                      ? "text-red-600"
+                      : item.isPaid
+                        ? "text-green-600"
+                        : "text-amber-600",
+                  )}
+                >
+                  {item.isRefund ? "-" : "+"}
+                  {formatCurrency(Math.abs(item.value))}
+                </p>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px]",
+                    item.isRefund
+                      ? "border-red-300 text-red-600"
+                      : item.isPaid
+                        ? "border-green-300 text-green-600"
+                        : "border-amber-300 text-amber-600",
+                  )}
+                >
+                  {item.isRefund
+                    ? "Estorno"
+                    : item.isPaid
+                      ? "Pago"
+                      : "Pendente"}
+                </Badge>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

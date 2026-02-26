@@ -47,6 +47,8 @@ const updateSettingsSchema = z.object({
     businessHours: z.string().optional().nullable(),
     inspectionRequired: z.enum(['NONE', 'ENTRY', 'EXIT', 'BOTH']).optional(),
     inspectionSignature: z.boolean().optional(),
+    requireApproval: z.boolean().optional(),
+    showWallet: z.boolean().optional(),
     slug: z.string()
         .min(3, 'Link muito curto')
         .max(50, 'Link muito longo')
@@ -78,6 +80,8 @@ export const settingsRouter = router({
                 businessHours: true,
                 inspectionRequired: true,
                 inspectionSignature: true,
+                requireApproval: true,
+                showWallet: true,
                 status: true,
                 plan: true,
                 customerInactivityDays: true,
@@ -139,6 +143,8 @@ export const settingsRouter = router({
                     businessHours: input.businessHours,
                     inspectionRequired: input.inspectionRequired,
                     inspectionSignature: input.inspectionSignature,
+                    requireApproval: input.requireApproval,
+                    showWallet: input.showWallet,
                     slug: input.slug,
                     customerInactivityDays: input.customerInactivityDays,
                     inactivityReminderEnabled: input.inactivityReminderEnabled,

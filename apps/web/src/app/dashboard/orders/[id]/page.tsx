@@ -387,6 +387,8 @@ export default function OrderDetailPage({ params }: PageProps) {
     },
   });
 
+  const generateApprovalLink = trpc.order.generateApprovalLink.useMutation();
+
   const updateOrderProductQuantity =
     trpc.order.updateProductQuantity.useMutation({
       onSuccess: () => {
@@ -611,7 +613,50 @@ export default function OrderDetailPage({ params }: PageProps) {
                 Contrato
               </DropdownMenuItem>
 
-              <DropdownMenuSeparator />
+              {(order.status === "AGENDADO" ||
+                order.status === "AGUARDANDO_APROVACAO") &&
+                order.vehicle.customer && (
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      try {
+                        const result = await generateApprovalLink.mutateAsync({
+                          orderId: id,
+                        });
+                        const baseUrl =
+                          typeof window !== "undefined"
+                            ? window.location.origin
+                            : "";
+                        const approvalUrl = `${baseUrl}/public/approve/${result.token}`;
+                        const customerName =
+                          order.vehicle.customer?.name?.split(" ")[0] ||
+                          "Cliente";
+                        const vehicleName = `${order.vehicle.brand} ${order.vehicle.model}`;
+                        const total = new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(Number(order.total));
+                        const message = `Olá ${customerName}! 👋\n\nSeu orçamento para o veículo *${vehicleName}* está pronto.\n\n💰 Valor total: *${total}*\n\nAcesse o link abaixo para visualizar os detalhes e aprovar:\n${approvalUrl}\n\nQualquer dúvida estamos à disposição!`;
+                        const phone =
+                          order.vehicle.customer?.phone?.replace(/\D/g, "") ||
+                          "";
+                        const whatsappUrl = `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
+                        window.open(whatsappUrl, "_blank");
+                        toast.success(
+                          "Link de aprovação gerado! WhatsApp aberto.",
+                        );
+                        utils.order.getById.invalidate({ id });
+                      } catch (err: unknown) {
+                        const error = err as { message?: string };
+                        toast.error(
+                          error.message || "Erro ao gerar link de aprovação",
+                        );
+                      }
+                    }}
+                  >
+                    <Phone className="mr-2 h-4 w-4" />
+                    Enviar Orçamento via WhatsApp
+                  </DropdownMenuItem>
+                )}
               {order.vehicle.customer && (
                 <DropdownMenuItem asChild>
                   <Link
