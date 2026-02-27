@@ -445,25 +445,25 @@ export const orderRouter = router({
                 }
             });
 
-            // If inventory already deducted, we should probably deduct this new one too?
-            // For now, Phase 3 is about tracking CMV. Inventory deduction happens on status change.
-            // If already deducted, we might need a separate logic or just deduct immediately.
+            // 🔒 ATOMIC: Deduct stock + create movement in a single transaction
             if (order.inventoryDeducted && input.productId) {
-                await ctx.db.product.update({
-                    where: { id: input.productId },
-                    data: { stock: { decrement: input.quantity } }
-                });
+                await ctx.db.$transaction(async (tx: any) => {
+                    await tx.product.update({
+                        where: { id: input.productId },
+                        data: { stock: { decrement: input.quantity } }
+                    });
 
-                await ctx.db.stockMovement.create({
-                    data: {
-                        tenantId: ctx.tenantId!,
-                        productId: input.productId,
-                        type: 'SAIDA_OS',
-                        quantity: -input.quantity,
-                        notes: `Adição manual na OS ${order.code} (Já executada)`,
-                        createdBy: ctx.user!.id,
-                        reference: `OS-${order.code}`,
-                    }
+                    await tx.stockMovement.create({
+                        data: {
+                            tenantId: ctx.tenantId!,
+                            productId: input.productId,
+                            type: 'SAIDA_OS',
+                            quantity: -input.quantity,
+                            notes: `Adição manual na OS ${order.code} (Já executada)`,
+                            createdBy: ctx.user!.id,
+                            reference: `OS-${order.code}`,
+                        }
+                    });
                 });
             }
 
@@ -487,23 +487,25 @@ export const orderRouter = router({
 
             const diff = input.quantity - item.quantity;
 
-            // Update inventory if already deducted
+            // 🔒 ATOMIC: Update stock + create movement in a single transaction
             if (item.order.inventoryDeducted && item.productId) {
-                await ctx.db.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { decrement: diff } }
-                });
+                await ctx.db.$transaction(async (tx: any) => {
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { decrement: diff } }
+                    });
 
-                await ctx.db.stockMovement.create({
-                    data: {
-                        tenantId: ctx.tenantId!,
-                        productId: item.productId,
-                        type: 'AJUSTE',
-                        quantity: -diff,
-                        notes: `Ajuste manual de quantidade na OS ${item.order.code}`,
-                        createdBy: ctx.user!.id,
-                        reference: `OS-${item.order.code}`,
-                    }
+                    await tx.stockMovement.create({
+                        data: {
+                            tenantId: ctx.tenantId!,
+                            productId: item.productId,
+                            type: 'AJUSTE',
+                            quantity: -diff,
+                            notes: `Ajuste manual de quantidade na OS ${item.order.code}`,
+                            createdBy: ctx.user!.id,
+                            reference: `OS-${item.order.code}`,
+                        }
+                    });
                 });
             }
 
@@ -525,28 +527,35 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
             }
 
-            // Reverse inventory if already deducted
+            // 🔒 ATOMIC: Reverse stock + create movement + delete item in a single transaction
             if (item.order.inventoryDeducted && item.productId) {
-                await ctx.db.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { increment: item.quantity } }
-                });
+                await ctx.db.$transaction(async (tx: any) => {
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: item.quantity } }
+                    });
 
-                await ctx.db.stockMovement.create({
-                    data: {
-                        productId: item.productId,
-                        type: 'ENTRADA',
-                        quantity: item.quantity,
-                        notes: `Remoção manual na OS ${item.order.code} (Estorno)`,
-                        createdBy: ctx.user!.id,
-                        reference: `OS-${item.order.code}`,
-                    }
+                    await tx.stockMovement.create({
+                        data: {
+                            tenantId: ctx.tenantId!,
+                            productId: item.productId,
+                            type: 'ENTRADA',
+                            quantity: item.quantity,
+                            notes: `Remoção manual na OS ${item.order.code} (Estorno)`,
+                            createdBy: ctx.user!.id,
+                            reference: `OS-${item.order.code}`,
+                        }
+                    });
+
+                    await tx.orderProduct.delete({
+                        where: { id: input.id }
+                    });
+                });
+            } else {
+                await ctx.db.orderProduct.delete({
+                    where: { id: input.id }
                 });
             }
-
-            await ctx.db.orderProduct.delete({
-                where: { id: input.id }
-            });
 
             return { success: true };
         }),
@@ -878,28 +887,47 @@ export const orderRouter = router({
                 }
             }
 
-            // 🚫 GATILHO DE CANCELAMENTO OU VOLTA DE STATUS: Estornar estoque e deletar comissões (Sprint 2.1)
+            // 🚫 GATILHO DE CANCELAMENTO OU VOLTA DE STATUS: Estornar estoque e cancelar comissões (Sprint 2.1)
             const isReverting = existing.inventoryDeducted && (input.status === 'CANCELADO' || input.status === 'AGENDADO' || input.status === 'EM_VISTORIA');
             if (isReverting) {
-                // 1. Soft-cancel ALL commissions (preserva trilha de auditoria)
-                await ctx.db.orderItemCommission.updateMany({
+                // 🛡️ GUARD: Block reversal if any commissions are already settled (paid out)
+                const settledCount = await ctx.db.orderItemCommission.count({
                     where: {
                         orderItem: { orderId: order.id },
                         status: 'ACTIVE',
-                    },
-                    data: {
-                        status: 'CANCELLED',
-                        cancelledAt: new Date(),
+                        settlementId: { not: null },
                     }
                 });
 
-                // 2. Estornar estoque se já tiver sido baixado
+                if (settledCount > 0) {
+                    throw new TRPCError({
+                        code: 'FORBIDDEN',
+                        message: `Não é possível reverter: ${settledCount} comissão(ões) já foram liquidadas (settlement). Estorne o pagamento antes de reverter a OS.`,
+                    });
+                }
+
+                // Fetch products and pending restocks BEFORE the transaction
                 const orderWithProducts = await ctx.db.serviceOrder.findUnique({
                     where: { id: input.id },
                     include: { products: true, pendingRestocks: true }
                 });
 
+                // 🔒 ATOMIC: Cancel commissions + reverse stock in a single transaction
                 await ctx.db.$transaction(async (tx: any) => {
+                    // 1. Soft-cancel all ACTIVE unsettled commissions (preserva trilha de auditoria)
+                    await tx.orderItemCommission.updateMany({
+                        where: {
+                            orderItem: { orderId: order.id },
+                            status: 'ACTIVE',
+                            settlementId: null,
+                        },
+                        data: {
+                            status: 'CANCELLED',
+                            cancelledAt: new Date(),
+                        }
+                    });
+
+                    // 2. Reverse stock for each product
                     if (orderWithProducts?.products) {
                         for (const op of orderWithProducts.products) {
                             if (!op.productId) continue;
@@ -1652,7 +1680,11 @@ export const orderRouter = router({
             const digitsOnly = phone.replace(/\D/g, '');
             const inputDigits = input.phoneExact.replace(/\D/g, '');
 
-            const isValid = (digitsOnly.endsWith(inputDigits) || inputDigits.endsWith(digitsOnly)) && Math.min(digitsOnly.length, inputDigits.length) >= 8;
+            // 🛡️ STRICT MATCH: Compare exactly the last 8 or 9 digits (phone core without country/area prefix)
+            const coreLength = Math.min(Math.max(digitsOnly.length, 8), 9);
+            const storedCore = digitsOnly.slice(-coreLength);
+            const inputCore = inputDigits.slice(-coreLength);
+            const isValid = storedCore === inputCore && storedCore.length >= 8;
 
             if (!isValid) {
                 await ctx.db.auditLog.create({

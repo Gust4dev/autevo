@@ -580,7 +580,11 @@ export default function OrderDetailPage({ params }: PageProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button
+                variant="outline"
+                size="icon"
+                data-testid="order-actions-menu"
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

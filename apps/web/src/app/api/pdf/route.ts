@@ -49,8 +49,13 @@ export async function POST(req: Request) {
             InspectionPDF({ data, qrCodeUrl, trackingUrl })
         );
 
-        // 🚀 Stream directly to S3 (eliminates OOM for large PDFs)
-        const fileName = `pdfs/os-${orderId}-${Date.now()}.pdf`;
+        // 🛡️ SECURITY: Scope PDF path by tenantId to prevent cross-tenant enumeration
+        const orderRecord = await prisma.serviceOrder.findUnique({
+            where: { id: orderId },
+            select: { tenantId: true }
+        });
+        const tenantId = orderRecord?.tenantId || 'unknown';
+        const fileName = `pdfs/${tenantId}/os-${orderId}-${Date.now()}.pdf`;
 
         const upload = new Upload({
             client: s3,

@@ -156,8 +156,8 @@ test.describe('Feature 1: Checkout Digital — WhatsApp Approval Button', () => 
         await firstOrder.click();
         await page.waitForURL(/\/dashboard\/orders\/.+$/);
 
-        // Open "..." dropdown
-        const moreButton = page.locator('button:has(svg)').last();
+        // Open "..." kebab menu (using data-testid for reliability)
+        const moreButton = page.getByTestId('order-actions-menu');
         if (await moreButton.isVisible()) {
             await moreButton.click();
             await expect(page.locator('[role="menu"]')).toBeVisible();

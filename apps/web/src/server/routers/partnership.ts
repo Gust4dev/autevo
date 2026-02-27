@@ -241,6 +241,33 @@ export const partnershipRouter = router({
     validatePartnerCode: protectedProcedure
         .input(z.object({ code: z.string() }))
         .query(async ({ ctx, input }) => {
+            // 🛡️ SECURITY: Rate-limit partner code validation (10/min per tenant)
+            const oneMinuteAgo = new Date(Date.now() - 60000);
+            const recentAttempts = await ctx.db.auditLog.count({
+                where: {
+                    tenantId: ctx.tenantId!,
+                    action: 'PARTNER_CODE_VALIDATION',
+                    createdAt: { gte: oneMinuteAgo }
+                }
+            });
+
+            if (recentAttempts >= 10) {
+                throw new TRPCError({
+                    code: 'TOO_MANY_REQUESTS',
+                    message: 'Muitas tentativas de validação. Tente novamente em 1 minuto.',
+                });
+            }
+
+            await ctx.db.auditLog.create({
+                data: {
+                    tenantId: ctx.tenantId!,
+                    userId: ctx.user?.id,
+                    action: 'PARTNER_CODE_VALIDATION',
+                    entityType: 'Tenant',
+                    metadata: { code: input.code.toUpperCase() } as any,
+                }
+            });
+
             const tenant = await ctx.db.tenant.findFirst({
                 where: {
                     partnerCode: input.code.toUpperCase(),
@@ -256,14 +283,19 @@ export const partnershipRouter = router({
                 return { valid: false, tenantName: null };
             }
 
-            // Não pode usar próprio código
             if (tenant.id === ctx.tenantId) {
                 return { valid: false, tenantName: null, error: 'Você não pode usar seu próprio código' };
             }
 
+            // 🛡️ DATA MINIMIZATION: Only reveal first word + initial to prevent full name scraping
+            const nameParts = tenant.name.split(' ');
+            const maskedName = nameParts.length > 1
+                ? `${nameParts[0]} ${nameParts[1][0]}.`
+                : nameParts[0];
+
             return {
                 valid: true,
-                tenantName: tenant.name,
+                tenantName: maskedName,
                 partnerCode: tenant.partnerCode,
             };
         }),
