@@ -543,7 +543,10 @@ export default function OrderDetailPage({ params }: PageProps) {
           {nextStatuses.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button disabled={updateStatus.isPending}>
+                <Button
+                  disabled={updateStatus.isPending}
+                  data-testid="status-trigger"
+                >
                   {updateStatus.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
@@ -560,6 +563,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                         ? "text-destructive focus:text-destructive"
                         : ""
                     }
+                    data-testid={`status-item-${status.value}`}
                   >
                     {status.label}
                   </DropdownMenuItem>

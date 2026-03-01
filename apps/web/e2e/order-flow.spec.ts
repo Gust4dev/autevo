@@ -11,14 +11,14 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
         await page.goto('/dashboard/orders');
 
         // Click "Nova OS"
-        const newOrderBtn = page.locator('text=Nova OS');
+        const newOrderBtn = page.getByTestId('new-order-btn');
         await expect(newOrderBtn).toBeVisible();
         await newOrderBtn.click();
 
         await expect(page).toHaveURL(/.*\/orders\/new/);
 
         // 2. Select "Cliente não cadastrado" to bypass empty DB
-        await page.locator('label', { hasText: 'Cliente não cadastrado' }).click();
+        await page.getByTestId('anonymous-client-radio').click();
 
         // Generate dynamic plate to avoid unique constraint crashes on re-runs
         const randomPlate = 'E2E' + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
@@ -30,13 +30,13 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
         await page.getByPlaceholder('Ex: Preto').fill('Black');
 
         // Confirm Vehicle Creation
-        await page.getByRole('button', { name: 'Confirmar Veículo' }).click();
+        await page.getByTestId('confirm-vehicle-btn').click();
 
         // Wait for it to become selected
         await expect(page.getByText('Veículo Selecionado')).toBeVisible();
 
         // Advance to step 2
-        await page.getByRole('button', { name: 'Próximo' }).click();
+        await page.getByTestId('wizard-next-btn').click();
 
         // Ensure we are inside Step 2
         await expect(page.getByText('Adicione os Serviços')).toBeVisible();
@@ -45,7 +45,7 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
         const numServices = Math.floor(Math.random() * 3) + 1; // 1, 2 or 3
         for (let i = 0; i < numServices; i++) {
             // Click "+ Adicionar Personalizado"
-            await page.getByRole('button', { name: 'Adicionar Personalizado' }).click();
+            await page.getByTestId('add-custom-service-btn').click();
 
             // Generate random name and price
             const serviceName = `Serviço E2E Automático ${i + 1} - ${Math.random().toString(36).substring(7)}`;
@@ -56,14 +56,14 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
             await page.getByRole('dialog').getByPlaceholder('0.00').fill(servicePrice.toString());
 
             // Click Adicionar inside dialog
-            await page.getByRole('dialog').getByRole('button', { name: 'Adicionar' }).click();
+            await page.getByRole('dialog').getByTestId('dialog-add-btn').click();
 
             // Short wait to allow modal closing animation
             await expect(page.getByRole('dialog')).not.toBeVisible();
         }
 
         // Move to Step 3
-        await page.getByRole('button', { name: 'Próximo' }).click();
+        await page.getByTestId('wizard-next-btn').click();
 
         // 4. Fill Scheduling
         // Pick dynamic date
@@ -84,7 +84,7 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
         await userButton.click();
 
         // Submit Creation
-        const createBtn = page.getByRole('button', { name: /^Criar OS$/i });
+        const createBtn = page.getByTestId('submit-order-btn');
         await expect(createBtn).toBeEnabled();
         await createBtn.click();
 
@@ -92,7 +92,7 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
         await expect(page).toHaveURL(/.*\/orders\/.*$/);
 
         // 5. Add a Service inside the details
-        const addItemBtn = page.getByRole('button', { name: 'Adicionar Serviço' });
+        const addItemBtn = page.getByTestId('add-service-btn');
         if (await addItemBtn.isVisible()) {
             await addItemBtn.click();
 
@@ -100,16 +100,16 @@ test.describe('Critical User Journey: Order Creation and Flow', () => {
             await page.locator('.dialog-content button[role="combobox"]').first().click();
             await page.locator('[role="option"]').first().click();
 
-            await page.getByRole('button', { name: 'Adicionar' }).click();
+            await page.getByRole('dialog').getByTestId('dialog-add-btn').click();
         }
 
         // 6. Move status to EM_EXECUCAO
-        const statusTrigger = page.locator('button:has-text("Agendado")').or(page.locator('button:has-text("Status")'));
+        const statusTrigger = page.getByTestId('status-trigger');
 
         // If there is a dropdown for statuses
         if (await statusTrigger.isVisible()) {
             await statusTrigger.click();
-            await page.locator('[role="menuitem"]:has-text("Em Execução")').click();
+            await page.getByTestId('status-item-EM_EXECUCAO').click();
 
             // Might have a confirmation toast
             await expect(page.locator('text="Status atualizado"')).toBeVisible({ timeout: 5000 });

@@ -10,7 +10,7 @@ const validTransitions: Record<string, string[]> = {
     EM_VISTORIA: ['EM_EXECUCAO', 'CANCELADO'],
     EM_EXECUCAO: ['AGUARDANDO_PAGAMENTO', 'CANCELADO'],
     AGUARDANDO_PAGAMENTO: ['CONCLUIDO', 'CANCELADO'],
-    CONCLUIDO: [],
+    CONCLUIDO: ['CANCELADO'],
     CANCELADO: ['AGENDADO'],
 };
 
@@ -66,6 +66,44 @@ const paymentSchema = z.object({
     paidAt: z.date().optional(),
     notes: z.string().optional(),
 });
+
+async function createCommissionSnapshots(
+    tx: any,
+    tenantId: string,
+    order: { assignedToId: string; assignedTo: any; items: any[] }
+): Promise<void> {
+    for (const item of order.items) {
+        const servicePercent = item.service?.defaultCommissionPercent
+            ? Number(item.service.defaultCommissionPercent) : 0;
+        const userPercent = order.assignedTo?.defaultCommissionPercent
+            ? Number(order.assignedTo.defaultCommissionPercent) : 0;
+
+        const commissionPercent = servicePercent > 0 ? servicePercent : userPercent;
+        const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
+
+        if (commissionValue <= 0) continue;
+
+        const existingCommission = await tx.orderItemCommission.findFirst({
+            where: { orderItemId: item.id, settlementId: null, status: 'ACTIVE' }
+        });
+
+        if (existingCommission) {
+            await tx.orderItemCommission.update({
+                where: { id: existingCommission.id },
+                data: { commissionValue }
+            });
+        } else {
+            await tx.orderItemCommission.create({
+                data: {
+                    tenantId,
+                    orderItemId: item.id,
+                    userId: order.assignedToId,
+                    commissionValue,
+                }
+            });
+        }
+    }
+}
 
 export const orderRouter = router({
     create: protectedProcedure
@@ -783,61 +821,29 @@ export const orderRouter = router({
                 timestamps.completedAt = new Date();
             }
 
-            const order = await ctx.db.serviceOrder.update({
-                where: { id: input.id },
-                data: {
-                    status: input.status,
-                    ...(input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted ? { inventoryDeducted: true } : {}),
-                    ...timestamps,
-                },
-                include: {
-                    products: true,
-                    items: {
-                        include: { service: true }
+            const order = await ctx.db.$transaction(async (tx: any) => {
+                const updated = await tx.serviceOrder.update({
+                    where: { id: input.id },
+                    data: {
+                        status: input.status,
+                        ...(input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted ? { inventoryDeducted: true } : {}),
+                        ...timestamps,
                     },
-                    assignedTo: true,
+                    include: {
+                        products: true,
+                        items: {
+                            include: { service: true }
+                        },
+                        assignedTo: true,
+                    }
+                });
+
+                if (input.status === 'CONCLUIDO') {
+                    await createCommissionSnapshots(tx, ctx.tenantId!, updated);
                 }
+
+                return updated;
             });
-
-            // 💰 SNAPSHOT DE COMISSÃO: Registrar valores quando a OS é concluída
-            if (input.status === 'CONCLUIDO') {
-                for (const item of order.items) {
-                    // Valor da comissão: Prioridade para o Serviço (se > 0), depois o Técnico (User)
-                    let commissionPercent = 0;
-                    const servicePercent = item.service?.defaultCommissionPercent ? Number(item.service.defaultCommissionPercent) : 0;
-                    const userPercent = order.assignedTo?.defaultCommissionPercent ? Number(order.assignedTo.defaultCommissionPercent) : 0;
-
-                    if (servicePercent > 0) {
-                        commissionPercent = servicePercent;
-                    } else {
-                        commissionPercent = userPercent;
-                    }
-
-                    const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
-
-                    if (commissionValue > 0) {
-                        const existingCommission = await ctx.db.orderItemCommission.findFirst({
-                            where: { orderItemId: item.id, settlementId: null, status: 'ACTIVE' }
-                        });
-
-                        if (existingCommission) {
-                            await ctx.db.orderItemCommission.update({
-                                where: { id: existingCommission.id },
-                                data: { commissionValue }
-                            });
-                        } else {
-                            await ctx.db.orderItemCommission.create({
-                                data: {
-                                    tenantId: ctx.tenantId!,
-                                    orderItemId: item.id,
-                                    userId: order.assignedToId,
-                                    commissionValue,
-                                }
-                            });
-                        }
-                    }
-                }
-            }
 
             // 📦 GATILHO DE ESTOQUE: Baixa automática ao entrar em execução (Sprint 2.1 e 2.2)
             if (input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted) {
@@ -909,23 +915,26 @@ export const orderRouter = router({
                 // Fetch products and pending restocks BEFORE the transaction
                 const orderWithProducts = await ctx.db.serviceOrder.findUnique({
                     where: { id: input.id },
-                    include: { products: true, pendingRestocks: true }
+                    include: { products: true, pendingRestocks: true, items: true }
                 });
 
                 // 🔒 ATOMIC: Cancel commissions + reverse stock in a single transaction
                 await ctx.db.$transaction(async (tx: any) => {
                     // 1. Soft-cancel all ACTIVE unsettled commissions (preserva trilha de auditoria)
-                    await tx.orderItemCommission.updateMany({
-                        where: {
-                            orderItem: { orderId: order.id },
-                            status: 'ACTIVE',
-                            settlementId: null,
-                        },
-                        data: {
-                            status: 'CANCELLED',
-                            cancelledAt: new Date(),
-                        }
-                    });
+                    if (orderWithProducts?.items && orderWithProducts.items.length > 0) {
+                        const itemIds = orderWithProducts.items.map((i: any) => i.id);
+                        await tx.orderItemCommission.updateMany({
+                            where: {
+                                orderItemId: { in: itemIds },
+                                status: 'ACTIVE',
+                                settlementId: null,
+                            },
+                            data: {
+                                status: 'CANCELLED',
+                                cancelledAt: new Date(),
+                            }
+                        });
+                    }
 
                     // 2. Reverse stock for each product
                     if (orderWithProducts?.products) {
@@ -1200,56 +1209,23 @@ export const orderRouter = router({
                 }
 
                 if (canComplete) {
-                    const completedOrder = await ctx.db.serviceOrder.update({
-                        where: { id: input.orderId },
-                        data: {
-                            status: 'CONCLUIDO',
-                            completedAt: new Date(),
-                        },
-                        include: {
-                            items: {
-                                include: { service: true }
+                    await ctx.db.$transaction(async (tx: any) => {
+                        const completedOrder = await tx.serviceOrder.update({
+                            where: { id: input.orderId },
+                            data: {
+                                status: 'CONCLUIDO',
+                                completedAt: new Date(),
                             },
-                            assignedTo: true,
-                        }
-                    });
-
-                    // 💰 SNAPSHOT DE COMISSÃO: Registrar valores no fechamento automático por pagamento
-                    for (const item of completedOrder.items) {
-                        let commissionPercent = 0;
-                        const servicePercent = item.service?.defaultCommissionPercent ? Number(item.service.defaultCommissionPercent) : 0;
-                        const userPercent = completedOrder.assignedTo?.defaultCommissionPercent ? Number(completedOrder.assignedTo.defaultCommissionPercent) : 0;
-
-                        if (servicePercent > 0) {
-                            commissionPercent = servicePercent;
-                        } else {
-                            commissionPercent = userPercent;
-                        }
-
-                        const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
-
-                        if (commissionValue > 0) {
-                            const existingCommission = await ctx.db.orderItemCommission.findFirst({
-                                where: { orderItemId: item.id, settlementId: null, status: 'ACTIVE' }
-                            });
-
-                            if (existingCommission) {
-                                await ctx.db.orderItemCommission.update({
-                                    where: { id: existingCommission.id },
-                                    data: { commissionValue }
-                                });
-                            } else {
-                                await ctx.db.orderItemCommission.create({
-                                    data: {
-                                        tenantId: ctx.tenantId!,
-                                        orderItemId: item.id,
-                                        userId: completedOrder.assignedToId,
-                                        commissionValue,
-                                    }
-                                });
+                            include: {
+                                items: {
+                                    include: { service: true }
+                                },
+                                assignedTo: true,
                             }
-                        }
-                    }
+                        });
+
+                        await createCommissionSnapshots(tx, ctx.tenantId!, completedOrder);
+                    });
                 }
             }
 
@@ -1554,6 +1530,21 @@ export const orderRouter = router({
                     where: { orderId: input.orderId },
                     include: {
                         items: {
+                            select: {
+                                id: true,
+                                category: true,
+                                itemKey: true,
+                                label: true,
+                                isRequired: true,
+                                isCritical: true,
+                                photoUrl: true,
+                                photos: true,
+                                status: true,
+                                damageType: true,
+                                severity: true,
+                                completedAt: true,
+                                // notes: EXCLUDED purposefully to avoid leaking internal notes
+                            },
                             orderBy: [
                                 { category: 'asc' },
                                 { createdAt: 'asc' },
@@ -1795,6 +1786,8 @@ export const orderRouter = router({
                         approvedAt: new Date(),
                         termsAcceptedAt: new Date(),
                         approvalDate: new Date(),
+                        approvalIp: ctx.headers?.ipAddress || null,
+                        approvalUserAgent: ctx.headers?.userAgent || null,
                         approvalToken: null,
                         approvalTokenExpiry: null,
                     },

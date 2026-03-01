@@ -255,7 +255,7 @@ export default function OrdersPage() {
             )}
           </Button>
           <Button asChild>
-            <Link href="/dashboard/orders/new">
+            <Link href="/dashboard/orders/new" data-testid="new-order-btn">
               <Plus className="mr-2 h-4 w-4" />
               Nova OS
             </Link>
@@ -329,7 +329,7 @@ export default function OrdersPage() {
           emptyDescription="Comece criando sua primeira ordem de serviço."
           emptyAction={
             <Button asChild>
-              <Link href="/dashboard/orders/new">
+              <Link href="/dashboard/orders/new" data-testid="new-order-btn">
                 <Plus className="mr-2 h-4 w-4" />
                 Criar OS
               </Link>
@@ -389,7 +389,9 @@ export default function OrdersPage() {
             <CardContent className="py-8 text-center space-y-4">
               <p className="text-muted-foreground">Nenhuma ordem encontrada.</p>
               <Button asChild>
-                <Link href="/dashboard/orders/new">Criar OS</Link>
+                <Link href="/dashboard/orders/new" data-testid="new-order-btn">
+                  Criar OS
+                </Link>
               </Button>
             </CardContent>
           </Card>

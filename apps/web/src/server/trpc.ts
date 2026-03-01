@@ -12,6 +12,7 @@ export interface Context {
     db: any;
     user: User | null;
     tenantId: string | null;
+    headers?: { ipAddress: string | null; userAgent: string | null };
 }
 
 const t = initTRPC.context<Context>().create({

@@ -166,5 +166,22 @@ describe('Core Backend TRPC Contracts: Flow, Inventory, Commissions', () => {
         expect(commission).toBeDefined();
         expect(commission?.commissionValue?.toNumber()).toBe(15);
     });
+    it('soft-cancels commissions if an order is reverted to CANCELADO from CONCLUIDO', async () => {
+        // The order is currently CONCLUIDO and has an ACTIVE commission.
+        await caller.order.updateStatus({
+            id: orderId,
+            status: 'CANCELADO'
+        });
+
+        const commissions = await prisma.orderItemCommission.findMany({
+            where: { tenantId }
+        });
+
+        expect(commissions.length).toBeGreaterThan(0);
+        commissions.forEach(c => {
+            expect(c.status).toBe('CANCELLED');
+            expect(c.cancelledAt).toBeInstanceOf(Date);
+        });
+    });
 
 });

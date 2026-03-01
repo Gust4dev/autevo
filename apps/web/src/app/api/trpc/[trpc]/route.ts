@@ -7,19 +7,25 @@ import type { Context } from '@/server/trpc';
 import { clerkClient } from '@clerk/nextjs/server';
 import { getCachedUser, setCachedUser, isCacheValid } from '@/lib/user-cache';
 
-async function createContext(): Promise<Context> {
+async function createContext(req: Request): Promise<Context> {
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        || req.headers.get('x-real-ip')
+        || null;
+    const userAgent = req.headers.get('user-agent') || null;
+    const requestHeaders = { ipAddress, userAgent };
+
     try {
         const { userId, sessionClaims } = await auth();
 
         if (!userId) {
-            return { db: prisma, user: null, tenantId: null };
+            return { db: prisma, user: null, tenantId: null, headers: requestHeaders };
         }
 
         if (isCacheValid(userId)) {
             const cached = getCachedUser(userId);
             if (cached) {
                 const db = cached.user.tenantId ? prisma.$extends(tenantExtension(cached.user.tenantId)) : prisma;
-                return { db, user: cached.user, tenantId: cached.user.tenantId };
+                return { db, user: cached.user, tenantId: cached.user.tenantId, headers: requestHeaders };
             }
         }
 
@@ -136,10 +142,10 @@ async function createContext(): Promise<Context> {
         }
 
         const db = user?.tenantId ? prisma.$extends(tenantExtension(user.tenantId)) : prisma;
-        return { db, user, tenantId: user?.tenantId ?? null };
+        return { db, user, tenantId: user?.tenantId ?? null, headers: requestHeaders };
     } catch (contextError) {
         console.error('[tRPC][createContext] Critical error:', contextError);
-        return { db: prisma, user: null, tenantId: null };
+        return { db: prisma, user: null, tenantId: null, headers: requestHeaders };
     }
 }
 
@@ -148,7 +154,7 @@ const handler = async (req: Request) => {
         endpoint: '/api/trpc',
         req,
         router: appRouter,
-        createContext,
+        createContext: () => createContext(req),
         onError: ({ path, error }) => {
             console.error(`[tRPC][${path}] Error:`, {
                 code: error.code,

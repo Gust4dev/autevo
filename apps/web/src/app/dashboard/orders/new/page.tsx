@@ -391,6 +391,7 @@ export default function NewOrderPage() {
                 <Label
                   htmlFor="anonymous"
                   className="font-medium cursor-pointer flex items-center gap-2"
+                  data-testid="anonymous-client-radio"
                 >
                   <UserX className="h-4 w-4" />
                   Cliente não cadastrado (Ordem Avulsa)
@@ -477,6 +478,7 @@ export default function NewOrderPage() {
                       onClick={handleCreateAnonymousVehicle}
                       disabled={createVehicle.isPending}
                       className="w-full"
+                      data-testid="confirm-vehicle-btn"
                     >
                       {createVehicle.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -673,6 +675,7 @@ export default function NewOrderPage() {
                       type="button"
                       onClick={() => setCustomServiceOpen(true)}
                       className="rounded-lg border border-dashed border-primary/50 px-4 py-2 text-sm text-primary transition-colors hover:bg-primary/5 flex items-center gap-2"
+                      data-testid="add-custom-service-btn"
                     >
                       <Plus className="h-3 w-3" />
                       Adicionar Personalizado
@@ -935,6 +938,7 @@ export default function NewOrderPage() {
               type="button"
               onClick={() => setCurrentStep((prev) => prev + 1)}
               disabled={!canProceed()}
+              data-testid="wizard-next-btn"
             >
               Próximo
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -944,6 +948,7 @@ export default function NewOrderPage() {
               type="button"
               onClick={handleSubmit}
               disabled={!canProceed() || createOrder.isPending}
+              data-testid="submit-order-btn"
             >
               {createOrder.isPending ? (
                 <>
@@ -1029,6 +1034,7 @@ export default function NewOrderPage() {
                 setCustomServiceOpen(false);
               }}
               disabled={!customServiceData.name}
+              data-testid="dialog-add-btn"
             >
               Adicionar
             </Button>
