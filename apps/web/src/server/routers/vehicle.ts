@@ -24,11 +24,12 @@ export const vehicleRouter = router({
     list: protectedProcedure
         .input(vehicleListSchema)
         .query(async ({ ctx, input }) => {
+            const tenantId = ctx.tenantId as string;
             const { page, limit, search, customerId } = input;
             const skip = (page - 1) * limit;
 
             const where = {
-                tenantId: ctx.tenantId!,
+                tenantId,
                 deletedAt: null,
                 ...(customerId && { customerId }),
                 ...(search && {
@@ -76,10 +77,11 @@ export const vehicleRouter = router({
     getById: protectedProcedure
         .input(z.object({ id: z.string() }))
         .query(async ({ ctx, input }) => {
+            const tenantId = ctx.tenantId as string;
             const vehicle = await ctx.db.vehicle.findFirst({
                 where: {
                     id: input.id,
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                     deletedAt: null,
                 },
                 include: {
@@ -107,6 +109,7 @@ export const vehicleRouter = router({
             }
 
             if (vehicle.customerId) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 vehicle.orders = vehicle.orders.filter(o => o.customerId === vehicle.customerId) as any;
             }
 
@@ -116,11 +119,12 @@ export const vehicleRouter = router({
     create: protectedProcedure
         .input(vehicleCreateSchema)
         .mutation(async ({ ctx, input }) => {
+            const tenantId = ctx.tenantId as string;
             if (input.customerId) {
                 const customer = await ctx.db.customer.findFirst({
                     where: {
                         id: input.customerId,
-                        tenantId: ctx.tenantId!,
+                        tenantId,
                     },
                 });
 
@@ -134,7 +138,7 @@ export const vehicleRouter = router({
 
             const existing = await ctx.db.vehicle.findFirst({
                 where: {
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                     plate: input.plate.toUpperCase(),
                     deletedAt: null,
                 },
@@ -155,7 +159,7 @@ export const vehicleRouter = router({
                     color: input.color,
                     year: input.year,
                     customerId: input.customerId || null,
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                 },
             });
 
@@ -170,10 +174,11 @@ export const vehicleRouter = router({
             })
         )
         .mutation(async ({ ctx, input }) => {
+            const tenantId = ctx.tenantId as string;
             const existing = await ctx.db.vehicle.findFirst({
                 where: {
                     id: input.id,
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                 },
             });
 
@@ -187,7 +192,7 @@ export const vehicleRouter = router({
             if (input.data.plate && input.data.plate !== existing.plate) {
                 const duplicate = await ctx.db.vehicle.findFirst({
                     where: {
-                        tenantId: ctx.tenantId!,
+                        tenantId,
                         plate: input.data.plate.toUpperCase(),
                         id: { not: input.id },
                         deletedAt: null,
@@ -206,7 +211,7 @@ export const vehicleRouter = router({
                 const customer = await ctx.db.customer.findFirst({
                     where: {
                         id: input.data.customerId,
-                        tenantId: ctx.tenantId!,
+                        tenantId,
                     },
                 });
 
@@ -232,10 +237,11 @@ export const vehicleRouter = router({
     delete: managerProcedure
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            const tenantId = ctx.tenantId as string;
             const existing = await ctx.db.vehicle.findFirst({
                 where: {
                     id: input.id,
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                 },
                 include: {
                     _count: { select: { orders: true } },
@@ -267,9 +273,10 @@ export const vehicleRouter = router({
     searchByPlate: protectedProcedure
         .input(z.object({ plate: z.string().min(2) }))
         .query(async ({ ctx, input }) => {
+            const tenantId = ctx.tenantId as string;
             const vehicles = await ctx.db.vehicle.findMany({
                 where: {
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                     deletedAt: null,
                     plate: { contains: input.plate, mode: 'insensitive' },
                 },

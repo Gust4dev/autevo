@@ -2,13 +2,14 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import '@/lib/superjson-config';
 import { ZodError } from 'zod';
-import { prisma, Prisma } from '@autevo/database';
+import { Prisma } from '@autevo/database';
 import type { User } from '@autevo/database';
 import { checkRateLimit, redis } from '@/lib/rate-limit';
 
 
 
 export interface Context {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     db: any;
     user: User | null;
     tenantId: string | null;
@@ -82,7 +83,7 @@ export async function invalidateTenantCache(tenantId: string): Promise<void> {
     }
 }
 
-const tenantMiddleware = middleware(async ({ ctx, next }) => {
+const tenantMiddleware = middleware(async ({ ctx, next, path }) => {
     if (!ctx.user) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Login required' });
     }
@@ -102,7 +103,6 @@ const tenantMiddleware = middleware(async ({ ctx, next }) => {
     }
 
     if (status === 'PENDING_ACTIVATION') {
-        const path = (ctx as any).path;
         const isSetupMutation = path === 'tenant.updateSetup';
 
         if (!isSetupMutation) {

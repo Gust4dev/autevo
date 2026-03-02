@@ -125,6 +125,8 @@ export default function TrackingPage({ params }: PageProps) {
 
   const utils = trpc.useUtils();
 
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
   // Check localStorage for terms acceptance on mount
   useEffect(() => {
     const accepted = localStorage.getItem(`tracking-terms-${orderId}`);
@@ -136,22 +138,42 @@ export default function TrackingPage({ params }: PageProps) {
     setTermsAccepted(true);
   };
 
-  // Real-time polling every 30 seconds
-  const { data, isLoading, error, refetch, dataUpdatedAt } =
-    trpc.order.getPublicStatus.useQuery(
-      { orderId },
-      { refetchInterval: 30000 },
-    );
+  // 🛡️ LGPD GATEWAY: Fetch public header only (no PII)
+  const {
+    data: header,
+    isLoading: isLoadingHeader,
+    error: headerError,
+    refetch: refetchHeader,
+    dataUpdatedAt: headerUpdatedAt,
+  } = trpc.order.getTrackingHeader.useQuery(
+    { orderId },
+    { refetchInterval: accessToken ? false : 30000 },
+  );
+
+  // 🔒 JWT PROTECTED: Fetch details only after phone is verified and token obtained
+  const {
+    data: details,
+    isLoading: isLoadingDetails,
+    refetch: refetchDetails,
+    dataUpdatedAt: detailsUpdatedAt,
+  } = trpc.order.getTrackingDetails.useQuery(
+    { orderId, token: accessToken! },
+    { enabled: !!accessToken, refetchInterval: 30000 },
+  );
+
+  const isLoading = isLoadingHeader || (!!accessToken && isLoadingDetails);
+  const dataUpdatedAt = detailsUpdatedAt || headerUpdatedAt;
 
   const verifyPhoneMutation = trpc.order.verifyTrackingPhone.useMutation({
     onSuccess: (result) => {
-      if (result.isValid) {
+      if (result.isValid && result.token) {
+        setAccessToken(result.token);
         setPhoneVerified(true);
         toast.success("Identidade verificada com sucesso!");
       } else {
         toast.error("Dígitos não conferem", {
           description:
-            "Certifique-se de usar os 4 últimos dígitos do seu número cadastrado na oficina.",
+            "Certifique-se de usar os últimos dígitos do seu número cadastrado na oficina.",
         });
       }
     },
@@ -164,7 +186,7 @@ export default function TrackingPage({ params }: PageProps) {
     onSuccess: () => {
       toast.success("Assinatura registrada com sucesso!");
       setSigningInspectionId(null);
-      refetch();
+      refetchDetails();
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao salvar assinatura");
@@ -218,7 +240,7 @@ export default function TrackingPage({ params }: PageProps) {
     );
   }
 
-  if (error || !data) {
+  if (headerError || !header) {
     return (
       <div className="flex h-screen flex-col items-center justify-center p-6 text-center bg-muted/5">
         <div className="p-6 rounded-full bg-red-100 dark:bg-red-900/20 mb-6 animate-in zoom-in duration-300">
@@ -242,17 +264,15 @@ export default function TrackingPage({ params }: PageProps) {
     );
   }
 
-  const {
-    customerName,
-    vehicleName,
-    vehiclePlate,
-    status,
-    inspections,
-    services,
-    total,
-    tenantContact,
-  } = data;
+  const { status, vehicleName, tenantContact } = header;
   const primaryColor = tenantContact.primaryColor || "#000000";
+
+  // Details (available only if phone verified)
+  const customerName = details?.customerName || null;
+  const vehiclePlate = details?.vehiclePlate || null;
+  const inspections = details?.inspections || [];
+  const services = details?.services || [];
+  const total = details?.total || 0;
 
   // Derived state
   const currentStatusConfig = statusConfig[status] || statusConfig["AGENDADO"];
@@ -493,7 +513,14 @@ export default function TrackingPage({ params }: PageProps) {
 
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight">
-              Olá, <span style={{ color: primaryColor }}>{customerName}</span>
+              {customerName ? (
+                <>
+                  Olá,{" "}
+                  <span style={{ color: primaryColor }}>{customerName}</span>
+                </>
+              ) : (
+                "Acompanhamento do Veículo"
+              )}
             </h1>
             <div className="flex flex-col gap-1">
               <p className="text-muted-foreground text-sm flex items-center gap-2">
@@ -560,8 +587,8 @@ export default function TrackingPage({ params }: PageProps) {
           </CardContent>
         </Card>
 
-        {/* Phone Verification Gate for Gallery & Signature */}
-        {inspections && inspections.length > 0 && !phoneVerified && (
+        {/* Phone Verification Gate for PII, Gallery & Signature */}
+        {!phoneVerified && (
           <div className="mt-8">
             <Card className="border-0 shadow-lg overflow-hidden">
               <div className="px-4 py-3 bg-muted/30 border-b flex items-center gap-2">
@@ -570,12 +597,13 @@ export default function TrackingPage({ params }: PageProps) {
                   style={{ color: primaryColor }}
                 />
                 <span className="font-medium text-sm">
-                  Verificação de Identidade
+                  Desbloqueio de Informações 🔒
                 </span>
               </div>
               <CardContent className="p-6 space-y-4">
                 <p className="text-sm text-muted-foreground text-center">
-                  Para visualizar as fotos da vistoria e assinar, digite seu{" "}
+                  Para visualizar a{" "}
+                  <strong>placa, valores, fotos e vistorias</strong>, digite seu{" "}
                   <strong>número de celular</strong> cadastrado na oficina.
                 </p>
                 <input
@@ -616,7 +644,7 @@ export default function TrackingPage({ params }: PageProps) {
                   )}
                   {verifyPhoneMutation.isPending
                     ? "Verificando..."
-                    : "Verificar e Ver Fotos"}
+                    : "Verificar Acesso Seguro"}
                 </Button>
               </CardContent>
             </Card>
@@ -915,59 +943,61 @@ export default function TrackingPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Services & Values */}
-        <div className="mt-8 space-y-4">
-          <div className="px-2">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <FileText
-                className="h-5 w-5 text-primary"
-                style={{ color: primaryColor }}
-              />
-              Resumo do Pedido
-            </h3>
-          </div>
+        {/* Services & Values - Protected by Phone Verification (LGPD) */}
+        {phoneVerified && services.length > 0 && (
+          <div className="mt-8 space-y-4">
+            <div className="px-2">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <FileText
+                  className="h-5 w-5 text-primary"
+                  style={{ color: primaryColor }}
+                />
+                Resumo do Pedido
+              </h3>
+            </div>
 
-          <Card className="border-0 shadow-md overflow-hidden">
-            <div className="p-1 bg-muted/50 border-b border-dashed" />
-            <CardContent className="p-0">
-              <div className="divide-y divide-muted/50">
-                {services.map((service, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between items-center p-4 hover:bg-muted/5 transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
-                      <span className="text-sm font-medium text-foreground/80">
-                        {service.name}
+            <Card className="border-0 shadow-md overflow-hidden">
+              <div className="p-1 bg-muted/50 border-b border-dashed" />
+              <CardContent className="p-0">
+                <div className="divide-y divide-muted/50">
+                  {services.map((service, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between items-center p-4 hover:bg-muted/5 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                        <span className="text-sm font-medium text-foreground/80">
+                          {service.name}
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold whitespace-nowrap ml-4">
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(service.total)}
                       </span>
                     </div>
-                    <span className="text-sm font-semibold whitespace-nowrap ml-4">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(service.total)}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </CardContent>
+              <div className="bg-muted/30 p-4 flex justify-between items-center border-t">
+                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  Total Final
+                </span>
+                <span
+                  className="text-xl font-bold"
+                  style={{ color: primaryColor }}
+                >
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(total)}
+                </span>
               </div>
-            </CardContent>
-            <div className="bg-muted/30 p-4 flex justify-between items-center border-t">
-              <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Total Final
-              </span>
-              <span
-                className="text-xl font-bold"
-                style={{ color: primaryColor }}
-              >
-                {new Intl.NumberFormat("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                }).format(total)}
-              </span>
-            </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        )}
 
         {/* Store Info */}
         <div className="mt-10 mb-6 text-center">

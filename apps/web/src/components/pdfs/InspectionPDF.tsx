@@ -13,7 +13,7 @@ import type { AppRouter } from "@/server/routers/_app";
 import type { inferRouterOutputs } from "@trpc/server";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
-type PublicStatus = RouterOutputs["order"]["getPublicStatus"] & {
+type PublicStatus = RouterOutputs["order"]["getForPdf"] & {
   vehiclePlate?: string | null;
   products?: { name: string; quantity: number }[];
   payments?: { amount: number; method: string; paidAt: Date }[];

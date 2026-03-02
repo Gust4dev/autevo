@@ -33,9 +33,9 @@ export default function ApproveOrderPage({ params }: PageProps) {
     }
   }, [token]);
 
-  const { data, isLoading, error } = trpc.order.getPublicStatus.useQuery(
-    { orderId: orderId! },
-    { enabled: !!orderId },
+  const { data, isLoading, error } = trpc.order.getForApproval.useQuery(
+    { token: token },
+    { enabled: !!token },
   );
 
   const approveMutation = trpc.order.approveOrder.useMutation({

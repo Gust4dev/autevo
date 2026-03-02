@@ -20,9 +20,9 @@ export function PDFDownloadButton({ orderId }: { orderId: string }) {
   >(null);
   const [iconBase64, setIconBase64] = useState<string | null>(null);
 
-  const { data: publicStatus, isLoading } = trpc.order.getPublicStatus.useQuery(
-    { orderId },
-  );
+  const { data: publicStatus, isLoading } = trpc.order.getForPdf.useQuery({
+    orderId,
+  });
 
   useEffect(() => {
     setIsClient(true);

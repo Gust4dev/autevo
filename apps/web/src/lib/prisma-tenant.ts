@@ -2,16 +2,13 @@ import { Prisma } from '@prisma/client';
 
 export function tenantExtension(tenantId: string | null) {
     if (!Prisma.dmmf) {
-        // [CRÍTICO] Fallback removido: Não podemos operar sem DMMF, ou vazaremos dados de múltiplos tenants.
         throw new Error("[SECURITY_FATAL] Prisma DMMF indisponível. Isolamento de Tenant comprometido. Abortando execução.");
     }
 
-    // Models that EXPLICITLY have tenantId in schema.prisma
     const isolatedModels = Prisma.dmmf.datamodel.models
         .filter((m) => m.fields.some((f) => f.name === 'tenantId'))
         .map((m) => m.name);
 
-    // Helper to deeply inject tenantId into Nested Connects
     const injectTenantIntoConnects = (data: any, currentModelName: string): any => {
         if (!data || typeof data !== 'object') return data;
 
@@ -20,18 +17,24 @@ export function tenantExtension(tenantId: string | null) {
 
         const newData = { ...data };
 
+        // 🛡️ SECURITY: Deep Freeze - Impede que campos de tenantId aninhados vazem outro Tenant.
+        const isCurrentIsolated = isolatedModels.includes(currentModelName);
+        if (isCurrentIsolated && tenantId) {
+            if ('tenantId' in newData) {
+                newData.tenantId = tenantId;
+            }
+        }
+
         for (const [key, value] of Object.entries(newData)) {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
                 const fieldDef = modelDef.fields.find(f => f.name === key);
 
-                // If it's a relation field
                 if (fieldDef && fieldDef.kind === 'object') {
                     const targetModelName = fieldDef.type;
                     const targetIsIsolated = isolatedModels.includes(targetModelName);
                     const operationObj = value as any;
 
                     if (targetIsIsolated) {
-                        // Handle connects
                         if (operationObj.connect) {
                             if (Array.isArray(operationObj.connect)) {
                                 operationObj.connect = operationObj.connect.map((c: any) => ({ ...c, tenantId }));
@@ -40,7 +43,20 @@ export function tenantExtension(tenantId: string | null) {
                             }
                         }
 
-                        // Also inject tenantId in creates if omitted (though top level already does, nested might need it)
+                        if (operationObj.connectOrCreate) {
+                            if (Array.isArray(operationObj.connectOrCreate)) {
+                                operationObj.connectOrCreate = operationObj.connectOrCreate.map((c: any) => ({
+                                    where: { ...c.where, tenantId },
+                                    create: { ...injectTenantIntoConnects(c.create, targetModelName), tenantId }
+                                }));
+                            } else {
+                                operationObj.connectOrCreate = {
+                                    where: { ...operationObj.connectOrCreate.where, tenantId },
+                                    create: { ...injectTenantIntoConnects(operationObj.connectOrCreate.create, targetModelName), tenantId }
+                                };
+                            }
+                        }
+
                         if (operationObj.create) {
                             if (Array.isArray(operationObj.create)) {
                                 operationObj.create = operationObj.create.map((c: any) => ({
@@ -56,16 +72,33 @@ export function tenantExtension(tenantId: string | null) {
                         }
 
                         if (operationObj.update) {
-                            // Can be an array of updates or single update
                             if (Array.isArray(operationObj.update)) {
                                 operationObj.update = operationObj.update.map((u: any) => ({
                                     ...u,
-                                    data: injectTenantIntoConnects(u.data, targetModelName)
+                                    data: injectTenantIntoConnects(u.data || u, targetModelName)
                                 }));
                             } else if (operationObj.update.data) {
                                 operationObj.update.data = injectTenantIntoConnects(operationObj.update.data, targetModelName);
                             } else {
                                 operationObj.update = injectTenantIntoConnects(operationObj.update, targetModelName);
+                            }
+                        }
+
+                        if (operationObj.upsert) {
+                            if (Array.isArray(operationObj.upsert)) {
+                                operationObj.upsert = operationObj.upsert.map((u: any) => ({
+                                    ...u,
+                                    where: { ...u.where, tenantId },
+                                    create: { ...injectTenantIntoConnects(u.create, targetModelName), tenantId },
+                                    update: injectTenantIntoConnects(u.update || u, targetModelName)
+                                }));
+                            } else {
+                                operationObj.upsert = {
+                                    ...operationObj.upsert,
+                                    where: { ...operationObj.upsert.where, tenantId },
+                                    create: { ...injectTenantIntoConnects(operationObj.upsert.create, targetModelName), tenantId },
+                                    update: injectTenantIntoConnects(operationObj.upsert.update || operationObj.upsert, targetModelName)
+                                };
                             }
                         }
                     }
@@ -85,13 +118,26 @@ export function tenantExtension(tenantId: string | null) {
                         }
 
                         // For tenant-specific models, inject tenantId filter
-                        if (tenantId && ['findFirst', 'findUnique', 'findMany', 'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany'].includes(operation)) {
+                        if (tenantId && ['findFirst', 'findUnique', 'findMany', 'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'].includes(operation)) {
                             const newArgs = { ...args } as any;
                             newArgs.where = {
                                 ...newArgs.where,
                                 tenantId: tenantId,
                             };
-                            return query(newArgs);
+
+                            if (operation === 'upsert') {
+                                if (newArgs.create) {
+                                    newArgs.create = {
+                                        ...injectTenantIntoConnects(newArgs.create, model),
+                                        tenantId: tenantId
+                                    };
+                                }
+                                if (newArgs.update) {
+                                    newArgs.update = injectTenantIntoConnects(newArgs.update, model);
+                                }
+                            }
+
+                            args = newArgs;
                         }
 
                         // For creation, ensure tenantId is injected and deep connects are verified
@@ -115,6 +161,7 @@ export function tenantExtension(tenantId: string | null) {
                             return query(newArgs);
                         }
 
+                        // Allow normal execution if it wasn't intercepted natively above
                         return query(args);
                     },
                 },

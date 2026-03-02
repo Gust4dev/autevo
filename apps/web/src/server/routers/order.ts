@@ -472,20 +472,20 @@ export const orderRouter = router({
                 }
             }
 
-            const orderProduct = await ctx.db.orderProduct.create({
-                data: {
-                    tenantId: ctx.tenantId!,
-                    orderId: input.orderId,
-                    productId: input.productId,
-                    customName: name,
-                    costPrice: costPrice,
-                    quantity: input.quantity,
-                }
-            });
+            // 🔒 ATOMIC: Create item, deduct stock and create movement in a single transaction
+            return await ctx.db.$transaction(async (tx: any) => {
+                const orderProduct = await tx.orderProduct.create({
+                    data: {
+                        tenantId: ctx.tenantId!,
+                        orderId: input.orderId,
+                        productId: input.productId,
+                        customName: name,
+                        costPrice: costPrice,
+                        quantity: input.quantity,
+                    }
+                });
 
-            // 🔒 ATOMIC: Deduct stock + create movement in a single transaction
-            if (order.inventoryDeducted && input.productId) {
-                await ctx.db.$transaction(async (tx: any) => {
+                if (order.inventoryDeducted && input.productId) {
                     await tx.product.update({
                         where: { id: input.productId },
                         data: { stock: { decrement: input.quantity } }
@@ -502,10 +502,10 @@ export const orderRouter = router({
                             reference: `OS-${order.code}`,
                         }
                     });
-                });
-            }
+                }
 
-            return orderProduct;
+                return orderProduct;
+            });
         }),
 
     updateProductQuantity: protectedProcedure
@@ -633,16 +633,24 @@ export const orderRouter = router({
             }
 
             // 🛡️ Sprint 3: Imutabilidade Financeira
-            // Se estamos tentando alterar os items ou o valor de desconto, precisamos garantir que nada foi liquidado.
-            if (input.data.items || input.data.discountValue !== undefined || input.data.discountType !== undefined) {
-                const settledItems = existing.items.filter((i: any) =>
-                    i.commissions?.some((c: any) => c.settlementId !== null)
-                );
+            const isFinanciallyLocked = ['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(existing.status);
 
-                if (settledItems.length > 0) {
+            if (isFinanciallyLocked) {
+                if (input.data.items || input.data.discountValue !== undefined || input.data.discountType !== undefined) {
+                    await ctx.db.auditLog.create({
+                        data: {
+                            tenantId: ctx.tenantId!,
+                            userId: ctx.user!.id,
+                            action: 'FINANCIAL_TAMPERING_BLOCKED',
+                            entityType: 'ServiceOrder',
+                            entityId: input.id,
+                            metadata: { targetStatus: existing.status } as any
+                        }
+                    }).catch(() => { });
+
                     throw new TRPCError({
                         code: 'FORBIDDEN',
-                        message: 'Operação Bloqueada: Não é possível altear os valores ou serviços de uma Ordem com comissões já pagas.',
+                        message: `Operação Bloqueada: Ordem em status ${existing.status} possui imutabilidade financeira. Reabra a OS para editar valores.`,
                     });
                 }
             }
@@ -1413,15 +1421,12 @@ export const orderRouter = router({
             });
         }),
 
-    getPublicStatus: publicProcedure
+    getTrackingHeader: publicProcedure
         .input(z.object({ orderId: z.string() }))
         .output(z.object({
             id: z.string(),
             status: z.nativeEnum(PrismaOrderStatus).or(z.string()),
-            customerName: z.string(),
             vehicleName: z.string(),
-            vehicleColor: z.string(),
-            vehiclePlate: z.string().nullable(),
             tenantContact: z.object({
                 name: z.string(),
                 whatsapp: z.string().nullable(),
@@ -1429,8 +1434,135 @@ export const orderRouter = router({
                 logo: z.string().nullable(),
                 primaryColor: z.string(),
                 secondaryColor: z.string(),
-                inspectionSignature: z.boolean(),
             }),
+        }))
+        .query(async ({ ctx, input }) => {
+            const order = await ctx.db.serviceOrder.findUnique({
+                where: { id: input.orderId },
+                include: {
+                    vehicle: { select: { model: true, brand: true } },
+                    tenant: { select: { name: true, phone: true, logo: true, primaryColor: true, secondaryColor: true } }
+                }
+            });
+
+            if (!order) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem de serviço não encontrada.' });
+            }
+
+            return {
+                id: order.id,
+                status: order.status,
+                vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
+                tenantContact: {
+                    name: order.tenant.name,
+                    whatsapp: order.tenant.phone,
+                    phone: order.tenant.phone,
+                    logo: order.tenant.logo,
+                    primaryColor: order.tenant.primaryColor || '#DC2626',
+                    secondaryColor: order.tenant.secondaryColor || '#1F2937',
+                }
+            };
+        }),
+
+    // 🔒 Internal procedure for PDF Generation (Protected, only logged in users)
+    getForPdf: protectedProcedure
+        .input(z.object({ orderId: z.string() }))
+        .query(async ({ ctx, input }) => {
+            const order = await ctx.db.serviceOrder.findUnique({
+                where: { id: input.orderId, tenantId: ctx.tenantId! },
+                include: {
+                    vehicle: { select: { plate: true, model: true, brand: true, color: true, customer: { select: { name: true } } } },
+                    tenant: { select: { name: true, phone: true, logo: true, primaryColor: true, secondaryColor: true, inspectionSignature: true } },
+                    items: { select: { id: true, service: { select: { name: true } }, customName: true, price: true, quantity: true } },
+                    products: { select: { id: true, customName: true, quantity: true } },
+                    payments: { select: { id: true, amount: true, method: true, paidAt: true }, orderBy: { paidAt: 'asc' } }
+                }
+            });
+
+            if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem não encontrada' });
+
+            const inspections = await ctx.db.inspection.findMany({
+                where: { orderId: input.orderId, tenantId: ctx.tenantId! },
+                include: { items: { orderBy: [{ category: 'asc' }, { createdAt: 'asc' }] }, damages: true },
+                orderBy: { createdAt: 'asc' },
+            });
+
+            return {
+                id: order.id,
+                status: order.status,
+                customerName: order.vehicle.customer?.name?.split(' ')[0] || 'Cliente',
+                vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
+                vehicleColor: order.vehicle.color || 'N/A',
+                vehiclePlate: order.vehicle.plate ? order.vehicle.plate.substring(0, 3) + '****' : null,
+                tenantContact: {
+                    name: order.tenant.name,
+                    whatsapp: order.tenant.phone,
+                    phone: order.tenant.phone,
+                    logo: order.tenant.logo,
+                    primaryColor: order.tenant.primaryColor || '#DC2626',
+                    secondaryColor: order.tenant.secondaryColor || '#1F2937',
+                    inspectionSignature: (order.tenant as any).inspectionSignature ?? true,
+                },
+                services: order.items.map((item: any) => ({ name: item.customName || item.service?.name || 'Serviço', total: Number(item.price) * item.quantity })),
+                products: order.products.map((prod: any) => ({ name: prod.customName || 'Produto', quantity: prod.quantity })),
+                payments: order.payments.map((pay: any) => ({ amount: Number(pay.amount), method: pay.method, paidAt: pay.paidAt })),
+                subtotal: Number(order.subtotal || 0),
+                discountType: order.discountType,
+                discountValue: Number(order.discountValue || 0),
+                total: Number(order.total),
+                inspections: inspections
+            };
+        }),
+
+    // 🔒 Procedure for Customer Approvals utilizing secure signed token
+    getForApproval: publicProcedure
+        .input(z.object({ token: z.string() }))
+        .query(async ({ ctx, input }) => {
+            // Let's rely on standard try/catch if token is malformed
+            const [header, payloadObj, sig] = input.token.split('.');
+            if (!header || !payloadObj || !sig) throw new TRPCError({ code: 'UNAUTHORIZED' });
+
+            const payload = JSON.parse(Buffer.from(payloadObj, 'base64').toString('utf8'));
+            if (!payload.orderId) throw new TRPCError({ code: 'UNAUTHORIZED' });
+
+            const order = await ctx.db.serviceOrder.findUnique({
+                where: { id: payload.orderId },
+                include: {
+                    vehicle: { select: { plate: true, model: true, brand: true, color: true, customer: { select: { name: true } } } },
+                    tenant: { select: { name: true, phone: true, logo: true, primaryColor: true, secondaryColor: true, inspectionSignature: true } },
+                    items: { select: { id: true, service: { select: { name: true } }, customName: true, price: true, quantity: true } },
+                    products: { select: { id: true, customName: true, quantity: true } },
+                    payments: { select: { id: true, amount: true, method: true, paidAt: true }, orderBy: { paidAt: 'asc' } }
+                }
+            });
+
+            if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem não encontrada' });
+            if (order.approvalToken !== input.token) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Token expirado' });
+
+            return {
+                id: order.id,
+                status: order.status,
+                vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
+                vehiclePlate: order.vehicle.plate ? order.vehicle.plate.substring(0, 3) + '****' : null,
+                tenantContact: {
+                    name: order.tenant.name,
+                    logo: order.tenant.logo,
+                    primaryColor: order.tenant.primaryColor || '#DC2626',
+                    secondaryColor: order.tenant.secondaryColor || '#1F2937',
+                },
+                services: order.items.map((item: any) => ({ name: item.customName || item.service?.name || 'Serviço', total: Number(item.price) * item.quantity })),
+                products: order.products.map((prod: any) => ({ name: prod.customName || 'Produto', quantity: prod.quantity })),
+                total: Number(order.total)
+            };
+        }),
+
+    getTrackingDetails: publicProcedure
+        .input(z.object({ orderId: z.string(), token: z.string() }))
+        .output(z.object({
+            id: z.string(),
+            customerName: z.string(),
+            vehicleColor: z.string(),
+            vehiclePlate: z.string().nullable(),
             services: z.array(z.object({ name: z.string(), total: z.number() })),
             products: z.array(z.object({ name: z.string(), quantity: z.number() })),
             payments: z.array(z.object({ amount: z.number(), method: z.string(), paidAt: z.date() })),
@@ -1466,171 +1598,119 @@ export const orderRouter = router({
             })),
         }))
         .query(async ({ ctx, input }) => {
+            const { jwtVerify } = await import('jose');
+            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+
             try {
-                const order = await ctx.db.serviceOrder.findUnique({
-                    where: { id: input.orderId },
-                    include: {
-                        vehicle: {
-                            select: {
-                                plate: true,
-                                model: true,
-                                brand: true,
-                                color: true,
-                                customer: {
-                                    select: { name: true }
-                                }
-                            }
-                        },
-                        tenant: {
-                            select: {
-                                name: true,
-                                phone: true,
-                                logo: true,
-                                primaryColor: true,
-                                secondaryColor: true,
-                                inspectionSignature: true,
-                            }
-                        },
-                        items: {
-                            select: {
-                                id: true,
-                                service: { select: { name: true } },
-                                customName: true,
-                                price: true,
-                                quantity: true,
-                            }
-                        },
-                        products: {
-                            select: {
-                                id: true,
-                                customName: true,
-                                quantity: true,
-                            },
-                        },
-                        payments: {
-                            select: {
-                                id: true,
-                                amount: true,
-                                method: true,
-                                paidAt: true,
-                            },
-                            orderBy: { paidAt: 'asc' },
-                        }
-                    }
-                });
-
-                if (!order) {
-                    throw new TRPCError({
-                        code: 'NOT_FOUND',
-                        message: 'Ordem de serviço não encontrada',
-                    });
+                const { payload } = await jwtVerify(input.token, secret);
+                if (payload.orderId !== input.orderId) {
+                    throw new Error('Token mismatch');
                 }
-
-                const inspections = await ctx.db.inspection.findMany({
-                    where: { orderId: input.orderId },
-                    include: {
-                        items: {
-                            select: {
-                                id: true,
-                                category: true,
-                                itemKey: true,
-                                label: true,
-                                isRequired: true,
-                                isCritical: true,
-                                photoUrl: true,
-                                photos: true,
-                                status: true,
-                                damageType: true,
-                                severity: true,
-                                completedAt: true,
-                                // notes: EXCLUDED purposefully to avoid leaking internal notes
-                            },
-                            orderBy: [
-                                { category: 'asc' },
-                                { createdAt: 'asc' },
-                            ],
-                        },
-                        damages: true,
-                    },
-                    orderBy: { createdAt: 'asc' },
-                });
-
-                return {
-                    id: order.id,
-                    status: order.status,
-                    customerName: order.vehicle.customer?.name?.split(' ')[0] || 'Cliente',
-                    vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
-                    vehicleColor: order.vehicle.color || 'N/A',
-                    vehiclePlate: order.vehicle.plate
-                        ? order.vehicle.plate.substring(0, 3) + '****'
-                        : null,
-                    tenantContact: {
-                        name: order.tenant.name,
-                        whatsapp: order.tenant.phone,
-                        phone: order.tenant.phone,
-                        logo: order.tenant.logo,
-                        primaryColor: order.tenant.primaryColor || '#DC2626',
-                        secondaryColor: order.tenant.secondaryColor || '#1F2937',
-                        inspectionSignature: (order.tenant as any).inspectionSignature ?? true,
-                    },
-                    services: order.items.map((item: any) => ({
-                        name: item.customName || item.service?.name || 'Serviço',
-                        total: Number(item.price) * item.quantity,
-                    })),
-                    products: order.products.map((prod: any) => ({
-                        name: prod.customName || 'Produto',
-                        quantity: prod.quantity,
-                    })),
-                    payments: order.payments.map((pay: any) => ({
-                        amount: Number(pay.amount),
-                        method: pay.method,
-                        paidAt: pay.paidAt,
-                    })),
-                    subtotal: Number(order.subtotal || 0),
-                    discountType: order.discountType,
-                    discountValue: Number(order.discountValue || 0),
-                    total: Number(order.total),
-                    inspections: inspections.map((inspection: any) => {
-                        const requiredItems = inspection.items.filter((i: any) => i.isRequired);
-                        const completedRequired = requiredItems.filter((i: any) => i.status !== 'pendente').length;
-                        const allRequiredCompleted = requiredItems.length > 0 && completedRequired === requiredItems.length;
-                        const canSign = allRequiredCompleted && !inspection.signatureUrl && (order.tenant as any).inspectionSignature !== false;
-
-                        return {
-                            id: inspection.id,
-                            type: inspection.type,
-                            status: inspection.status,
-                            signatureUrl: inspection.signatureUrl,
-                            signedAt: inspection.signedAt,
-                            createdAt: inspection.createdAt,
-                            canSign,
-                            items: inspection.items.map((item: any) => ({
-                                id: item.id,
-                                category: item.category,
-                                label: item.label,
-                                status: item.status,
-                                photoUrl: item.photoUrl,
-                                photos: item.photos || [],
-                                isCritical: item.isCritical,
-                                damageType: item.damageType,
-                                severity: item.severity,
-                            })),
-                            damages: inspection.damages.map((d: any) => ({
-                                id: d.id,
-                                position: d.position,
-                                damageType: d.damageType,
-                                photoUrl: d.photoUrl,
-                            })),
-                        };
-                    }),
-                };
-            } catch (error) {
-                throw new TRPCError({
-                    code: 'INTERNAL_SERVER_ERROR',
-                    message: 'Erro ao buscar status público',
-                    cause: error
-                });
+            } catch {
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Verifique seu telefone novamente.' });
             }
+
+            const order = await ctx.db.serviceOrder.findUnique({
+                where: { id: input.orderId },
+                include: {
+                    vehicle: {
+                        select: {
+                            plate: true,
+                            color: true,
+                            customer: { select: { name: true } }
+                        }
+                    },
+                    tenant: { select: { inspectionSignature: true } },
+                    items: {
+                        select: {
+                            id: true,
+                            service: { select: { name: true } },
+                            customName: true,
+                            price: true,
+                            quantity: true,
+                        }
+                    },
+                    products: {
+                        select: {
+                            id: true,
+                            customName: true,
+                            quantity: true,
+                        },
+                    },
+                    payments: {
+                        select: { id: true, amount: true, method: true, paidAt: true },
+                        orderBy: { paidAt: 'asc' },
+                    }
+                }
+            });
+
+            if (!order) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem de serviço não encontrada' });
+            }
+
+            const inspections = await ctx.db.inspection.findMany({
+                where: { orderId: input.orderId },
+                include: {
+                    items: {
+                        select: {
+                            id: true, category: true, itemKey: true, label: true,
+                            isRequired: true, isCritical: true, photoUrl: true, photos: true,
+                            status: true, damageType: true, severity: true, completedAt: true,
+                        },
+                        orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+                    },
+                    damages: true,
+                },
+                orderBy: { createdAt: 'asc' },
+            });
+
+            return {
+                id: order.id,
+                customerName: order.vehicle.customer?.name?.split(' ')[0] || 'Cliente',
+                vehicleColor: order.vehicle.color || 'N/A',
+                vehiclePlate: order.vehicle.plate,
+                services: order.items.map((item: any) => ({
+                    name: item.customName || item.service?.name || 'Serviço',
+                    total: Number(item.price) * item.quantity,
+                })),
+                products: order.products.map((prod: any) => ({
+                    name: prod.customName || 'Produto',
+                    quantity: prod.quantity,
+                })),
+                payments: order.payments.map((pay: any) => ({
+                    amount: Number(pay.amount),
+                    method: pay.method,
+                    paidAt: pay.paidAt,
+                })),
+                subtotal: Number(order.subtotal || 0),
+                discountType: order.discountType,
+                discountValue: Number(order.discountValue || 0),
+                total: Number(order.total),
+                inspections: inspections.map((inspection: any) => {
+                    const requiredItems = inspection.items.filter((i: any) => i.isRequired);
+                    const completedRequired = requiredItems.filter((i: any) => i.status !== 'pendente').length;
+                    const allRequiredCompleted = requiredItems.length > 0 && completedRequired === requiredItems.length;
+                    const canSign = allRequiredCompleted && !inspection.signatureUrl && (order.tenant as any).inspectionSignature !== false;
+
+                    return {
+                        id: inspection.id,
+                        type: inspection.type,
+                        status: inspection.status,
+                        signatureUrl: inspection.signatureUrl,
+                        signedAt: inspection.signedAt,
+                        createdAt: inspection.createdAt,
+                        canSign,
+                        items: inspection.items.map((item: any) => ({
+                            id: item.id, category: item.category, label: item.label,
+                            status: item.status, photoUrl: item.photoUrl, photos: item.photos || [],
+                            isCritical: item.isCritical, damageType: item.damageType, severity: item.severity,
+                        })),
+                        damages: inspection.damages.map((d: any) => ({
+                            id: d.id, position: d.position, damageType: d.damageType, photoUrl: d.photoUrl,
+                        })),
+                    };
+                }),
+            };
         }),
 
     verifyTrackingPhone: publicProcedure
@@ -1648,7 +1728,7 @@ export const orderRouter = router({
                 }
             });
 
-            if (!order) return { isValid: false };
+            if (!order) return { isValid: false, token: null };
 
             // 🛡️ SECURITY: Rate limit (5 tentativas por minuto para mitigar brute-force)
             const oneMinuteAgo = new Date(Date.now() - 60000);
@@ -1666,12 +1746,11 @@ export const orderRouter = router({
             }
 
             const phone = order.customer?.phone || order.vehicle?.customer?.phone;
-            if (!phone) return { isValid: false };
+            if (!phone) return { isValid: false, token: null };
 
             const digitsOnly = phone.replace(/\D/g, '');
             const inputDigits = input.phoneExact.replace(/\D/g, '');
 
-            // 🛡️ STRICT MATCH: Compare exactly the last 8 or 9 digits (phone core without country/area prefix)
             const coreLength = Math.min(Math.max(digitsOnly.length, 8), 9);
             const storedCore = digitsOnly.slice(-coreLength);
             const inputCore = inputDigits.slice(-coreLength);
@@ -1686,10 +1765,20 @@ export const orderRouter = router({
                         entityId: input.orderId,
                         metadata: { attempted: "MASKED" } as any
                     }
-                });
+                }).catch(() => { });
+                return { isValid: false, token: null };
             }
 
-            return { isValid };
+            // 🛡️ Generate JWT Token
+            const { SignJWT } = await import('jose');
+            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const token = await new SignJWT({ orderId: input.orderId, tenantId: order.tenantId })
+                .setProtectedHeader({ alg: 'HS256' })
+                .setExpirationTime('1h')
+                .setIssuedAt()
+                .sign(secret);
+
+            return { isValid: true, token };
         }),
 
     generateApprovalLink: protectedProcedure

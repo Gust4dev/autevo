@@ -297,6 +297,7 @@ model StockMovement {
 
   @@index([productId])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 // Service Order
@@ -350,6 +351,7 @@ model ServiceOrder {
   @@index([tenantId, status])
   @@index([tenantId, scheduledAt])
   @@index([tenantId, assignedToId])
+  @@index([tenantId, createdAt])
   @@index([code])
 }
 
@@ -519,6 +521,7 @@ model Payment {
   @@index([orderId])
   @@index([paidAt])
   @@index([tenantId])
+  @@index([tenantId, paidAt])
 }
 
 // Notifications
@@ -561,6 +564,7 @@ model AuditLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([tenantId, createdAt])
 }
 
 model MessageTemplate {
