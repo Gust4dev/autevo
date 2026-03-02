@@ -10,7 +10,7 @@ import {
 
 export function SystemPreviewSection() {
   return (
-    <section className="py-24 px-6 bg-[#050505] relative overflow-hidden">
+    <section className="py-24 px-6 bg-white relative overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-20">
           <motion.div
@@ -18,11 +18,11 @@ export function SystemPreviewSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-400 text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-600 text-sm font-medium mb-6">
               <LayoutDashboard className="w-4 h-4" />
               Gestão em Tempo Real
             </div>
-            <h2 className="text-3xl md:text-6xl font-black text-white mb-6 tracking-tight">
+            <h2 className="text-3xl md:text-6xl font-black text-black mb-6 tracking-tight">
               O controle que sua <br />
               <span className="text-red-600 font-serif italic">
                 oficina merece.
@@ -134,16 +134,16 @@ export function SystemPreviewSection() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
-              className="p-8 bg-zinc-900 rounded-3xl border border-white/10 hover:border-red-600/30 transition-all group"
+              className="p-8 bg-zinc-50 rounded-3xl border border-zinc-200 hover:border-red-600/30 shadow-sm transition-all group"
             >
-              <h3 className="text-xl font-bold text-white mb-2">
+              <h3 className="text-xl font-bold text-black mb-2">
                 Histórico Vitalício
               </h3>
-              <p className="text-zinc-500 text-sm leading-relaxed mb-4">
+              <p className="text-zinc-600 text-sm leading-relaxed mb-4">
                 Registre cada visita, cada serviço e cada centavo gasto por
                 veículo. Tenha o poder dos dados nas suas mãos.
               </p>
-              <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-zinc-200 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   whileInView={{ width: "70%" }}
@@ -157,12 +157,12 @@ export function SystemPreviewSection() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.4 }}
-              className="p-8 bg-zinc-900 rounded-3xl border border-white/10 hover:border-emerald-600/30 transition-all group"
+              className="p-8 bg-zinc-50 rounded-3xl border border-zinc-200 hover:border-emerald-600/30 shadow-sm transition-all group"
             >
-              <h3 className="text-xl font-bold text-white mb-2">
+              <h3 className="text-xl font-bold text-black mb-2">
                 Saúde Financeira
               </h3>
-              <p className="text-zinc-500 text-sm leading-relaxed mb-4">
+              <p className="text-zinc-600 text-sm leading-relaxed mb-4">
                 Visualize lucro real, comissões e ticket médio em segundos.
                 Decisões baseadas em números, não em achismo.
               </p>

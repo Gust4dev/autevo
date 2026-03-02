@@ -7,10 +7,10 @@ import { motion } from "framer-motion";
 
 export function FinalCTA() {
   return (
-    <section className="py-24 px-6 relative overflow-hidden bg-[#050505]">
+    <section className="py-24 px-6 relative overflow-hidden bg-white">
       {/* Background patterns */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('/grid.svg')] bg-center invert" />
+      <div className="absolute inset-0 opacity-[0.05] pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full bg-[url('/grid.svg')] bg-center invert-0" />
       </div>
 
       <div className="max-w-4xl mx-auto text-center relative z-10">

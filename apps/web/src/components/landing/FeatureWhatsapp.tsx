@@ -48,22 +48,22 @@ export function FeatureWhatsapp() {
   };
 
   return (
-    <section className="py-24 px-6 bg-[#050505] relative overflow-hidden">
+    <section className="py-24 px-6 bg-zinc-50 relative overflow-hidden">
       <div className="max-w-4xl mx-auto text-center mb-16 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-950/20 text-green-500 text-sm font-semibold mb-6 border border-green-500/20">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold mb-6">
             <MessageSquare className="w-4 h-4" />
             Automação Inteligente & WhatsApp
           </div>
-          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-white tracking-tight leading-tight">
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-black tracking-tight leading-tight">
             Seu cliente avisado <br />
-            <span className="text-green-500">sem você perder tempo.</span>
+            <span className="text-emerald-600">sem você perder tempo.</span>
           </h2>
-          <p className="text-zinc-500 text-lg leading-relaxed">
+          <p className="text-zinc-600 text-lg leading-relaxed">
             Pare de gastar o dia no WhatsApp respondendo "tá pronto?". O sistema
             avisa automaticamente quando o orçamento for criado, aprovado ou
             quando o carro estiver pronto para retirada.
@@ -196,7 +196,7 @@ export function FeatureWhatsapp() {
       </div>
 
       {/* Decorative Blur */}
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-green-600/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-600/5 rounded-full blur-[120px] pointer-events-none" />
     </section>
   );
 }

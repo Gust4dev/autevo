@@ -37,13 +37,13 @@ const faqs = [
 
 export function FAQSection() {
   return (
-    <section className="py-24 px-6 bg-[#050505] relative overflow-hidden">
+    <section className="py-24 px-6 bg-zinc-50 relative overflow-hidden">
       <div className="max-w-3xl mx-auto relative z-10">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6 text-black tracking-tight">
             Dúvidas Frequentes
           </h2>
-          <p className="text-zinc-500 text-lg">
+          <p className="text-zinc-600 text-lg">
             Tire suas dúvidas e veja por que o Autevo é a escolha certa para sua
             oficina.
           </p>
@@ -54,12 +54,12 @@ export function FAQSection() {
             <AccordionItem
               key={i}
               value={`item-${i}`}
-              className="border border-white/5 bg-white/[0.02] rounded-2xl px-4 transition-colors hover:bg-white/[0.04]"
+              className="border border-zinc-200 bg-white rounded-2xl px-4 transition-colors hover:border-red-600/30 shadow-sm"
             >
-              <AccordionTrigger className="text-left text-white font-bold text-lg hover:text-red-500 hover:no-underline py-6">
+              <AccordionTrigger className="text-left text-black font-bold text-lg hover:text-red-600 hover:no-underline py-6">
                 {faq.question}
               </AccordionTrigger>
-              <AccordionContent className="text-zinc-500 text-base leading-relaxed pb-6">
+              <AccordionContent className="text-zinc-600 text-base leading-relaxed pb-6">
                 {faq.answer}
               </AccordionContent>
             </AccordionItem>

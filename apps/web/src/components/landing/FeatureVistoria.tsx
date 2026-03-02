@@ -31,9 +31,9 @@ export function FeatureVistoria() {
   return (
     <section
       id="vistoria"
-      className="py-24 px-6 bg-[#050505] relative overflow-hidden"
+      className="py-24 px-6 bg-zinc-50 relative overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center border-b border-white/5 pb-24">
+      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center border-b border-zinc-200 pb-24">
         {/* Visual Mobile Mockup */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -210,11 +210,11 @@ export function FeatureVistoria() {
             <ShieldCheck className="w-4 h-4" />
             Amparo Jurídico & Profissionalismo
           </div>
-          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-white tracking-tight leading-tight">
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-black tracking-tight leading-tight">
             Vistoria digital <br />
-            <span className="text-red-500">transparência total.</span>
+            <span className="text-red-600">transparência total.</span>
           </h2>
-          <p className="text-zinc-500 text-lg leading-relaxed mb-8">
+          <p className="text-zinc-600 text-lg leading-relaxed mb-8">
             Evite dores de cabeça com clientes que alegam avarias que já
             existiam. Faça um checklist completo com fotos em alta definição e
             assinatura digital direto do seu celular.
@@ -222,23 +222,23 @@ export function FeatureVistoria() {
 
           <div className="grid gap-6">
             <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 shadow-sm flex items-center justify-center shrink-0">
                 <Camera className="w-5 h-5 text-red-600" />
               </div>
               <div className="text-left">
-                <h4 className="text-white font-bold mb-1">Evidência em Alta</h4>
-                <p className="text-zinc-500 text-sm">
+                <h4 className="text-black font-bold mb-1">Evidência em Alta</h4>
+                <p className="text-zinc-600 text-sm">
                   Registre cada detalhe do veículo com fotos nítidas por ângulo.
                 </p>
               </div>
             </div>
             <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center shrink-0 text-red-600 font-bold">
+              <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 shadow-sm flex items-center justify-center shrink-0 text-red-600 font-bold">
                 OS
               </div>
               <div className="text-left">
-                <h4 className="text-white font-bold mb-1">Certeza Jurídica</h4>
-                <p className="text-zinc-500 text-sm">
+                <h4 className="text-black font-bold mb-1">Certeza Jurídica</h4>
+                <p className="text-zinc-600 text-sm">
                   Assinatura digital que protege sua oficina e dá segurança ao
                   cliente.
                 </p>

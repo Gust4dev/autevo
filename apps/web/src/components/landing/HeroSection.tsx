@@ -4,32 +4,28 @@ import { useRef } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Play, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll } from "framer-motion";
 import { cn } from "@/lib/cn";
 
 export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScroll();
-  const y1 = useTransform(scrollY, [0, 500], [0, 200]);
-  const y2 = useTransform(scrollY, [0, 500], [0, -150]);
 
   return (
     <section
       id="hero"
       ref={containerRef}
-      className="relative z-10 pt-24 pb-16 lg:pt-48 lg:pb-32 px-6 overflow-hidden min-h-[90vh] lg:min-h-screen flex flex-col justify-center bg-[#050505] text-white"
+      className="relative z-10 pt-24 pb-16 lg:pt-48 lg:pb-32 px-6 overflow-hidden min-h-[90vh] lg:min-h-screen flex flex-col justify-center bg-zinc-950 text-white"
     >
-      {/* Abstract Background Shapes - Refined for Dark Mode */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-        <motion.div
-          style={{ y: y1 }}
-          className="absolute -top-[5%] -left-[10%] w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-gradient-to-br from-red-900/10 via-zinc-900/5 to-transparent rounded-full blur-[80px] md:blur-[120px] opacity-40 will-change-transform"
-        />
-        <motion.div
-          style={{ y: y2 }}
-          className="absolute top-[10%] -right-[5%] w-[350px] h-[350px] md:w-[500px] md:h-[500px] bg-gradient-to-tr from-zinc-900/10 via-red-900/5 to-transparent rounded-full blur-[80px] md:blur-[120px] opacity-40 will-change-transform"
-        />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,black,rgba(0,0,0,0))] opacity-[0.1] invert" />
+      {/* CSS Fluid Animated Background (Raycast Style) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none flex items-center justify-center">
+        {/* Animated Blobs */}
+        <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-red-600/30 rounded-full blur-[100px] mix-blend-screen animate-blob" />
+        <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-red-900/40 rounded-full blur-[120px] mix-blend-screen animate-blob-reverse" />
+        <div className="absolute bottom-1/4 left-1/2 w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-orange-600/20 rounded-full blur-[100px] mix-blend-screen animate-blob delay-1000" />
+
+        {/* Grid Overlay for texture */}
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_100%)] opacity-[0.05] invert" />
       </div>
 
       <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-12 lg:gap-8 items-center relative z-20">
@@ -40,9 +36,9 @@ export function HeroSection() {
             <span className="flex h-2 w-2 rounded-full bg-red-600 animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.5)]" />
             Teste grátis por 14 dias sem cartão
           </div>
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-white leading-[1.1] [text-wrap:balance]">
+          <h1 className="text-5xl md:text-7xl lg:text-[80px] font-extrabold tracking-tighter mb-6 text-white leading-[1.05] [text-wrap:balance]">
             A gestão completa para <br className="hidden lg:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-400">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4F4F] to-[#FF8F00]">
               seu centro automotivo.
             </span>
           </h1>
@@ -56,22 +52,26 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto"
+            className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto mt-4"
           >
-            <Link href="/sign-up" className="w-full sm:w-auto">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto h-14 px-10 text-base bg-red-600 hover:bg-red-700 text-white rounded-full transition-all shadow-[0_10px_30px_-10px_rgba(220,38,38,0.5)] active:scale-95 font-bold"
-              >
-                Começar Teste Grátis
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
+            <div className="relative group w-full sm:w-auto">
+              {/* Outer Glow for Primary Button */}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#FF4F4F] to-[#FF8F00] rounded-full blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-500" />
+              <Link href="/sign-up" className="relative w-full sm:w-auto block">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto h-14 px-10 text-[15px] bg-white text-black hover:bg-zinc-200 rounded-full transition-all active:scale-95 font-semibold"
+                >
+                  Começar Teste Grátis
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
             <Link href="#funcionalidades" className="w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="lg"
-                className="w-full sm:w-auto h-14 px-8 text-base rounded-full border-white/10 text-zinc-300 hover:bg-white/5 hover:text-white transition-all font-semibold backdrop-blur-sm"
+                className="w-full sm:w-auto h-14 px-8 text-[15px] rounded-full border-white/10 text-zinc-400 bg-white/[0.03] hover:bg-white/[0.08] hover:text-white transition-all font-medium backdrop-blur-md"
               >
                 Ver tudo que faz
               </Button>
@@ -102,10 +102,10 @@ export function HeroSection() {
           className="relative mt-12 lg:mt-0 px-4 md:px-0 will-change-transform"
         >
           {/* Main "Quadro" (Mockup) */}
-          <div className="relative rounded-2xl bg-white/[0.02] p-1.5 backdrop-blur-sm border border-white/[0.05] shadow-2xl transition-all duration-700 ease-out max-w-2xl mx-auto">
-            <div className="w-full rounded-xl bg-[#0a0a0a] shadow-inner overflow-hidden border border-white/5 relative">
+          <div className="relative rounded-2xl bg-white/[0.01] p-1.5 backdrop-blur-md border border-white/[0.08] shadow-[0_0_100px_rgba(0,0,0,0.8)] transition-all duration-700 ease-out max-w-2xl mx-auto">
+            <div className="w-full rounded-xl bg-zinc-950 shadow-inner overflow-hidden border border-white/5 relative">
               {/* Fake UI Header */}
-              <div className="h-10 border-b border-white/5 flex items-center px-4 gap-2 bg-white/[0.02]">
+              <div className="h-10 border-b border-white/[0.05] flex items-center px-4 gap-2 bg-white/[0.01]">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-600/50" />
                   <div className="w-2.5 h-2.5 rounded-full bg-zinc-600/50" />
@@ -207,7 +207,7 @@ export function HeroSection() {
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
-            className="absolute -left-4 md:-left-12 -bottom-6 bg-[#0a0a0a] p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex items-center gap-4 transition-all transform-gpu"
+            className="absolute -left-4 md:-left-12 -bottom-6 bg-zinc-950 p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex items-center gap-4 transition-all transform-gpu"
           >
             <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
               <TrendingUp className="w-5 h-5 md:w-6 md:h-6" />
@@ -231,14 +231,14 @@ export function HeroSection() {
               ease: "easeInOut",
               delay: 0.5,
             }}
-            className="absolute -right-4 md:-right-16 -top-4 bg-[#0a0a0a] p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex flex-col gap-1 transition-all hidden sm:flex"
+            className="absolute -right-4 md:-right-16 -top-4 bg-zinc-950 p-4 md:p-6 rounded-3xl shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] border border-white/10 z-30 flex flex-col gap-1 transition-all hidden sm:flex"
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="flex -space-x-2">
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="w-5 h-5 rounded-full border-2 border-[#0a0a0a] bg-zinc-800 overflow-hidden"
+                    className="w-5 h-5 rounded-full border-2 border-zinc-950 bg-zinc-800 overflow-hidden"
                   >
                     <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900" />
                   </div>

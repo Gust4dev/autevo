@@ -12,29 +12,32 @@ export function PricingSection() {
   const [period, setPeriod] = useState<"monthly" | "founder">("founder");
 
   return (
-    <section className="py-24 px-6 relative overflow-hidden" id="pricing">
+    <section
+      className="py-24 px-6 bg-white relative overflow-hidden"
+      id="pricing"
+    >
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-600/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-white tracking-tight">
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-black tracking-tight">
             Investimento que se paga
             <br />
-            <span className="text-red-500">na primeira semana</span>
+            <span className="text-red-600">na primeira semana</span>
           </h2>
-          <p className="text-zinc-500 text-lg max-w-2xl mx-auto leading-relaxed">
+          <p className="text-zinc-600 text-lg max-w-2xl mx-auto leading-relaxed">
             Comece agora seu trial de 14 dias sem cartão de crédito e veja o
             poder da gestão profissional. Cancele quando quiser.
           </p>
 
-          <div className="mt-8 inline-flex bg-zinc-900/50 rounded-full p-1 border border-zinc-800">
+          <div className="mt-8 inline-flex bg-zinc-100 rounded-full p-1 border border-zinc-200 shadow-sm">
             <button
               onClick={() => setPeriod("monthly")}
               className={cn(
                 "px-6 py-2 rounded-full text-sm font-medium transition-all duration-300",
                 period === "monthly"
-                  ? "bg-zinc-800 text-white shadow-lg"
-                  : "text-zinc-500 hover:text-white",
+                  ? "bg-white text-black shadow-sm border border-zinc-200/50"
+                  : "text-zinc-500 hover:text-black",
               )}
             >
               Mensal
@@ -44,8 +47,8 @@ export function PricingSection() {
               className={cn(
                 "px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2",
                 period === "founder"
-                  ? "bg-red-600 text-white shadow-lg shadow-red-600/25"
-                  : "text-zinc-500 hover:text-white",
+                  ? "bg-red-600 text-white shadow-lg shadow-red-600/25 border border-red-500/20"
+                  : "text-zinc-500 hover:text-black",
               )}
             >
               Fundador
@@ -58,16 +61,16 @@ export function PricingSection() {
 
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {/* Monthly Card */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 hover:border-zinc-700 transition-colors relative group">
+          <div className="bg-zinc-50 border border-zinc-200 rounded-3xl p-8 hover:border-zinc-300 transition-colors relative group shadow-sm">
             <div className="mb-8">
-              <h3 className="text-xl font-bold mb-2 text-zinc-100">
+              <h3 className="text-xl font-bold mb-2 text-black">
                 Plano Mensal
               </h3>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-white">R$ 140</span>
-                <span className="text-zinc-500">/mês</span>
+                <span className="text-4xl font-black text-black">R$ 140</span>
+                <span className="text-zinc-600">/mês</span>
               </div>
-              <p className="text-zinc-500 text-sm mt-4 leading-relaxed">
+              <p className="text-zinc-600 text-sm mt-4 leading-relaxed">
                 Ideal para quem quer flexibilidade total e gestão profissional.
               </p>
             </div>
@@ -82,10 +85,10 @@ export function PricingSection() {
               ].map((item) => (
                 <li
                   key={item}
-                  className="flex items-center gap-3 text-zinc-300 text-sm"
+                  className="flex items-center gap-3 text-zinc-700 text-sm font-medium"
                 >
-                  <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-white" />
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Check className="w-3 h-3 text-emerald-600" />
                   </div>
                   {item}
                 </li>
@@ -94,14 +97,14 @@ export function PricingSection() {
 
             <Link
               href="/sign-up"
-              className="block w-full py-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-center transition-all"
+              className="block w-full py-4 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-center transition-all shadow-sm"
             >
               Começar Agora
             </Link>
           </div>
 
           {/* Founder Card */}
-          <div className="bg-zinc-900/80 border border-red-500/20 rounded-3xl p-8 relative overflow-hidden group hover:border-red-500/40 transition-colors shadow-2xl shadow-red-900/10 transform-gpu">
+          <div className="bg-black border border-red-500/20 rounded-3xl p-8 relative overflow-hidden group hover:border-red-500/40 transition-colors shadow-2xl shadow-red-900/10 transform-gpu">
             <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] -mr-32 -mt-32 pointer-events-none" />
 
             <div className="absolute top-4 right-4 bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">

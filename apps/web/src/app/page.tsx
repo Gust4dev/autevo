@@ -113,15 +113,15 @@ export default function LandingPage() {
   return (
     <div
       className={cn(
-        "min-h-screen bg-[#050505] text-white selection:bg-red-500/30 overflow-x-hidden font-sans",
+        "min-h-screen bg-zinc-950 text-white selection:bg-red-500/30 overflow-x-hidden font-sans",
       )}
     >
       <ScrollToTop />
       {/* Navbar */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#050505]/80 backdrop-blur-xl transition-colors duration-500 transform-gpu">
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl transition-colors duration-500 transform-gpu">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="#hero" className="flex items-center gap-2 group">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 bg-white/5 border border-white/10 group-hover:border-white/20">
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 bg-white/[0.03] border border-white/[0.08] group-hover:border-white/[0.15]">
               <Logo className="w-6 h-6 p-1 text-white" />
             </div>
             <span
@@ -132,7 +132,7 @@ export default function LandingPage() {
               Autevo
             </span>
           </Link>
-          <div className="hidden md:flex items-center gap-8 text-[13px] font-semibold text-zinc-400">
+          <div className="hidden md:flex items-center gap-8 text-[13px] font-medium text-zinc-400">
             <Link
               href="#funcionalidades"
               className="hover:text-white transition-colors"
@@ -162,7 +162,7 @@ export default function LandingPage() {
             <Link href="/sign-up">
               <Button
                 size="sm"
-                className="bg-red-600 text-white hover:bg-red-700 border-none font-bold text-xs h-9 px-5 rounded-full shadow-[0_8px_20px_-8px_rgba(220,38,38,0.5)] transition-all active:scale-95"
+                className="bg-white hover:bg-zinc-200 text-black border-none font-semibold text-xs h-9 px-5 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all active:scale-95"
               >
                 Começar Teste Grátis
               </Button>
@@ -193,7 +193,7 @@ export default function LandingPage() {
       <FinalCTA />
 
       {/* Footer */}
-      <footer className="border-t border-white/5 bg-[#050505] py-20 px-6">
+      <footer className="border-t border-white/5 bg-zinc-950 py-20 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex flex-col gap-4 max-w-sm">
             <div className="flex items-center gap-2">

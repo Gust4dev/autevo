@@ -54,10 +54,10 @@
 
   .dark {
     /* Shadcn UI - Dark Theme (Deep Blue/Gray, not pitch black) */
-    --background: 240 10% 4%; /* #09090b - Deep rich dark */
+    --background: 0 0% 0%; /* #000000 - Pure black for Raycast aesthetic */
     --foreground: 0 0% 98%;
 
-    --card: 240 10% 6%; /* Slightly lighter than bg */
+    --card: 240 10% 4%; /* Slightly lighter than bg */
     --card-foreground: 0 0% 98%;
 
     --popover: 240 10% 6%;
@@ -92,7 +92,9 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
