@@ -82,6 +82,7 @@ const settingsNavItems: NavItem[] = [
     label: "Configurações",
     icon: Settings,
     roles: ["ADMIN_SAAS", "OWNER", "MANAGER", "ADMIN", "admin"],
+    id: "nav-settings",
   },
   {
     href: "/dashboard/settings/team",

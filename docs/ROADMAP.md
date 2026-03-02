@@ -1,239 +1,322 @@
-# 🚀 Autevo - Strategic Roadmap 2026
+# 🚀 Autevo — Roadmap Estratégico 2026
 
-## 📊 Strategic Overview
-
-**Main Goal:** 10k MRR (53 paying customers @ R$ 190/month)  
-**Period:** January 2026 - December 2026  
-**Phases:** Launch → Validation → Growth → Scale
-
----
-
-## 🎯 MONTH 1 - JANUARY 2026 (Go-to-Market)
-
-**Objective:** First 5 paying customers  
-**Status:** ✅ COMPLETED - System production-ready
-
-### Marketing & Sales (Priority 1)
-
-- [x] Create 60s demo video
-- [x] Create 6-8 strategic screenshots
-- [x] Create 1-page presentation PDF
-- [x] List 50 prospects (Anápolis/Goiânia aesthetics)
-- [x] Prospect JK Detailers
-- [x] Prospect Virtus_design
-- [x] Prospect Vida Nova
-- [x] Close first 2-3 customers
-- [x] Create long 3-5min video (full demo)
-- [x] Configure Google Analytics + Microsoft Clarity
-
-### Product (Priority 2)
-
-- [x] Improved onboarding system (3-step wizard)
-- [x] In-app tutorial (tooltips + short video)
-- [x] Public demo environment (dummy data for prospects)
-- [x] System status page (uptime, incidents)
-
-### Infrastructure (Priority 3)
-
-- [x] Configure daily automatic backup (Neon)
-- [x] Implement uptime monitoring (UptimeRobot)
-- [x] Deployment and rollback documentation
-
-**KPIs of the Month:**
-
-- ✅ 50 messages sent
-- ✅ 15 responses (30% rate)
-- ✅ 5 agendated demos
-- ✅ 3 customers closed
-- ✅ R$ 570 MRR
+> **Última atualização:** 2 de março de 2026
+> **Meta:** R$ 10k MRR (53 clientes pagantes @ R$ 190/mês)
+> **Período:** Janeiro 2026 – Dezembro 2026
+> **Fases:** Lançamento → Validação → Crescimento → Escala
 
 ---
 
-## 🎯 MONTH 2 - FEBRUARY 2026 (Validation + Iteration)
+## 📊 Visão Geral
 
-**Objective:** 10 total customers (validate product-market fit)
-**Status:** 🟡 IN PROGRESS - Focus on automation and retention
-
-### Product (Priority 1)
-
-- [x] **Automatic Inactivity Management**
-  - Tracking of idle customers based on configurable thresholds.
-  - Automatic triggers for retention reminders.
-- [x] **PWA & Mobile Optimization**
-  - Resolving service worker upload issues.
-  - Full PWA installation support.
-- [x] **Partnership & Referral Engine**
-  - Promo code implementation with duration limits.
-  - Referral tracking for strategic partners (e.g., Filmtech).
-- [ ] **WhatsApp Automatic Reminders**
-  - Reminder 1 day before scheduling.
-  - Return notice (X days after service).
-  - Automation via Evolution API or similar.
-
-### Marketing & Sales (Priority 2)
-
-- [ ] Expand to 100 prospects (neighboring cities)
-- [ ] Create case study of the first client (testimony + metrics)
-- [x] Landing page optimization (Pricing, Founder Member Slots)
-- [ ] Instagram Business (3 posts/week)
-- [ ] Stories showing the system in use
-
-### Support (Priority 3)
-
-- [x] Structured support channel (WhatsApp Business)
-- [x] Initial Knowledge Base (FAQs)
-- [ ] Personalized onboarding for new clients (30min video call)
-
-**KPIs of the Month:**
-
-- 75 messages sent
-- 4 new customers closed
-- 7 customers total
-- R$ 1.330 MRR
-- NPS Target: > 8/10
+| Mês | Fase | Meta de Clientes | MRR Alvo | Status |
+|-----|------|-----------------|----------|--------|
+| Jan | Lançamento | 5 | R$ 570 | ✅ Concluído |
+| Fev | Validação | 10 | R$ 1.330 | ✅ Concluído |
+| Mar | Integrações | 18 | R$ 3.420 | 🔵 Atual |
+| Abr | Escala Regional | 28 | R$ 5.320 | ⏳ Futuro |
+| Mai | Otimização | 38 | R$ 7.220 | ⏳ Futuro |
+| Jun | Premium | 48 | R$ 9.120 | ⏳ Futuro |
+| Jul–Dez | Ecossistema | 53+ | R$ 10k+ | ⏳ Futuro |
 
 ---
 
-## 🎯 MONTH 3 - MARCH 2026 (First Integrations)
+## ✅ MÊS 1 — JANEIRO 2026 (Lançamento)
 
-**Objective:** 18 total customers + payment automation
+**Objetivo:** Primeiros 5 clientes pagantes
+**Status:** ✅ CONCLUÍDO — Sistema em produção, primeiros contratos fechados
 
-### Product (Priority 1)
+### Marketing & Vendas (Prioridade 1)
 
-- [ ] **Mercado Pago Integration (MVP)**
-  - Integrated payment link (Pix + Card)
-  - Automatic confirmation webhook
-  - Automated payment registration on OS
-- [ ] **OS Template System**
-  - Templates for common services
-  - Quick duplication of previous OS
-  - Service suggestions based on client history
-- [ ] **Productivity Dashboard**
-  - Average time per service
-  - Deadline completion rate
-  - Productivity per employee
+- [x] Criar vídeo demo de 60s
+- [x] Criar 6–8 screenshots estratégicos
+- [x] Criar PDF de 1 página para apresentação
+- [x] Levantar lista de 50 prospects (estéticas de Anápolis/Goiânia)
+- [x] Prospectar JK Detailers
+- [x] Prospectar Virtus_design
+- [x] Prospectar Vida Nova
+- [x] Fechar primeiros 2–3 clientes
+- [x] Criar vídeo demo completo (3–5 min)
+- [x] Configurar Google Analytics + Microsoft Clarity
 
-### Marketing & Sales (Priority 2)
+### Produto (Prioridade 2)
 
-- [ ] Expand to entire state of Goiás (200 prospects)
-- [ ] Create second case study
-- [ ] Referral program (Client refers, gets discount)
-- [ ] Real customer testimonial video
+- [x] Sistema de onboarding melhorado (wizard 3 etapas)
+- [x] Tutorial in-app (tooltips + vídeo curto)
+- [x] Ambiente de demo público (dados dummy para prospects)
+- [x] Página de status do sistema (uptime, incidentes)
 
-### Infrastructure (Priority 3)
+### Infraestrutura (Prioridade 3)
 
-- [ ] Implement automated health checks
-- [ ] Centralized logs (Better Stack or Datadog)
-- [ ] Critical error alerts (Slack/WhatsApp)
+- [x] Configurar backup automático diário (Neon)
+- [x] Monitoramento de uptime (UptimeRobot)
+- [x] Documentação de deploy e rollback
 
-**KPIs of the Month (Forecast):**
+**KPIs do Mês — Resultado Real:**
 
-- 150 messages sent
-- 8 new customers
-- 18 total customers
-- R$ 3.420 MRR
-- 30% transactions via integrated Mercado Pago
-
----
-
-## 🎯 MONTH 4 - APRIL 2026 (Regional Scale)
-
-**Objective:** 28 total customers + Brasília/Goiânia expansion
-
-### Marketing & Sales (Priority 1)
-
-- [ ] Brasília Expansion (100 prospects)
-- [ ] Goiânia Expansion (100 prospects)
-- [ ] Local Google Ads (R$ 500/month)
-- [ ] Partnerships with automotive product distributors
-- [ ] Presence at local events (automotive fairs)
-
-### Product (Priority 2)
-
-- [ ] **Supplier Management**
-  - Supplier CRUD
-  - Linking products to suppliers
-  - Purchase history
-- [ ] **Recurring Orders**
-  - Periodic OS creation (weekly/monthly)
-  - Automatic return reminder
-
-### Support (Priority 3)
-
-- [ ] Hire part-time support (10h/week)
-- [ ] Troubleshooting documentation
-- [ ] Training videos per functionality
-
-**KPIs of the Month:**
-
-- 300 messages sent
-- 10 new customers
-- 28 total customers
-- R$ 5.320 MRR
+| KPI | Meta | Resultado |
+|-----|------|-----------|
+| Mensagens enviadas | 50 | ✅ 50+ |
+| Respostas | 15 (30%) | ✅ Atingido |
+| Demos agendadas | 5 | ✅ Atingido |
+| Clientes fechados | 3 | ✅ Atingido |
+| MRR | R$ 570 | ✅ Atingido |
 
 ---
 
-## 🎯 MONTH 5 - MAY 2026 (Conversion Optimization)
+## ✅ MÊS 2 — FEVEREIRO 2026 (Validação + Iteração)
 
-**Objective:** 38 total customers + Churn reduction
+**Objetivo:** 10 clientes no total (validar product-market fit)
+**Status:** ✅ CONCLUÍDO — Foco em automação e retenção entregue
 
-### Product (Priority 1)
+### Produto (Prioridade 1)
 
-- [ ] **Automated NPS System**
-  - Survey after 7 days of use
-  - Identification of at-risk customers
-- [ ] **Onboarding Improvements**
-  - Assisted data migration (Spreadsheet → System)
-  - Interactive setup wizard
-- [ ] **Client Analytics**
-  - Feature usage tracking
-  - Login frequency
-  - Churn red flags
+- [x] **Gestão de Inatividade Automática**
+  - Tracking de clientes ociosos com threshold configurável (`customerInactivityDays`)
+  - Anti-spam: intervalo mínimo de 7 dias entre lembretes
+  - Push notifications para owners + `NotificationLog`
+- [x] **PWA & Otimização Mobile**
+  - Correção de problemas de upload no service worker
+  - Suporte completo a instalação como PWA
+  - Fila offline (`UploadQueue`) para sincronização de fotos
+- [x] **Motor de Parceria & Indicação**
+  - Implementação de promo codes com duração configurável
+  - Tracking de indicações por parceiro (ex: Filmtech)
+  - Comissão de R$ 42/mês por indicado ativo
+  - Tier gratuito: 5+ indicados ativos = plano zero custo
+- [ ] **Lembretes WhatsApp Automáticos**
+  - Lembrete 1 dia antes do agendamento
+  - Aviso de retorno (X dias após serviço)
+  - ⚠️ Parcialmente entregue — integração via wa.me manual (sem API externa)
+
+### Marketing & Vendas (Prioridade 2)
+
+- [ ] Expandir para 100 prospects (cidades vizinhas) — parcialmente
+- [ ] Criar case study do primeiro cliente (depoimento + métricas)
+- [x] Otimização da landing page (Pricing, Slots Membro Fundador)
+- [ ] Instagram Business (3 posts/semana)
+- [ ] Stories mostrando o sistema em uso
+
+### Suporte (Prioridade 3)
+
+- [x] Canal de suporte estruturado (WhatsApp Business)
+- [x] Base de Conhecimento inicial (FAQs)
+- [ ] Onboarding personalizado para novos clientes (call de 30min)
+
+**KPIs do Mês — Resultado Real:**
+
+| KPI | Meta | Resultado |
+|-----|------|-----------|
+| Mensagens enviadas | 75 | ✅ |
+| Novos clientes | 4 | ✅ |
+| Total de clientes | 7 | ✅ |
+| MRR | R$ 1.330 | ✅ |
+| NPS | > 8/10 | 🟡 Em coleta |
 
 ---
 
-## [Future Roadmap Segmented for Q3-Q4 2026]
+## 🔵 MÊS 3 — MARÇO 2026 (Primeiras Integrações) ← ATUAL
 
-### Q3 - Scaling & Mobile
+**Objetivo:** 18 clientes no total + automação de pagamentos
+**Status:** 🔵 EM ANDAMENTO
 
-- **June**: Premium Features (NF-e Integration via Focus NFe).
-- **July**: AI-assisted quoting and predictive billing.
-- **August**: Native iOS/Android apps for technicians.
+### Produto (Prioridade 1)
 
-### Q4 - Ecosystem & Consolidation
+- [ ] **Integração Mercado Pago (MVP)**
+  - Link de pagamento integrado (Pix + Cartão)
+  - Webhook de confirmação automática
+  - Registro automático de pagamento na OS
+- [ ] **Sistema de Templates de OS**
+  - Templates para serviços recorrentes
+  - Duplicação rápida de OS anterior
+  - Sugestões de serviço baseadas no histórico do cliente
+- [ ] **Dashboard de Produtividade**
+  - Tempo médio por serviço
+  - Taxa de cumprimento de prazos
+  - Produtividade por funcionário
 
-- **September**: Public API & Webhooks for developers.
-- **October**: Customizable reports drag-and-drop.
-- **November**: Franchise/Multi-unit management.
-- **December**: Year in Review & 10k MRR Milestone.
+### Marketing & Vendas (Prioridade 2)
+
+- [ ] Expandir para todo Goiás (200 prospects)
+- [ ] Criar segundo case study
+- [ ] Programa de indicação de cliente (indica → ganha desconto)
+- [ ] Vídeo de depoimento de cliente real
+
+### Infraestrutura (Prioridade 3)
+
+- [ ] Health checks automatizados
+- [ ] Logs centralizados (Better Stack ou Datadog)
+- [ ] Alertas de erros críticos (Slack/WhatsApp)
+
+**KPIs do Mês (Previsão):**
+
+| KPI | Meta |
+|-----|------|
+| Mensagens enviadas | 150 |
+| Novos clientes | 8 |
+| Total de clientes | 18 |
+| MRR | R$ 3.420 |
+| % transações via Mercado Pago | 30% |
 
 ---
 
-## ⚠️ Risks & Mitigations
+## ⏳ MÊS 4 — ABRIL 2026 (Escala Regional)
 
-| Risk              | Probability | Impact | Mitigation                                    |
-| ----------------- | ----------- | ------ | --------------------------------------------- |
-| High Churn (>20%) | Medium      | High   | Personalized onboarding, NPS tracking         |
-| Large Competitor  | Low         | High   | Niche focus, specific features, close support |
-| Sales Scaling     | High        | Medium | Automate prospecting, affiliate program       |
-| Critical Bugs     | Medium      | High   | Automated tests, staging env, quick rollback  |
+**Objetivo:** 28 clientes + expansão Brasília/Goiânia
+
+### Marketing & Vendas (Prioridade 1)
+
+- [ ] Expansão Brasília (100 prospects)
+- [ ] Expansão Goiânia (100 prospects)
+- [ ] Google Ads local (R$ 500/mês)
+- [ ] Parcerias com distribuidores de produtos automotivos
+- [ ] Presença em eventos locais (feiras automotivas)
+
+### Produto (Prioridade 2)
+
+- [ ] **Gestão de Fornecedores**
+  - CRUD de fornecedores
+  - Vinculação de produtos a fornecedores
+  - Histórico de compras
+- [ ] **OS Recorrentes**
+  - Criação periódica de OS (semanal/mensal)
+  - Lembrete automático de retorno
+
+### Suporte (Prioridade 3)
+
+- [ ] Contratar suporte part-time (10h/semana)
+- [ ] Documentação de troubleshooting
+- [ ] Vídeos de treinamento por funcionalidade
+
+**KPIs do Mês:**
+
+| KPI | Meta |
+|-----|------|
+| Mensagens enviadas | 300 |
+| Novos clientes | 10 |
+| Total de clientes | 28 |
+| MRR | R$ 5.320 |
 
 ---
 
-## 📝 Final Notes
+## ⏳ MÊS 5 — MAIO 2026 (Otimização de Conversão)
 
-This roadmap is a **living document** and should be adjusted based on:
+**Objetivo:** 38 clientes + redução de churn
 
-1. Real customer feedback
-2. Sales performance
-3. Market shifts
-4. Resource availability
+### Produto (Prioridade 1)
 
-**Core Principles:**
+- [ ] **Sistema de NPS Automatizado**
+  - Pesquisa após 7 dias de uso
+  - Identificação de clientes em risco
+- [ ] **Melhorias de Onboarding**
+  - Migração assistida de dados (Planilha → Sistema)
+  - Wizard de setup interativo aprimorado
+- [ ] **Analytics do Cliente**
+  - Tracking de uso de features
+  - Frequência de login
+  - Red flags de churn
 
-1. **Customer First**: Features that don't solve a real pain = deprioritized.
-2. **Validation before Scale**: Do not invest in marketing before finding fit.
-3. **Quality > Quantity**: 50 happy customers are better than 100 dissatisfied ones.
+### Marketing & Vendas (Prioridade 2)
 
-**Last Update:** February 12, 2026  
-**Next Revision:** March 12, 2026
+- [ ] Campanha de reativação de prospects inativos
+- [ ] Parceria com influenciadores do nicho automotivo
+- [ ] Lançamento de programa de afiliados público
+
+**KPIs do Mês:**
+
+| KPI | Meta |
+|-----|------|
+| Total de clientes | 38 |
+| MRR | R$ 7.220 |
+| Churn Rate | < 5% |
+| NPS | > 8.5/10 |
+
+---
+
+## ⏳ Q3 — JULHO A SETEMBRO 2026 (Escala & Mobile)
+
+### Junho — Features Premium
+
+- [ ] **Integração NF-e** (via Focus NFe)
+  - Emissão de nota fiscal direto da OS
+  - Configuração de dados fiscais por tenant
+- [ ] **IA na Precificação**
+  - Sugestão de preço baseado em histórico e mercado
+  - Faturamento preditivo
+
+### Julho — Apps Nativos
+
+- [ ] **App iOS/Android para Técnicos**
+  - Foco em vistorias e execução de OS
+  - Câmera nativa para fotos de maior qualidade
+  - Notificações push nativas
+
+### Agosto — Consolidação
+
+- [ ] **Relatórios Avançados**
+  - Drag-and-drop de métricas
+  - Comparativo mês-a-mês
+  - Exportação para PDF e Excel
+
+---
+
+## ⏳ Q4 — OUTUBRO A DEZEMBRO 2026 (Ecossistema)
+
+### Setembro — API Pública
+
+- [ ] API REST pública documentada (OpenAPI 3.0)
+- [ ] Webhooks configuráveis por tenant
+- [ ] SDK JavaScript básico
+
+### Outubro — Multi-Unidade
+
+- [ ] **Gestão de Franquias**
+  - Múltiplas unidades por conta
+  - Dashboard consolidado do franqueador
+  - Configurações herdadas/independentes por unidade
+
+### Novembro — Expansão Nacional
+
+- [ ] Campanha de marketing nacional
+- [ ] Parceria com redes de estética automotiva
+- [ ] Programa de revendedores certificados
+
+### Dezembro — Marco 10k MRR 🎯
+
+- [ ] Revisão do ano (métricas, aprendizados, casos de sucesso)
+- [ ] Planejamento 2027
+- [ ] Celebração da comunidade Autevo
+
+---
+
+## ⚠️ Riscos & Mitigações
+
+| Risco | Probabilidade | Impacto | Mitigação |
+|-------|--------------|---------|-----------|
+| Churn alto (>20%) | Média | Alto | Onboarding personalizado, NPS tracking, customer success |
+| Concorrente grande entrando | Baixa | Alto | Foco em nicho, features específicas, suporte próximo |
+| Escalabilidade de vendas | Alta | Médio | Automatizar prospecção, programa de afiliados |
+| Bugs críticos em produção | Média | Alto | Testes automatizados, staging, rollback rápido |
+| Integração MP instável | Média | Médio | Fallback manual, retry automático via webhook |
+| Cold start Neon/Vercel | Baixa | Médio | Cron de warmup a cada 5min já implementado |
+
+---
+
+## 📐 Princípios do Roadmap
+
+1. **Cliente Primeiro** — Features que não resolvem uma dor real são despriorizadas.
+2. **Validação antes de Escala** — Não investir pesado em marketing antes de encontrar o fit.
+3. **Qualidade > Quantidade** — 50 clientes felizes valem mais que 100 insatisfeitos.
+4. **Documento Vivo** — Este roadmap é revisado mensalmente com base em feedback real, performance de vendas e capacidade de execução.
+
+---
+
+## 📝 Histórico de Revisões
+
+| Data | Versão | Principais Mudanças |
+|------|--------|---------------------|
+| 12 jan 2026 | v1.0 | Versão inicial |
+| 12 fev 2026 | v1.1 | Jan concluído, Fev detalhado, Q3/Q4 adicionados |
+| 02 mar 2026 | v1.2 | Fev concluído, Mar como atual, tradução pt-BR, riscos atualizados |
+
+**Próxima Revisão:** 12 de março de 2026

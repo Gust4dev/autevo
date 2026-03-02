@@ -1,61 +1,70 @@
-# 📋 Autevo System Features
+# 📋 Autevo — Features do Sistema
 
-> **Last Update:** February 12, 2026  
-> **Version:** 1.2.0 (Next.js 15 Ready)
-
----
-
-## 🏗️ System Architecture
-
-| Component            | Technology                                          |
-| -------------------- | --------------------------------------------------- |
-| **Frontend**         | Next.js 15.1 (App Router), React 19, TypeScript 5.7 |
-| **Backend**          | tRPC v11 (20+ domain routers), Prisma 6             |
-| **Database**         | PostgreSQL (Neon / Docker)                          |
-| **Authentication**   | Clerk (Multi-tenant with publicMetadata & JWT)      |
-| **Storage**          | Supabase S3 Storage                                 |
-| **Cache/Rate Limit** | Upstash Redis (Edge compatible)                     |
-| **Monitoring**       | Sentry / Vercel Analytics                           |
-| **UI System**        | shadcn/ui, Tailwind CSS 3.4, Framer Motion          |
+> **Última atualização:** Março 2026
+> **Versão:** 1.4.0
 
 ---
 
-## 🏢 Multi-Tenancy & Lifecycle
+## 🏗️ Arquitetura & Stack
 
-### Tenant Management
-
-- **Signup Workflow**: Instant tenant creation with `PENDING_ACTIVATION` status.
-- **Founding Member Program**: First 15 members get 60 days trial and special pricing (R$ 97).
-- **Status Machine**: `PENDING` → `TRIAL` → `ACTIVE` / `PAST_DUE` / `SUSPENDED` / `CANCELED`.
-- **Custom Branding**: Tenant-specific primary/secondary colors and logos applied globally via `TenantThemeProvider`.
-- **Dynamic Configuration**: Business hours (JSON), max daily capacity, and digital signature requirements.
-
-### Inactivity Management (Smart Retention)
-
-- **Automatic Tracking**: Monitors customer engagement intervals.
-- **Configurable Thresholds**: Each tenant defines `customerInactivityDays`.
-- **Proactive Reminders**: Automated follow-up triggers when a customer crosses the inactivity threshold.
-
----
-
-## 🤝 Partnership & Referral System
-
-### Affiliate Infrastructure
-
-- **Partner Codes**: Unique codes (e.g., `FILMTECH`) for tracking origin.
-- **Tiered Commissions**: Strategic partnership tracking with automated commission calculation (e.g., 30% recurring).
-- **Referral Lifecycle**: `PENDING` → `ACTIVE` (after first payment) → `CHURNED`.
-- **Promo Codes**: Integrated discount codes applied at subscription, with configurable duration (e.g., 15% for 3 months).
+| Componente | Tecnologia |
+|-----------|------------|
+| **Frontend** | Next.js 15.1 (App Router), React 19, TypeScript 5.7 |
+| **Backend** | tRPC v11 (20+ routers), Prisma 6 |
+| **Banco** | PostgreSQL 16 (Neon serverless / Docker local) |
+| **Autenticação** | Clerk (multi-tenant, JWT com metadados customizados) |
+| **Storage** | AWS S3 / Supabase Storage / Cloudflare R2 (S3-compatible) |
+| **Cache/Rate Limit** | Upstash Redis (edge-compatible, sliding window) |
+| **Billing** | Stripe (assinaturas + webhooks) |
+| **Monitoramento** | Sentry + Vercel Analytics + Vercel Speed Insights |
+| **UI** | shadcn/ui, Tailwind CSS 3.4, Radix UI, Framer Motion |
+| **CI/CD** | GitHub Actions → Vercel |
+| **Monorepo** | Turborepo 2.3 + pnpm workspaces |
 
 ---
 
-## 📋 Service Order (OS) Engine
+## 🏢 Multi-Tenancy & Ciclo de Vida
 
-### Lifecycle & Status
+### Gerenciamento de Tenant
+
+- **Signup em 3 etapas:** Setup wizard com dados do negócio, configurações operacionais e personalização visual
+- **Status Machine:** `PENDING_ACTIVATION` → `TRIAL` → `ACTIVE` / `PAST_DUE` / `SUSPENDED` / `CANCELED`
+- **Programa Membro Fundador:** Primeiros 15 clientes com 60 dias de trial e preço especial (R$ 97 trial → R$ 140/mês)
+- **Branding Customizado:** Cores primária/secundária e logo aplicados globalmente via CSS variables (`TenantThemeProvider`)
+- **Configuração Dinâmica:** Horários de funcionamento (JSON), capacidade máxima diária, exigências de vistoria
+- **ToS Versionado:** Registro de aceite com IP + versão; re-aceite obrigatório ao atualizar versão
+
+### Gestão de Inatividade (Retenção)
+
+- **Tracking Automático:** Monitora última OS concluída por cliente
+- **Threshold Configurável:** Cada tenant define `customerInactivityDays`
+- **Anti-spam:** Intervalo mínimo de 7 dias entre lembretes por cliente
+- **Notificação:** Push notification para owners + log de notificação
+
+---
+
+## 🤝 Programa de Parceria & Indicação
+
+### Infraestrutura de Afiliados
+
+- **Partner Codes:** Código único por tenant (ex: `FILMTECH`)
+- **Promo Codes:** Códigos de desconto com % e duração configurável (mensal: 1 mês / anual: 3 meses)
+- **Comissão por Indicação:** 30% da mensalidade (R$ 42/mês por indicado ativo)
+- **Mensalidade Grátis:** 5+ indicados ativos = plano gratuito para o parceiro
+- **Lifecycle do Referral:** `PENDING` → `ACTIVE` (após 1º pagamento + 30 dias de carência) → `CHURNED`
+- **Histórico de Comissões:** Paginado, com status PENDING / PAID / CANCELLED
+
+---
+
+## 📋 Motor de OS (Ordem de Serviço)
+
+### Lifecycle e Status
 
 ```mermaid
 stateDiagram-v2
     [*] --> AGENDADO
+    AGENDADO --> AGUARDANDO_APROVACAO
+    AGUARDANDO_APROVACAO --> AGENDADO
     AGENDADO --> EM_VISTORIA
     EM_VISTORIA --> EM_EXECUCAO
     EM_EXECUCAO --> AGUARDANDO_PAGAMENTO
@@ -63,56 +72,129 @@ stateDiagram-v2
     CONCLUIDO --> [*]
     AGENDADO --> CANCELADO
     EM_VISTORIA --> CANCELADO
+    EM_EXECUCAO --> CANCELADO
+    AGUARDANDO_PAGAMENTO --> CANCELADO
+    CANCELADO --> AGENDADO
 ```
 
-### Advanced Functionalities
+### Funcionalidades
 
-- **Sequential OS Codes**: Unique tracking ID per tenant.
-- **Itemized Billing**: Granular services and products vinculation with real-time total calculation.
-- **Automatic Load Balancing**: Booking system assigns orders to staff based on current workload.
-- **Internal/External Communications**: Automated WhatsApp messages with dynamic variables (`{{customer_name}}`, `{{order_id}}`).
-
----
-
-## 🔍 Digital Inspection System (Vistoria)
-
-- **Multi-stage Inspections**: `Entrada`, `Intermediária`, and `Final`.
-- **Structured Checklist**: categorized by exterior, wheels, and fine details.
-- **Avaria Mapping**: Visual registration of scratches, dents, or cracks with severity levels and timestamped photos.
-- **Legal Compliance**: Digital signatures stored with signature channel (Client/Staff) and timestamp.
+- **Códigos Sequenciais:** `OS-001`, `OS-002`... por tenant via `TenantSequence` atômico
+- **Faturamento Itemizado:** Serviços e produtos com cálculo de total em tempo real
+- **Desconto:** PERCENTAGE ou FIXED por OS
+- **Aprovação do Cliente:** Token one-time com expiração para aprovação/rejeição sem login
+- **Controle de Inventário:** Dedução automática de estoque ao concluir
+- **Load Balancing:** Agendamento distribui por capacidade do técnico
+- **Rastreamento Público:** Link para cliente sem login
+- **WhatsApp:** Templates dinâmicos com variáveis por etapa da OS
+- **Contrato Digital:** Template customizável com assinatura
 
 ---
 
-## 💰 Financial & Billing
+## 🔍 Sistema de Vistorias Digitais
 
-- **Multi-Method Payments**: PIX, Credit, Debit, Cash.
-- **Commission Split**: Automated calculation per item/service for technicians based on percentage or fixed fees.
-- **Subscription Engine**:
-  - Direct Stripe integration for recurring payments.
-  - Webhook-driven state synchronization.
-  - Support for `customMonthlyPrice` for enterprise/negotiated contracts.
-
----
-
-## 📊 Analytics & Reporting
-
-- **Principal Dashboard**: Real-time KPIs (Revenue, Ticket Médio, Pending Payments).
-- **Admin SaaS Panel**: Global view of all tenants, MRR tracking, and system-wide audit logs.
-- **Reporting Suite**: Exportable reports (CSV/Excel) for customers, services, and employee performance.
+- **3 Tipos:** Entrada, Intermediária, Final (obrigatoriedade configurável por tenant)
+- **Checklist Estruturado:** 14 itens obrigatórios (exterior, rodas, itens pessoais)
+- **Múltiplas Fotos por Item:** Array de URLs por ponto do checklist
+- **Clone de Vistoria:** Final herda fotos e dados da entrada
+- **Avarias Livres:** Registro de danos fora do checklist (Arranhão, Amassado, Trinca, etc.)
+- **Severidade:** Leve, Moderado, Grave
+- **Assinatura Digital:** Canvas PNG → S3 (staff ou cliente via tracking)
+- **Verificação por Telefone:** Assinatura pública valida 8+ dígitos do telefone
+- **Vídeo Final:** URL de vídeo opcional na vistoria final
+- **Offline:** Fotos capturadas offline são sincronizadas ao recuperar conexão
+- **PDF:** Relatório completo com fotos, checklist e assinatura
 
 ---
 
-## 📱 Public Interfaces
+## 💰 Financeiro e Billing
 
-- **Public Booking**: Client-facing portal for scheduling without registration, featuring capacity-aware availability.
-- **Real-time Tracking**: Link provided to clients for following OS progress and viewing inspection photos in real-time.
-- **PWA Capabilities**: Installable application icon, offline manifest, and push notifications for status updates.
+### Pagamentos de OS
+
+- **Métodos:** PIX, Cartão de Crédito, Cartão de Débito, Dinheiro, Transferência
+- **Pagamento Parcial:** Múltiplos pagamentos por OS
+- **Recebível:** Cálculo automático de saldo devedor
+
+### Comissões de Funcionários
+
+- **Comissão por Item:** % ou valor fixo por serviço, configurável por técnico
+- **Settlement:** Registro de pagamento de comissão com referência PIX
+- **Status:** ACTIVE / CANCELLED / REVERSED
+
+### Assinatura SaaS
+
+- **Stripe integrado:** Checkout, portal de billing, webhooks state machine
+- **Promo codes** com % e duração configuráveis
+- **Preço founder** (R$ 140) e enterprise (customizado)
+- **Cancelamento soft:** Acesso até fim do período
 
 ---
 
-## 🔐 Security & Governance
+## 📊 Analytics & Relatórios
 
-- **Role-Based Access (RBAC)**: `ADMIN_SAAS`, `OWNER`, `MANAGER`, `MEMBER`.
-- **Audit Trails**: Detailed logs capturing `oldValue` vs `newValue` for critical entity mutations.
-- **Rate Limiting**: Protection against brute-force and scraping via Upstash Redis.
-- **Data Privacy**: Tenant-level isolation enforced at the Prisma query level.
+- **Dashboard Principal:** OS do dia, em andamento, receita do mês, pendentes
+- **Financeiro (Manager+):** Receita, ticket médio, CMV, comissões, lucro, gráfico diário
+- **Performance da Equipe:** ROI por técnico (receita gerada vs custo total)
+- **Exportação:** CSV/Excel de pagamentos, OS e comissões com filtro de período
+- **Admin SaaS:** MRR global, tenants por status, audit logs do sistema
+
+---
+
+## 📱 Interfaces Públicas
+
+- **Agendamento:** `/booking/[slug]` — sem login, com verificação de capacidade
+- **Rastreamento:** `/tracking/[orderId]` — status em tempo real + fotos da vistoria
+- **Aprovação:** `/public/approve/[token]` — aprovar/rejeitar OS via token
+
+---
+
+## 🔐 Segurança & Governança
+
+- **RBAC:** `ADMIN_SAAS`, `OWNER`, `MANAGER`, `MEMBER`
+- **Isolamento Multi-tenant:** `tenantId` em 100% das queries Prisma
+- **Rate Limiting:** 50 req/min sliding window via Upstash
+- **Audit Trail:** `oldValue` + `newValue` em JSON em todas as mutações críticas
+- **Criptografia:** AES-256-GCM para dados sensíveis (chave PIX)
+- **Tokens One-time:** Aprovações públicas com expiração
+
+---
+
+## 📲 PWA & Notificações
+
+- **PWA Instalável:** Manifest, ícones, service worker customizado
+- **Offline:** Vistorias funcionam offline com sync automático posterior
+- **Push Notifications (Web Push API):**
+  - Nova OS criada → Owner/Manager
+  - OS concluída → Owner/Manager
+  - Atribuído a mim → Member
+  - Clientes inativos → Owner/Manager (via cron)
+- **Preferências granulares** por tipo de evento e role
+
+---
+
+## 📡 Comunicação WhatsApp
+
+- **Links wa.me** sem API externa — zero custo
+- **Templates customizáveis** por tenant com variáveis dinâmicas (`{nome}`, `{veiculo}`, `{link}`)
+- **Templates padrão:** Tracking link, Serviço concluído, Lembrete de pagamento, Aniversário
+
+---
+
+## 📦 Gestão de Estoque
+
+- **Catálogo de Produtos:** SKU, custo, venda, estoque atual e mínimo
+- **Movimentações rastreadas:** ENTRADA / SAIDA_OS / AJUSTE
+- **Alertas de baixo estoque**
+- **Templates de serviço:** Produtos vinculados automaticamente ao adicionar serviço na OS
+- **Snapshot de custo** na OS para CMV histórico preciso
+
+---
+
+## ⏰ Jobs Agendados (Crons)
+
+| Job | Schedule | Descrição |
+|-----|----------|-----------|
+| Cleanup tokens | 02:00 UTC diário | Remove tokens de aprovação expirados |
+| Clientes inativos | 09:00 UTC diário | Notifica owners sobre clientes sem retorno |
+| Founder subscriptions | 00:00 UTC domingo | Atualiza preços de membros fundadores |
+| Warmup | A cada 5 min | Mantém serverless aquecido |

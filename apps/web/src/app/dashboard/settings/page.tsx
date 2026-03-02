@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -80,6 +80,8 @@ type SettingsFormData = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "geral";
   const utils = trpc.useUtils();
   const [logoMode, setLogoMode] = useState<"url" | "upload">("url");
   const [isUploading, setIsUploading] = useState(false);
@@ -347,7 +349,7 @@ export default function SettingsPage() {
       <Separator />
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Tabs defaultValue="geral" className="space-y-6">
+        <Tabs defaultValue={defaultTab} className="space-y-6">
           <TabsList className="bg-muted p-1 rounded-xl w-full sm:w-auto flex flex-wrap h-auto">
             <TabsTrigger
               value="geral"
@@ -697,7 +699,7 @@ export default function SettingsPage() {
           >
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Vistorias */}
-              <Card>
+              <Card id="operational-settings-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Eye className="h-5 w-5 text-primary" />

@@ -198,6 +198,7 @@ export function MobileNav({
 
               <Link
                 href="/dashboard/settings"
+                id="nav-settings"
                 onClick={onClose}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
