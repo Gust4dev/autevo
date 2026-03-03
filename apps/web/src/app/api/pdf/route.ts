@@ -6,6 +6,7 @@ import { prisma } from '@autevo/database';
 import { renderToStream } from '@react-pdf/renderer';
 import { InspectionPDF } from '@/components/pdfs/InspectionPDF';
 import QRCode from 'qrcode';
+import { auth } from '@clerk/nextjs/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -26,15 +27,47 @@ const s3 = new S3Client({
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { orderId } = body;
+        const { orderId, token } = body;
 
         if (!orderId) {
             return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
         }
 
+        // 🛡️ SECURITY: Authenticate request via Clerk Session or JWT Tracking Token
+        const { userId } = await auth();
+        let isAuthorized = false;
+        let tenantIdFromAuth: string | null = null;
+
+        if (userId) {
+            const user = await prisma.user.findUnique({ where: { clerkId: userId } });
+            if (user) {
+                isAuthorized = true;
+                tenantIdFromAuth = user.tenantId;
+            }
+        }
+
+        if (!isAuthorized && token) {
+            const { jwtVerify } = await import('jose');
+            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            try {
+                const { payload } = await jwtVerify(token, secret);
+                const p = payload as unknown as { orderId: string; tenantId: string };
+                if (p.orderId === orderId) {
+                    isAuthorized = true;
+                    tenantIdFromAuth = p.tenantId;
+                }
+            } catch {
+                // Token verification failed, stay unauthorized
+            }
+        }
+
+        if (!isAuthorized || !tenantIdFromAuth) {
+            return NextResponse.json({ error: 'Não autorizado. Autenticação ou token obrigatório.' }, { status: 401 });
+        }
+
         // 🛡️ SECURITY: Fetch data entirely server-side, never trusting client payload.
         const order = await prisma.serviceOrder.findUnique({
-            where: { id: orderId },
+            where: { id: orderId, tenantId: tenantIdFromAuth },
             include: {
                 vehicle: { select: { plate: true, model: true, brand: true, color: true, customer: { select: { name: true } } } },
                 tenant: { select: { name: true, phone: true, logo: true, primaryColor: true, secondaryColor: true, inspectionSignature: true } },

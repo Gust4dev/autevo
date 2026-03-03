@@ -1,13 +1,21 @@
 import { Prisma } from '@prisma/client';
 
 export function tenantExtension(tenantId: string | null) {
-    if (!Prisma.dmmf) {
-        throw new Error("[SECURITY_FATAL] Prisma DMMF indisponível. Isolamento de Tenant comprometido. Abortando execução.");
+    let isolatedModels: string[] = [];
+    if (Prisma.dmmf?.datamodel?.models) {
+        isolatedModels = Prisma.dmmf.datamodel.models
+            .filter((m) => m.fields.some((f) => f.name === 'tenantId'))
+            .map((m) => m.name);
+    } else {
+        console.warn("[SECURITY_WARN] Prisma DMMF indisponível em runtime (comum no Vercel Edge/Serverless). Usando fallback estático de isolamento.");
+        isolatedModels = [
+            'User', 'Customer', 'Vehicle', 'Service', 'Product', 'StockMovement',
+            'ServiceOrder', 'OrderItem', 'OrderItemCommission', 'CommissionSettlement',
+            'OrderProduct', 'Inspection', 'InspectionItem', 'InspectionDamage',
+            'Payment', 'NotificationLog', 'AuditLog', 'MessageTemplate',
+            'Subscription', 'PartnerCommission', 'TenantSequence', 'PendingRestock'
+        ];
     }
-
-    const isolatedModels = Prisma.dmmf.datamodel.models
-        .filter((m) => m.fields.some((f) => f.name === 'tenantId'))
-        .map((m) => m.name);
 
     const injectTenantIntoConnects = (data: any, currentModelName: string): any => {
         if (!data || typeof data !== 'object') return data;

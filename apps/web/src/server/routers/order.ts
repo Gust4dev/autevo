@@ -459,6 +459,10 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'OS não encontrada' });
             }
 
+            if (['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(order.status)) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço bloqueada financeiramente. Operação não permitida.' });
+            }
+
             let costPrice = input.costPrice || 0;
             let name = input.customName || 'Item Personalizado';
 
@@ -486,10 +490,14 @@ export const orderRouter = router({
                 });
 
                 if (order.inventoryDeducted && input.productId) {
-                    await tx.product.update({
-                        where: { id: input.productId },
-                        data: { stock: { decrement: input.quantity } }
-                    });
+                    const updatedRows = await tx.$executeRaw`
+                        UPDATE "Product" 
+                        SET stock = stock - ${input.quantity}
+                        WHERE id = ${input.productId} AND stock >= ${input.quantity}
+                    `;
+                    if (updatedRows === 0) {
+                        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Estoque insuficiente' });
+                    }
 
                     await tx.stockMovement.create({
                         data: {
@@ -515,7 +523,7 @@ export const orderRouter = router({
         }))
         .mutation(async ({ ctx, input }) => {
             const item = await ctx.db.orderProduct.findFirst({
-                where: { id: input.id },
+                where: { id: input.id, tenantId: ctx.tenantId! },
                 include: { order: true }
             });
 
@@ -523,33 +531,49 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
             }
 
-            const diff = input.quantity - item.quantity;
-
-            // 🔒 ATOMIC: Update stock + create movement in a single transaction
-            if (item.order.inventoryDeducted && item.productId) {
-                await ctx.db.$transaction(async (tx: any) => {
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { decrement: diff } }
-                    });
-
-                    await tx.stockMovement.create({
-                        data: {
-                            tenantId: ctx.tenantId!,
-                            productId: item.productId,
-                            type: 'AJUSTE',
-                            quantity: -diff,
-                            notes: `Ajuste manual de quantidade na OS ${item.order.code}`,
-                            createdBy: ctx.user!.id,
-                            reference: `OS-${item.order.code}`,
-                        }
-                    });
-                });
+            if (['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(item.order.status)) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço bloqueada financeiramente. Operação não permitida.' });
             }
 
-            return await ctx.db.orderProduct.update({
-                where: { id: input.id },
-                data: { quantity: input.quantity }
+            const diff = input.quantity - item.quantity;
+
+            return await ctx.db.$transaction(async (tx: any) => {
+                if (item.order.inventoryDeducted && item.productId) {
+                    if (diff > 0) {
+                        const updatedRows = await tx.$executeRaw`
+                            UPDATE "Product" 
+                            SET stock = stock - ${diff}
+                            WHERE id = ${item.productId} AND stock >= ${diff}
+                        `;
+                        if (updatedRows === 0) {
+                            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Estoque insuficiente para ajuste' });
+                        }
+                    } else if (diff < 0) {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: { stock: { increment: Math.abs(diff) } }
+                        });
+                    }
+
+                    if (diff !== 0) {
+                        await tx.stockMovement.create({
+                            data: {
+                                tenantId: ctx.tenantId!,
+                                productId: item.productId,
+                                type: 'AJUSTE',
+                                quantity: -diff,
+                                notes: `Ajuste manual de quantidade na OS ${item.order.code}`,
+                                createdBy: ctx.user!.id,
+                                reference: `OS-${item.order.code}`,
+                            }
+                        });
+                    }
+                }
+
+                return await tx.orderProduct.update({
+                    where: { id: input.id },
+                    data: { quantity: input.quantity }
+                });
             });
         }),
 
@@ -557,7 +581,7 @@ export const orderRouter = router({
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
             const item = await ctx.db.orderProduct.findFirst({
-                where: { id: input.id },
+                where: { id: input.id, tenantId: ctx.tenantId! },
                 include: { order: true }
             });
 
@@ -565,9 +589,13 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
             }
 
+            if (['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(item.order.status)) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço bloqueada financeiramente. Operação não permitida.' });
+            }
+
             // 🔒 ATOMIC: Reverse stock + create movement + delete item in a single transaction
-            if (item.order.inventoryDeducted && item.productId) {
-                await ctx.db.$transaction(async (tx: any) => {
+            await ctx.db.$transaction(async (tx: any) => {
+                if (item.order.inventoryDeducted && item.productId) {
                     await tx.product.update({
                         where: { id: item.productId },
                         data: { stock: { increment: item.quantity } }
@@ -584,16 +612,12 @@ export const orderRouter = router({
                             reference: `OS-${item.order.code}`,
                         }
                     });
+                }
 
-                    await tx.orderProduct.delete({
-                        where: { id: input.id }
-                    });
-                });
-            } else {
-                await ctx.db.orderProduct.delete({
+                await tx.orderProduct.delete({
                     where: { id: input.id }
                 });
-            }
+            });
 
             return { success: true };
         }),
@@ -846,8 +870,15 @@ export const orderRouter = router({
                     }
                 });
 
-                if (input.status === 'CONCLUIDO') {
+                if (input.status === 'EM_EXECUCAO') {
                     await createCommissionSnapshots(tx, ctx.tenantId!, updated);
+                } else if (input.status === 'CONCLUIDO') {
+                    const existingCount = await tx.orderItemCommission.count({
+                        where: { orderItem: { orderId: input.id } }
+                    });
+                    if (existingCount === 0) {
+                        await createCommissionSnapshots(tx, ctx.tenantId!, updated);
+                    }
                 }
 
                 return updated;
@@ -868,8 +899,15 @@ export const orderRouter = router({
                             const product = await tx.product.findUnique({ where: { id: op.productId } });
                             if (!product) continue;
 
-                            if (product.stock < op.quantity) {
-                                // 📦 ESTOQUE INTELIGENTE: Pending Restock
+                            // 📦 ATOMICIDADE TOTAIS: Check-then-act eliminado. O DB tenta deduzir.
+                            const updatedRows = await tx.$executeRaw`
+                                UPDATE "Product" 
+                                SET stock = stock - ${op.quantity}
+                                WHERE id = ${op.productId} AND stock >= ${op.quantity}
+                            `;
+
+                            if (updatedRows === 0) {
+                                // 📦 ESTOQUE INTELIGENTE: Pending Restock por falta de saldo no DB.
                                 await tx.pendingRestock.create({
                                     data: {
                                         tenantId: ctx.tenantId!,
@@ -879,11 +917,6 @@ export const orderRouter = router({
                                     }
                                 });
                             } else {
-                                // 📦 ATOMICIDADE TOTAIS
-                                await tx.product.update({
-                                    where: { id: op.productId },
-                                    data: { stock: { decrement: op.quantity } }
-                                });
                                 await tx.stockMovement.create({
                                     data: {
                                         tenantId: ctx.tenantId!,

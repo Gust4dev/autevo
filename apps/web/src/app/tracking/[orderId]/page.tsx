@@ -198,7 +198,7 @@ export default function TrackingPage({ params }: PageProps) {
     signatureBase64: string,
     metadata?: SignatureMetadata,
   ) => {
-    if (!phoneVerified || phoneDigits.length < 8) {
+    if (!phoneVerified || !accessToken) {
       toast.error("Verificação de telefone necessária");
       return;
     }
@@ -206,7 +206,7 @@ export default function TrackingPage({ params }: PageProps) {
       orderId,
       inspectionId,
       signatureBase64,
-      phoneExact: phoneDigits,
+      token: accessToken,
     });
   };
 

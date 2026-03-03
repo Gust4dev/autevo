@@ -665,9 +665,24 @@ export const inspectionRouter = router({
             orderId: z.string(),
             inspectionId: z.string(),
             signatureBase64: z.string(),
-            phoneExact: z.string().regex(/^\d{8,11}$/, 'Número inválido'),
+            token: z.string(),
         }))
         .mutation(async ({ ctx, input }) => {
+            const { jwtVerify } = await import('jose');
+            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+
+            let payload: { orderId: string; tenantId: string };
+            try {
+                const { payload: p } = await jwtVerify(input.token, secret);
+                payload = p as unknown as { orderId: string; tenantId: string };
+            } catch {
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Autentique-se novamente.' });
+            }
+
+            if (payload.orderId !== input.orderId) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Token não corresponde a esta ordem de serviço.' });
+            }
+
             const inspection = await ctx.db.inspection.findUnique({
                 where: { id: input.inspectionId },
                 include: {
@@ -678,14 +693,6 @@ export const inspectionRouter = router({
                             code: true,
                             tenantId: true,
                             status: true,
-                            customer: {
-                                select: { phone: true }
-                            },
-                            vehicle: {
-                                select: {
-                                    customer: { select: { phone: true } }
-                                }
-                            }
                         }
                     }
                 },
@@ -698,30 +705,10 @@ export const inspectionRouter = router({
                 });
             }
 
-            if (inspection.order.id !== input.orderId) {
+            if (inspection.order.id !== input.orderId || inspection.order.tenantId !== payload.tenantId) {
                 throw new TRPCError({
                     code: 'BAD_REQUEST',
-                    message: 'Vistoria não pertence a esta OS',
-                });
-            }
-
-            const customerPhone = inspection.order.customer?.phone || inspection.order.vehicle?.customer?.phone;
-            if (!customerPhone || customerPhone.trim().length === 0) {
-                throw new TRPCError({
-                    code: 'BAD_REQUEST',
-                    message: 'Telefone do cliente não está cadastrado. Solicite à oficina que atualize seu cadastro.',
-                });
-            }
-
-            const phoneDigitsOnly = customerPhone.replace(/\D/g, '');
-            const inputDigits = input.phoneExact.replace(/\D/g, '');
-
-            const isValid = (phoneDigitsOnly.endsWith(inputDigits) || inputDigits.endsWith(phoneDigitsOnly)) && Math.min(phoneDigitsOnly.length, inputDigits.length) >= 8;
-
-            if (!isValid) {
-                throw new TRPCError({
-                    code: 'UNAUTHORIZED',
-                    message: 'Dígitos do telefone não conferem com o cadastro',
+                    message: 'Vistoria não pertence a esta OS ou o Inquilino é inválido',
                 });
             }
 
