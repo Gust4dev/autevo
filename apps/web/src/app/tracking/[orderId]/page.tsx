@@ -32,6 +32,7 @@ import {
   Share2,
   PenTool,
 } from "lucide-react";
+import Image from "next/image";
 import {
   SignaturePad,
   type SignatureMetadata,
@@ -465,11 +466,15 @@ export default function TrackingPage({ params }: PageProps) {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               {tenantContact.logo ? (
-                <img
-                  src={tenantContact.logo}
-                  alt={tenantContact.name}
-                  className="h-12 w-12 object-contain bg-white dark:bg-black/10 rounded-xl p-1 shadow-sm border border-border/50"
-                />
+                <div className="relative h-12 w-12 bg-white dark:bg-black/10 rounded-xl p-1 shadow-sm border border-border/50 overflow-hidden">
+                  <Image
+                    src={tenantContact.logo}
+                    alt={tenantContact.name}
+                    fill
+                    sizes="48px"
+                    className="object-contain"
+                  />
+                </div>
               ) : (
                 <div
                   className="h-12 w-12 flex items-center justify-center rounded-xl font-bold text-lg shadow-sm"
@@ -731,10 +736,12 @@ export default function TrackingPage({ params }: PageProps) {
                                 onClick={() => setLightboxImage(d.photoUrl!)}
                                 className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
                               >
-                                <img
+                                <Image
                                   src={d.photoUrl!}
                                   alt="Dano"
-                                  className="w-full h-full object-cover"
+                                  fill
+                                  sizes="(max-width: 768px) 33vw, 20vw"
+                                  className="object-cover"
                                   loading="lazy"
                                 />
                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
@@ -757,10 +764,12 @@ export default function TrackingPage({ params }: PageProps) {
                                 onClick={() => setLightboxImage(item.photoUrl!)}
                                 className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
                               >
-                                <img
+                                <Image
                                   src={item.photoUrl!}
                                   alt={item.label}
-                                  className="w-full h-full object-cover"
+                                  fill
+                                  sizes="(max-width: 768px) 33vw, 20vw"
+                                  className="object-cover"
                                   loading="lazy"
                                 />
                                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -893,11 +902,13 @@ export default function TrackingPage({ params }: PageProps) {
                   <CardContent className="p-4">
                     {signatureVerified[inspection.id] ? (
                       <div className="flex justify-center">
-                        <div className="bg-white rounded-lg p-3 border shadow-sm">
-                          <img
+                        <div className="bg-white rounded-lg p-3 border shadow-sm relative h-20 w-40">
+                          <Image
                             src={inspection.signatureUrl!}
                             alt="Assinatura"
-                            className="max-h-20 object-contain"
+                            fill
+                            sizes="160px"
+                            className="object-contain"
                           />
                         </div>
                       </div>

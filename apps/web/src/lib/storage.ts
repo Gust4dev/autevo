@@ -1,11 +1,11 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-const s3Client = new S3Client({
+export const s3 = new S3Client({
     region: process.env.AWS_REGION || 'auto',
-    endpoint: process.env.AWS_ENDPOINT!,
+    endpoint: process.env.AWS_ENDPOINT,
     credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
     },
     forcePathStyle: true,
 });
@@ -21,6 +21,11 @@ export async function uploadFile(
     contentType: string,
     context?: UploadContext
 ): Promise<string> {
+    const MAX_BYTE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.byteLength > MAX_BYTE_SIZE) {
+        throw new Error("Tamanho limite de arquivo excedido (Máx: 10MB).");
+    }
+
     const bucket = process.env.AWS_BUCKET_NAME;
 
     if (!bucket) {
@@ -36,32 +41,29 @@ export async function uploadFile(
         throw new Error('AWS_SECRET_ACCESS_KEY is not defined');
     }
 
-    const key = context
+    const fileKey = context
         ? `${context.tenantId}/${context.orderId || 'general'}/${filename}`
         : filename;
 
     const command = new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
+        Bucket: process.env.AWS_BUCKET_NAME!,
+        Key: fileKey,
         Body: file,
         ContentType: contentType,
+        ACL: 'public-read', // Supabase requires this or relies on bucket policies
     });
 
     try {
-        await s3Client.send(command);
+        await s3.send(command);
     } catch (error: any) {
         throw error;
     }
 
-    let publicUrl: string;
-
     if (process.env.AWS_ENDPOINT?.includes('supabase.co')) {
         const baseUrl = process.env.AWS_ENDPOINT.replace('/s3', '/object/public');
-        publicUrl = `${baseUrl}/${bucket}/${key}`;
+        // For public buckets, construct the URL directly
+        return `${process.env.AWS_ENDPOINT}/${process.env.AWS_BUCKET_NAME}/${fileKey}`;
     } else {
-        publicUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+        return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
     }
-
-    return publicUrl;
 }
-

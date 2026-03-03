@@ -493,7 +493,9 @@ export const orderRouter = router({
                     const updatedRows = await tx.$executeRaw`
                         UPDATE "Product" 
                         SET stock = stock - ${input.quantity}
-                        WHERE id = ${input.productId} AND stock >= ${input.quantity}
+                        WHERE id = ${input.productId} 
+                          AND "tenantId" = ${ctx.tenantId!}
+                          AND stock >= ${input.quantity}
                     `;
                     if (updatedRows === 0) {
                         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Estoque insuficiente' });
@@ -543,7 +545,9 @@ export const orderRouter = router({
                         const updatedRows = await tx.$executeRaw`
                             UPDATE "Product" 
                             SET stock = stock - ${diff}
-                            WHERE id = ${item.productId} AND stock >= ${diff}
+                            WHERE id = ${item.productId} 
+                              AND "tenantId" = ${ctx.tenantId!}
+                              AND stock >= ${diff}
                         `;
                         if (updatedRows === 0) {
                             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Estoque insuficiente para ajuste' });
@@ -1632,7 +1636,11 @@ export const orderRouter = router({
         }))
         .query(async ({ ctx, input }) => {
             const { jwtVerify } = await import('jose');
-            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY_CRITICAL] Chave de assinatura JWT ausente ou muito fraca.' });
+            }
+            const secret = new TextEncoder().encode(secretKey);
 
             try {
                 const { payload } = await jwtVerify(input.token, secret);
@@ -1804,7 +1812,11 @@ export const orderRouter = router({
 
             // 🛡️ Generate JWT Token
             const { SignJWT } = await import('jose');
-            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY_CRITICAL] Chave de assinatura JWT ausente ou muito fraca no servidor.' });
+            }
+            const secret = new TextEncoder().encode(secretKey);
             const token = await new SignJWT({ orderId: input.orderId, tenantId: order.tenantId })
                 .setProtectedHeader({ alg: 'HS256' })
                 .setExpirationTime('1h')
@@ -1835,7 +1847,11 @@ export const orderRouter = router({
             }
 
             const { SignJWT } = await import('jose');
-            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY_CRITICAL] Chave de assinatura JWT ausente ou muito fraca no servidor.' });
+            }
+            const secret = new TextEncoder().encode(secretKey);
             const token = await new SignJWT({ orderId: input.orderId, tenantId: ctx.tenantId })
                 .setProtectedHeader({ alg: 'HS256' })
                 .setExpirationTime('72h')

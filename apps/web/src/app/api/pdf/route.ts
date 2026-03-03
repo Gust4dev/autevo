@@ -48,7 +48,11 @@ export async function POST(req: Request) {
 
         if (!isAuthorized && token) {
             const { jwtVerify } = await import('jose');
-            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                return NextResponse.json({ error: '[SECURITY_CRITICAL] Chave JWT ausente no servidor.' }, { status: 500 });
+            }
+            const secret = new TextEncoder().encode(secretKey);
             try {
                 const { payload } = await jwtVerify(token, secret);
                 const p = payload as unknown as { orderId: string; tenantId: string };
@@ -79,6 +83,17 @@ export async function POST(req: Request) {
 
         if (!order) {
             return NextResponse.json({ error: 'Ordem de serviço não encontrada.' }, { status: 404 });
+        }
+
+        // 🛡️ SECURITY: Imutabilidade Forense
+        // Se a ordem já possuir um pdfUrl, e estiver bloqueada (assinada ou finalizada), NÃO gere outro. Retorne a URL Signed do original.
+        if (order.pdfUrl) {
+            const command = new GetObjectCommand({
+                Bucket: process.env.AWS_BUCKET_NAME!,
+                Key: order.pdfUrl,
+            });
+            const signedUrl = await getSignedUrl(s3 as any, command, { expiresIn: 900 });
+            return NextResponse.json({ url: signedUrl, success: true, immutable: true });
         }
 
         const inspections = await prisma.inspection.findMany({
@@ -170,7 +185,9 @@ export async function POST(req: Request) {
         // Save PDF file key to Order (Imutabilidade documental)
         await prisma.serviceOrder.update({
             where: { id: orderId },
-            data: { pdfUrl: fileName }
+            data: {
+                pdfUrl: fileName
+            }
         });
 
         return NextResponse.json({ url: signedUrl, success: true });

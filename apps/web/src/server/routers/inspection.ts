@@ -357,7 +357,7 @@ export const inspectionRouter = router({
                 where: { id: input.itemId },
                 include: {
                     inspection: {
-                        include: { order: { select: { tenantId: true } } },
+                        include: { order: { select: { tenantId: true, code: true } } },
                     },
                 },
             });
@@ -370,7 +370,23 @@ export const inspectionRouter = router({
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Vistoria já concluída' });
             }
 
-            const updatedPhotos = [...item.photos, input.photoBase64];
+            const { uploadFile } = await import('@/lib/storage');
+            let publicUrl = input.photoBase64; // Fallback se não for base64 (embora devesse ser)
+
+            // 🛡️ SECURITY: Se for um base64, sobe pro S3, nunca grava binário no BD.
+            if (input.photoBase64.startsWith('data:image')) {
+                const base64Data = input.photoBase64.replace(/^data:image\/\w+;base64,/, "");
+                const buffer = Buffer.from(base64Data, 'base64');
+                const contentType = input.photoBase64.substring(5, input.photoBase64.indexOf(';'));
+                const fileName = `inspection-${item.id}-${Date.now()}.${contentType.split('/')[1] || 'jpeg'}`;
+
+                publicUrl = await uploadFile(buffer, fileName, contentType, {
+                    tenantId: ctx.tenantId!,
+                    orderId: item.inspection.order.code
+                });
+            }
+
+            const updatedPhotos = [...item.photos, publicUrl];
 
             const updated = await ctx.db.inspectionItem.update({
                 where: { id: input.itemId },
@@ -418,6 +434,8 @@ export const inspectionRouter = router({
                     photoUrl: updatedPhotos[0] ?? null,
                 },
             });
+
+            // TODO: call S3 delete for the URL (Omitindo por hora pois storage precisa de deleteMethod)
 
             return updated;
         }),
