@@ -2,17 +2,17 @@
   "cookies": [
     {
       "name": "__cf_bm",
-      "value": "ax2uQ9fcsDgHAIIIJiU4rE5lhoFJtGLfW2ujU_h1u3k-1772627290-1.0.1.1-jWQkwsPWE_O7Ea5tjzdhtutL5Rj_cVaB4keBNGHbuiEc5ibixQa7SMZRXYLi4RkRluaQwMytxRfxMAZ.JSwntRXcs41xAryKTpSkraaxIhU",
+      "value": "3_kCR20b3HmlBe3Op6IiCBGgks5eW9fJxTiF9Q59pFE-1772648101-1.0.1.1-Y2IAxoZ0x7ErVywiqQkA8hcDPu1Js7wiMf39BnMVNIhlePTO7glqp9b79imN2Jap6L2p1c8TlSS7Kx4Qc8ZWGA4H.1aA5zOJg.dRs8JEhjs",
       "domain": ".proven-labrador-86.clerk.accounts.dev",
       "path": "/",
-      "expires": 1772629090.194553,
+      "expires": 1772649900.819728,
       "httpOnly": true,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "_cfuvid",
-      "value": "o4NDOQ.e9SrUUnYTA3.LNL4rRFPt1dv_Gd1L0mBnglE-1772627290434-0.0.1.1-604800000",
+      "value": "2ebii.hws1HvIQv7ur_IYWirWd4YgE4FZqqNA5O9b.M-1772648101131-0.0.1.1-604800000",
       "domain": ".proven-labrador-86.clerk.accounts.dev",
       "path": "/",
       "expires": -1,
@@ -22,47 +22,47 @@
     },
     {
       "name": "__clerk_db_jwt",
-      "value": "dvb_3ATrEbqIDUNCRTpOLiuwIHlDBcJ",
+      "value": "dvb_3AUXPw42n4SzO1LxzxqcsBrxD3c",
       "domain": "localhost",
       "path": "/",
-      "expires": 1804163295,
+      "expires": 1804184106,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "__clerk_db_jwt_eJNvP1H2",
-      "value": "dvb_3ATrEbqIDUNCRTpOLiuwIHlDBcJ",
+      "value": "dvb_3AUXPw42n4SzO1LxzxqcsBrxD3c",
       "domain": "localhost",
       "path": "/",
-      "expires": 1804163295,
+      "expires": 1804184106,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "__session",
-      "value": "eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zNm9aZ09zS1hyTlRWa1kxRlF5eFdPbUxWMWYiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAiLCJleHAiOjE3NzI2MjczNTYsImZ2YSI6WzAsMF0sImlhdCI6MTc3MjYyNzI5NiwiaXNzIjoiaHR0cHM6Ly9wcm92ZW4tbGFicmFkb3ItODYuY2xlcmsuYWNjb3VudHMuZGV2IiwibmJmIjoxNzcyNjI3Mjg2LCJzaWQiOiJzZXNzXzNBVHJGQTdRclJWOHo3SXlHTjVNSEFJTjZCTyIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfMzl4RWxHQXNQUEhFRnl2M0VUQWhXNExscnllIiwidiI6Mn0.wwpiK4UnlLQWkzVl6NVYRUyjrw7udJ7ki1BzVA8ZJ-DphpWdooGSL8OnzdyjaAX3S5gaBti-sDMyLsvlckj0mEG37adnqIMGH7tIlsDWX8omM7pV6B24CtoZmrQbmial5MUHJ-Wph9VJtddTsgnNc23bOydNNex3qg445HHMUtFkzIjElA5J0hMDALhiYcSVnIsMYlzaQpsMRD_FGcsxhlQnmA3ehEnVMyNoC5mtvR6WT4_u61HJ1V7ma8jhC91aj2mmHDUzlb2Wk4RfDCd6Asq0kbB4O8tg4iwtxUZZdrp4SEIizpMW-OQBBqhJ0ACde_D029E-YNTQU28-0TP5lA",
+      "value": "eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zNm9aZ09zS1hyTlRWa1kxRlF5eFdPbUxWMWYiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAiLCJleHAiOjE3NzI2NDgxNjYsImZ2YSI6WzAsMF0sImlhdCI6MTc3MjY0ODEwNiwiaXNzIjoiaHR0cHM6Ly9wcm92ZW4tbGFicmFkb3ItODYuY2xlcmsuYWNjb3VudHMuZGV2IiwibmJmIjoxNzcyNjQ4MDk2LCJzaWQiOiJzZXNzXzNBVVhRTlk2T3U1YVREZjdNcFhVemxNSXo1eiIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfMzl4RWxHQXNQUEhFRnl2M0VUQWhXNExscnllIiwidiI6Mn0.V4RKrk0DfZg-TUzRPyPLG1GznzztTh7oShz6BlvKOjy-cqSNvGvyaDnkGw1g9QxmOvrr03f-BxQxoxJdhFKfNBkXIKC28m3HVurB8m6S0n31Zqp6xJaZz_C712uDB76Xb7KCUO8tXI78H7BKG-juRzp5KmNgUgUOa-iV6S3lJF0urytSD6vSWJg1MWT4B7ChqbvxbEBWlV41YxrqkqptzJdf0opn9nCs-6VNGvjN5x7LVr0mWOvchXsMBV-DyDuMZ8qRGIEqh5BAUWDQQJ6hCJgTmCPq4HwBv9lDkw_-GJMfY_9tGxbFAvXrmgE0vpyYHLZsO1boAZBH6zylZSrTBQ",
       "domain": "localhost",
       "path": "/",
-      "expires": 1804163296,
+      "expires": 1804184107,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "__session_eJNvP1H2",
-      "value": "eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zNm9aZ09zS1hyTlRWa1kxRlF5eFdPbUxWMWYiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAiLCJleHAiOjE3NzI2MjczNTYsImZ2YSI6WzAsMF0sImlhdCI6MTc3MjYyNzI5NiwiaXNzIjoiaHR0cHM6Ly9wcm92ZW4tbGFicmFkb3ItODYuY2xlcmsuYWNjb3VudHMuZGV2IiwibmJmIjoxNzcyNjI3Mjg2LCJzaWQiOiJzZXNzXzNBVHJGQTdRclJWOHo3SXlHTjVNSEFJTjZCTyIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfMzl4RWxHQXNQUEhFRnl2M0VUQWhXNExscnllIiwidiI6Mn0.wwpiK4UnlLQWkzVl6NVYRUyjrw7udJ7ki1BzVA8ZJ-DphpWdooGSL8OnzdyjaAX3S5gaBti-sDMyLsvlckj0mEG37adnqIMGH7tIlsDWX8omM7pV6B24CtoZmrQbmial5MUHJ-Wph9VJtddTsgnNc23bOydNNex3qg445HHMUtFkzIjElA5J0hMDALhiYcSVnIsMYlzaQpsMRD_FGcsxhlQnmA3ehEnVMyNoC5mtvR6WT4_u61HJ1V7ma8jhC91aj2mmHDUzlb2Wk4RfDCd6Asq0kbB4O8tg4iwtxUZZdrp4SEIizpMW-OQBBqhJ0ACde_D029E-YNTQU28-0TP5lA",
+      "value": "eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zNm9aZ09zS1hyTlRWa1kxRlF5eFdPbUxWMWYiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAiLCJleHAiOjE3NzI2NDgxNjYsImZ2YSI6WzAsMF0sImlhdCI6MTc3MjY0ODEwNiwiaXNzIjoiaHR0cHM6Ly9wcm92ZW4tbGFicmFkb3ItODYuY2xlcmsuYWNjb3VudHMuZGV2IiwibmJmIjoxNzcyNjQ4MDk2LCJzaWQiOiJzZXNzXzNBVVhRTlk2T3U1YVREZjdNcFhVemxNSXo1eiIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfMzl4RWxHQXNQUEhFRnl2M0VUQWhXNExscnllIiwidiI6Mn0.V4RKrk0DfZg-TUzRPyPLG1GznzztTh7oShz6BlvKOjy-cqSNvGvyaDnkGw1g9QxmOvrr03f-BxQxoxJdhFKfNBkXIKC28m3HVurB8m6S0n31Zqp6xJaZz_C712uDB76Xb7KCUO8tXI78H7BKG-juRzp5KmNgUgUOa-iV6S3lJF0urytSD6vSWJg1MWT4B7ChqbvxbEBWlV41YxrqkqptzJdf0opn9nCs-6VNGvjN5x7LVr0mWOvchXsMBV-DyDuMZ8qRGIEqh5BAUWDQQJ6hCJgTmCPq4HwBv9lDkw_-GJMfY_9tGxbFAvXrmgE0vpyYHLZsO1boAZBH6zylZSrTBQ",
       "domain": "localhost",
       "path": "/",
-      "expires": 1804163296,
+      "expires": 1804184107,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "clerk_active_context",
-      "value": "sess_3ATrFA7QrRV8z7IyGN5MHAIN6BO:",
+      "value": "sess_3AUXQNY6Ou5aTDf7MpXUzlMIz5z:",
       "domain": "localhost",
       "path": "/",
       "expires": -1,
@@ -72,20 +72,20 @@
     },
     {
       "name": "__client_uat_eJNvP1H2",
-      "value": "1772627294",
+      "value": "1772648105",
       "domain": "localhost",
       "path": "/",
-      "expires": 1804163296,
+      "expires": 1804184107,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Strict"
     },
     {
       "name": "__client_uat",
-      "value": "1772627294",
+      "value": "1772648105",
       "domain": "localhost",
       "path": "/",
-      "expires": 1804163296,
+      "expires": 1804184107,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Strict"
@@ -97,7 +97,7 @@
       "localStorage": [
         {
           "name": "__clerk_environment",
-          "value": "{\"value\":{\"object\":\"environment\",\"auth_config\":{\"claimed_at\":null,\"id\":\"\",\"object\":\"auth_config\",\"reverification\":true,\"single_session_mode\":true},\"display_config\":{\"object\":\"display_config\",\"after_create_organization_url\":\"http://localhost:3000\",\"after_join_waitlist_url\":\"http://localhost:3000\",\"after_leave_organization_url\":\"http://localhost:3000\",\"after_sign_in_url\":\"http://localhost:3000\",\"after_sign_out_all_url\":\"https://proven-labrador-86.accounts.dev/sign-in\",\"after_sign_out_one_url\":\"https://proven-labrador-86.accounts.dev/sign-in/choose\",\"after_sign_up_url\":\"http://localhost:3000\",\"after_switch_session_url\":\"http://localhost:3000\",\"application_name\":\"Autevo\",\"branded\":true,\"captcha_heartbeat\":false,\"captcha_oauth_bypass\":[],\"captcha_provider\":\"turnstile\",\"captcha_public_key_invisible\":\"0x4AAAAAAAFV93qQdS0ycilX\",\"captcha_public_key\":\"0x4AAAAAAAWXJGBD7bONzLBd\",\"captcha_widget_type\":\"smart\",\"clerk_js_version\":\"5\",\"create_organization_url\":\"https://proven-labrador-86.accounts.dev/create-organization\",\"favicon_image_url\":\"\",\"home_url\":\"http://localhost:3000\",\"id\":\"display_config_36oZgN28azAHaF4i8RiaDvK29PJ\",\"instance_environment_type\":\"development\",\"logo_image_url\":\"https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvdXBsb2FkZWQvaW1nXzM5R21vMGpSbmFvWkEzTldGbk9zclI0VXNYeiJ9\",\"organization_profile_url\":\"https://proven-labrador-86.accounts.dev/organization\",\"preferred_sign_in_strategy\":\"password\",\"privacy_policy_url\":\"\",\"show_devmode_warning\":true,\"sign_in_url\":\"https://proven-labrador-86.accounts.dev/sign-in\",\"sign_up_url\":\"https://proven-labrador-86.accounts.dev/sign-up\",\"support_email\":\"\",\"terms_url\":\"\",\"theme\":{\"buttons\":{\"font_color\":\"#ffffff\",\"font_family\":\"\\\"Source Sans Pro\\\", sans-serif\",\"font_weight\":\"600\"},\"general\":{\"color\":\"#6c47ff\",\"padding\":\"1em\",\"box_shadow\":\"0 2px 8px rgba(0, 0, 0, 0.2)\",\"font_color\":\"#151515\",\"font_family\":\"\\\"Source Sans Pro\\\", sans-serif\",\"border_radius\":\"0.5em\",\"background_color\":\"#ffffff\",\"label_font_weight\":\"600\"},\"accounts\":{\"background_color\":\"#ffffff\"}},\"user_profile_url\":\"https://proven-labrador-86.accounts.dev/user\",\"waitlist_url\":\"https://proven-labrador-86.accounts.dev/waitlist\"},\"id\":\"\",\"maintenance_mode\":false,\"client_debug_mode\":false,\"partitioned_cookies\":false,\"organization_settings\":{\"actions\":{\"admin_delete\":true},\"domains\":{\"enabled\":false,\"enrollment_modes\":[],\"default_role\":\"\"},\"enabled\":false,\"max_allowed_memberships\":5},\"user_settings\":{\"actions\":{\"delete_self\":true,\"create_organization\":true,\"create_organizations_limit\":null},\"attributes\":{\"email_address\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":true,\"first_factors\":[\"email_code\"],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[\"email_code\"],\"verify_at_sign_up\":true,\"immutable\":false,\"name\":\"email_address\"},\"phone_number\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"phone_number\"},\"username\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"username\"},\"web3_wallet\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"web3_wallet\"},\"first_name\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"first_name\"},\"last_name\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"last_name\"},\"password\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"password\"},\"authenticator_app\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"authenticator_app\"},\"ticket\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"ticket\"},\"backup_code\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"backup_code\"},\"passkey\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"passkey\"}},\"passkey_settings\":{\"allow_autofill\":true,\"show_sign_in_button\":true},\"password_settings\":{\"disable_hibp\":false,\"min_length\":8,\"max_length\":72,\"require_special_char\":false,\"require_numbers\":false,\"require_uppercase\":false,\"require_lowercase\":false,\"show_zxcvbn\":false,\"min_zxcvbn_strength\":0,\"enforce_hibp_on_sign_in\":true,\"allowed_special_characters\":\"!\\\"#$%&'()*+,-./:;<=>?@[]^_`{|}~\"},\"saml\":{\"enabled\":false},\"sign_in\":{\"second_factor\":{\"required\":false}},\"sign_up\":{\"captcha_enabled\":true,\"captcha_widget_type\":\"smart\",\"custom_action_required\":false,\"progressive\":true,\"mode\":\"public\",\"legal_consent_enabled\":false,\"mfa\":{\"required\":false}},\"social\":{\"oauth_apple\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":false,\"strategy\":\"oauth_apple\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"Apple\",\"logo_url\":\"https://img.clerk.com/static/apple.png\"},\"oauth_google\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":true,\"strategy\":\"oauth_google\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"Google\",\"logo_url\":\"https://img.clerk.com/static/google.png\"},\"oauth_linkedin_oidc\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":false,\"strategy\":\"oauth_linkedin_oidc\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"LinkedIn\",\"logo_url\":\"https://img.clerk.com/static/linkedin_oidc.png\"}}},\"commerce_settings\":{\"billing\":{\"stripe_publishable_key\":null,\"organization\":{\"enabled\":false,\"has_paid_plans\":false},\"user\":{\"enabled\":false,\"has_paid_plans\":false}}},\"api_keys_settings\":{\"user_api_keys_enabled\":false,\"orgs_api_keys_enabled\":false},\"protect_config\":{\"object\":\"protect_config\",\"id\":\"\"}},\"exp\":1772713691832}"
+          "value": "{\"value\":{\"object\":\"environment\",\"auth_config\":{\"claimed_at\":null,\"id\":\"\",\"object\":\"auth_config\",\"reverification\":true,\"single_session_mode\":true},\"display_config\":{\"object\":\"display_config\",\"after_create_organization_url\":\"http://localhost:3000\",\"after_join_waitlist_url\":\"http://localhost:3000\",\"after_leave_organization_url\":\"http://localhost:3000\",\"after_sign_in_url\":\"http://localhost:3000\",\"after_sign_out_all_url\":\"https://proven-labrador-86.accounts.dev/sign-in\",\"after_sign_out_one_url\":\"https://proven-labrador-86.accounts.dev/sign-in/choose\",\"after_sign_up_url\":\"http://localhost:3000\",\"after_switch_session_url\":\"http://localhost:3000\",\"application_name\":\"Autevo\",\"branded\":true,\"captcha_heartbeat\":false,\"captcha_oauth_bypass\":[],\"captcha_provider\":\"turnstile\",\"captcha_public_key_invisible\":\"0x4AAAAAAAFV93qQdS0ycilX\",\"captcha_public_key\":\"0x4AAAAAAAWXJGBD7bONzLBd\",\"captcha_widget_type\":\"smart\",\"clerk_js_version\":\"5\",\"create_organization_url\":\"https://proven-labrador-86.accounts.dev/create-organization\",\"favicon_image_url\":\"\",\"home_url\":\"http://localhost:3000\",\"id\":\"display_config_36oZgN28azAHaF4i8RiaDvK29PJ\",\"instance_environment_type\":\"development\",\"logo_image_url\":\"https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvdXBsb2FkZWQvaW1nXzM5R21vMGpSbmFvWkEzTldGbk9zclI0VXNYeiJ9\",\"organization_profile_url\":\"https://proven-labrador-86.accounts.dev/organization\",\"preferred_sign_in_strategy\":\"password\",\"privacy_policy_url\":\"\",\"show_devmode_warning\":true,\"sign_in_url\":\"https://proven-labrador-86.accounts.dev/sign-in\",\"sign_up_url\":\"https://proven-labrador-86.accounts.dev/sign-up\",\"support_email\":\"\",\"terms_url\":\"\",\"theme\":{\"buttons\":{\"font_color\":\"#ffffff\",\"font_family\":\"\\\"Source Sans Pro\\\", sans-serif\",\"font_weight\":\"600\"},\"general\":{\"color\":\"#6c47ff\",\"padding\":\"1em\",\"box_shadow\":\"0 2px 8px rgba(0, 0, 0, 0.2)\",\"font_color\":\"#151515\",\"font_family\":\"\\\"Source Sans Pro\\\", sans-serif\",\"border_radius\":\"0.5em\",\"background_color\":\"#ffffff\",\"label_font_weight\":\"600\"},\"accounts\":{\"background_color\":\"#ffffff\"}},\"user_profile_url\":\"https://proven-labrador-86.accounts.dev/user\",\"waitlist_url\":\"https://proven-labrador-86.accounts.dev/waitlist\"},\"id\":\"\",\"maintenance_mode\":false,\"client_debug_mode\":false,\"partitioned_cookies\":false,\"organization_settings\":{\"actions\":{\"admin_delete\":true},\"domains\":{\"enabled\":false,\"enrollment_modes\":[],\"default_role\":\"\"},\"enabled\":false,\"max_allowed_memberships\":5},\"user_settings\":{\"actions\":{\"delete_self\":true,\"create_organization\":true,\"create_organizations_limit\":null},\"attributes\":{\"email_address\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":true,\"first_factors\":[\"email_code\"],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[\"email_code\"],\"verify_at_sign_up\":true,\"immutable\":false,\"name\":\"email_address\"},\"phone_number\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"phone_number\"},\"username\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"username\"},\"web3_wallet\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"web3_wallet\"},\"first_name\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"first_name\"},\"last_name\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"last_name\"},\"password\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"password\"},\"authenticator_app\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"authenticator_app\"},\"ticket\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"ticket\"},\"backup_code\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"backup_code\"},\"passkey\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"passkey\"}},\"passkey_settings\":{\"allow_autofill\":true,\"show_sign_in_button\":true},\"password_settings\":{\"disable_hibp\":false,\"min_length\":8,\"max_length\":72,\"require_special_char\":false,\"require_numbers\":false,\"require_uppercase\":false,\"require_lowercase\":false,\"show_zxcvbn\":false,\"min_zxcvbn_strength\":0,\"enforce_hibp_on_sign_in\":true,\"allowed_special_characters\":\"!\\\"#$%&'()*+,-./:;<=>?@[]^_`{|}~\"},\"saml\":{\"enabled\":false},\"sign_in\":{\"second_factor\":{\"required\":false}},\"sign_up\":{\"captcha_enabled\":true,\"captcha_widget_type\":\"smart\",\"custom_action_required\":false,\"progressive\":true,\"mode\":\"public\",\"legal_consent_enabled\":false,\"mfa\":{\"required\":false}},\"social\":{\"oauth_apple\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":false,\"strategy\":\"oauth_apple\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"Apple\",\"logo_url\":\"https://img.clerk.com/static/apple.png\"},\"oauth_google\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":true,\"strategy\":\"oauth_google\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"Google\",\"logo_url\":\"https://img.clerk.com/static/google.png\"},\"oauth_linkedin_oidc\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":false,\"strategy\":\"oauth_linkedin_oidc\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"LinkedIn\",\"logo_url\":\"https://img.clerk.com/static/linkedin_oidc.png\"}}},\"commerce_settings\":{\"billing\":{\"stripe_publishable_key\":null,\"organization\":{\"enabled\":false,\"has_paid_plans\":false},\"user\":{\"enabled\":false,\"has_paid_plans\":false}}},\"api_keys_settings\":{\"user_api_keys_enabled\":false,\"orgs_api_keys_enabled\":false},\"protect_config\":{\"object\":\"protect_config\",\"id\":\"\"}},\"exp\":1772734502429}"
         }
       ]
     }

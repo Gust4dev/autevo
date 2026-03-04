@@ -114,6 +114,7 @@ export default function TrackingPage({ params }: PageProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState("");
+  const [documentDigits, setDocumentDigits] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signingInspectionId, setSigningInspectionId] = useState<string | null>(
@@ -627,17 +628,43 @@ export default function TrackingPage({ params }: PageProps) {
                       phoneDigits.length >= 8 ? primaryColor : undefined,
                   }}
                 />
+                <p className="text-sm text-muted-foreground text-center mt-4">
+                  E os <strong>últimos 3 dígitos</strong> do seu CPF/CNPJ.
+                </p>
+                <input
+                  type="text"
+                  maxLength={3}
+                  value={documentDigits}
+                  onChange={(e) =>
+                    setDocumentDigits(
+                      e.target.value.replace(/\D/g, "").slice(0, 3),
+                    )
+                  }
+                  placeholder="123"
+                  className="w-full px-4 py-3 text-center text-xl font-mono tracking-widest border-2 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  style={{
+                    borderColor:
+                      documentDigits.length === 3 ? primaryColor : undefined,
+                  }}
+                />
+
                 <Button
                   onClick={() => {
-                    if (phoneDigits.length >= 8) {
+                    if (
+                      phoneDigits.length >= 8 &&
+                      documentDigits.length === 3
+                    ) {
                       verifyPhoneMutation.mutate({
                         orderId,
                         phoneExact: phoneDigits,
+                        documentExact: documentDigits,
                       });
                     }
                   }}
                   disabled={
-                    phoneDigits.length < 8 || verifyPhoneMutation.isPending
+                    phoneDigits.length < 8 ||
+                    documentDigits.length < 3 ||
+                    verifyPhoneMutation.isPending
                   }
                   className="w-full h-11 font-bold"
                   style={{ backgroundColor: primaryColor }}

@@ -33,6 +33,7 @@ export const productRouter = router({
 
             const where = {
                 tenantId: ctx.tenantId!,
+                deletedAt: null,
                 ...(search && {
                     OR: [
                         { name: { contains: search, mode: 'insensitive' as const } },
@@ -104,6 +105,7 @@ export const productRouter = router({
                     where: {
                         tenantId: ctx.tenantId!,
                         sku: input.sku,
+                        deletedAt: null,
                     },
                 });
 
@@ -210,7 +212,7 @@ export const productRouter = router({
             const [product] = await ctx.db.$transaction([
                 ctx.db.product.update({
                     where: { id: input.id },
-                    data: { stock: newStock },
+                    data: { stock: { increment: input.quantity } },
                 }),
                 ctx.db.stockMovement.create({
                     data: {
@@ -241,7 +243,6 @@ export const productRouter = router({
             return product;
         }),
 
-    // Delete product
     delete: managerProcedure
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
@@ -249,9 +250,6 @@ export const productRouter = router({
                 where: {
                     id: input.id,
                     tenantId: ctx.tenantId!,
-                },
-                include: {
-                    _count: { select: { orderProducts: true } },
                 },
             });
 
@@ -262,29 +260,17 @@ export const productRouter = router({
                 });
             }
 
-            if (existing._count.orderProducts > 0) {
-                throw new TRPCError({
-                    code: 'PRECONDITION_FAILED',
-                    message: 'Produto possui ordens vinculadas e não pode ser excluído',
-                });
-            }
-
-            // Delete movements first, then product
-            await ctx.db.stockMovement.deleteMany({
-                where: { productId: input.id },
-            });
-
-            await ctx.db.product.delete({
+            await ctx.db.product.update({
                 where: { id: input.id },
+                data: { deletedAt: new Date() }
             });
 
             return { success: true };
         }),
 
-    // Get low stock products count
     lowStockCount: protectedProcedure.query(async ({ ctx }) => {
         const products = await ctx.db.product.findMany({
-            where: { tenantId: ctx.tenantId! },
+            where: { tenantId: ctx.tenantId!, deletedAt: null },
             select: { stock: true, minStock: true },
         });
 

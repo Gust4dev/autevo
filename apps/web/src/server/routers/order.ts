@@ -129,21 +129,19 @@ export const orderRouter = router({
             }
 
             const order = await ctx.db.$transaction(async (tx: any) => {
-                // 🔒 ATOMIC LOCK: Upsert + UPDATE RETURNING (eliminates race condition)
-                await tx.$executeRaw`
-                    INSERT INTO "TenantSequence" ("id", "tenantId", "prefix", "currentValue", "updatedAt")
-                    VALUES (gen_random_uuid(), ${ctx.tenantId!}, 'OS', 0, NOW())
-                    ON CONFLICT ("tenantId") DO NOTHING
+                // 🔒 ATOMIC LOCK via Stored Procedure (PostgreSQL)
+                const [result] = await tx.$queryRaw<Array<{ fn_get_next_sequence: string }>>`
+                    SELECT fn_get_next_sequence(${ctx.tenantId!}::text)
                 `;
 
-                const [sequence] = await tx.$queryRaw<Array<{ prefix: string; currentValue: number }>>`
-                    UPDATE "TenantSequence"
-                    SET "currentValue" = "currentValue" + 1, "updatedAt" = NOW()
-                    WHERE "tenantId" = ${ctx.tenantId!}
-                    RETURNING "prefix", "currentValue"
-                `;
+                if (!result || !result.fn_get_next_sequence) {
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Falha ao gerar número da Ordem de Serviço'
+                    });
+                }
 
-                const orderCode = `${sequence.prefix}-${sequence.currentValue.toString().padStart(4, '0')}`;
+                const orderCode = result.fn_get_next_sequence;
 
                 return tx.serviceOrder.create({
                     data: {
@@ -461,8 +459,8 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'OS não encontrada' });
             }
 
-            if (['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(order.status)) {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço bloqueada financeiramente. Operação não permitida.' });
+            if (order.startedAt) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço possui selo financeiro (já iniciada). Operação bloqueada.' });
             }
 
             let costPrice = input.costPrice || 0;
@@ -535,8 +533,8 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
             }
 
-            if (['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(item.order.status)) {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço bloqueada financeiramente. Operação não permitida.' });
+            if (item.order.startedAt) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço possui selo financeiro (já iniciada). Operação bloqueada.' });
             }
 
             const diff = input.quantity - item.quantity;
@@ -595,8 +593,8 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
             }
 
-            if (['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(item.order.status)) {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço bloqueada financeiramente. Operação não permitida.' });
+            if (item.order.startedAt) {
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Ordem de serviço possui selo financeiro (já iniciada). Operação bloqueada.' });
             }
 
             // 🔒 ATOMIC: Reverse stock + create movement + delete item in a single transaction
@@ -662,8 +660,9 @@ export const orderRouter = router({
                 }
             }
 
-            // 🛡️ Sprint 3: Imutabilidade Financeira
-            const isFinanciallyLocked = ['AGUARDANDO_PAGAMENTO', 'CONCLUIDO'].includes(existing.status);
+            // 🛡️ Lock Financeiro e de Repasses (Audit Report 1.2)
+            // Agora garantida pela PRESENÇA do timestamp startedAt, independente do status transiente.
+            const isFinanciallyLocked = existing.startedAt !== null;
 
             if (isFinanciallyLocked) {
                 if (input.data.items || input.data.discountValue !== undefined || input.data.discountType !== undefined) {
@@ -1186,81 +1185,82 @@ export const orderRouter = router({
         .input(paymentSchema)
         .mutation(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
-            const where: Prisma.ServiceOrderWhereInput = { id: input.orderId, tenantId: ctx.tenantId! };
-
-            if (isMember) {
-                where.assignedToId = ctx.user!.id;
-            }
-
-            const order = await ctx.db.serviceOrder.findFirst({
-                where,
-                include: { payments: true },
-            });
-
-            if (!order) {
-                throw new TRPCError({
-                    code: 'NOT_FOUND',
-                    message: 'Ordem de serviço não encontrada',
-                });
-            }
-
-            const orderTotal = new Decimal(order.total);
-            const currentPaid = order.payments.reduce(
-                (sum: Decimal, p: any) => sum.plus(new Decimal(p.amount)),
-                new Decimal(0)
-            );
-            const balance = orderTotal.minus(currentPaid);
-
             const EPSILON = new Decimal('0.01');
 
-            if (new Decimal(input.amount).minus(balance).greaterThan(EPSILON)) {
-                throw new TRPCError({
-                    code: 'BAD_REQUEST',
-                    message: `Valor excede o saldo devedor de R$ ${balance.toDecimalPlaces(2).toString()}`,
-                });
-            }
+            return await ctx.db.$transaction(async (tx: any) => {
+                await tx.$executeRaw`SELECT id FROM "ServiceOrder" WHERE id = ${input.orderId} AND "tenantId" = ${ctx.tenantId!} FOR UPDATE`;
 
-            const payment = await ctx.db.payment.create({
-                data: {
-                    tenantId: ctx.tenantId!,
-                    orderId: input.orderId,
-                    method: input.method,
-                    amount: input.amount,
-                    paidAt: input.paidAt || new Date(),
-                    receivedBy: ctx.user!.id,
-                    notes: input.notes,
-                },
-            });
-
-            const newTotalPaid = currentPaid.plus(new Decimal(input.amount));
-            const remaining = orderTotal.minus(newTotalPaid);
-
-            if (remaining.lessThan(EPSILON)) {
-                const tenant = await ctx.db.tenant.findUnique({
-                    where: { id: ctx.tenantId! },
-                    select: { inspectionRequired: true }
-                });
-
-                const isExitRequired = tenant?.inspectionRequired === 'EXIT' || tenant?.inspectionRequired === 'BOTH';
-                let canComplete = !isExitRequired;
-
-                if (isExitRequired) {
-                    const exitInspection = await ctx.db.inspection.findUnique({
-                        where: {
-                            orderId_type: {
-                                orderId: input.orderId,
-                                type: 'final',
-                            },
-                        },
-                        select: { status: true },
-                    });
-                    if (exitInspection?.status === 'concluida') {
-                        canComplete = true;
-                    }
+                const where: Prisma.ServiceOrderWhereInput = { id: input.orderId, tenantId: ctx.tenantId! };
+                if (isMember) {
+                    where.assignedToId = ctx.user!.id;
                 }
 
-                if (canComplete) {
-                    await ctx.db.$transaction(async (tx: any) => {
+                const order = await tx.serviceOrder.findFirst({
+                    where,
+                    include: { payments: true },
+                });
+
+                if (!order) {
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Ordem de serviço não encontrada',
+                    });
+                }
+
+                const orderTotal = new Decimal(order.total);
+                const currentPaid = order.payments.reduce(
+                    (sum: Decimal, p: any) => sum.plus(new Decimal(p.amount)),
+                    new Decimal(0)
+                );
+                const balance = orderTotal.minus(currentPaid);
+
+                if (new Decimal(input.amount).minus(balance).greaterThan(EPSILON)) {
+                    throw new TRPCError({
+                        code: 'BAD_REQUEST',
+                        message: `Valor excede o saldo devedor de R$ ${balance.toDecimalPlaces(2).toString()}`,
+                    });
+                }
+
+                const payment = await tx.payment.create({
+                    data: {
+                        tenantId: ctx.tenantId!,
+                        orderId: input.orderId,
+                        method: input.method,
+                        amount: input.amount,
+                        paidAt: input.paidAt || new Date(),
+                        receivedBy: ctx.user!.id,
+                        notes: input.notes,
+                    },
+                });
+
+                const newTotalPaid = currentPaid.plus(new Decimal(input.amount));
+                const remaining = orderTotal.minus(newTotalPaid);
+
+                if (remaining.lessThan(EPSILON)) {
+                    const tenant = await tx.tenant.findUnique({
+                        where: { id: ctx.tenantId! },
+                        select: { inspectionRequired: true }
+                    });
+
+                    const isExitRequired = tenant?.inspectionRequired === 'EXIT' || tenant?.inspectionRequired === 'BOTH';
+                    let canComplete = !isExitRequired;
+
+                    if (isExitRequired) {
+                        const exitInspection = await tx.inspection.findUnique({
+                            where: {
+                                orderId_type: {
+                                    orderId: input.orderId,
+                                    type: 'final',
+                                },
+                            },
+                            select: { status: true },
+                        });
+                        if (exitInspection?.status === 'concluida') {
+                            canComplete = true;
+                        }
+                    }
+
+                    if (canComplete) {
                         const completedOrder = await tx.serviceOrder.update({
                             where: { id: input.orderId },
                             data: {
@@ -1276,11 +1276,11 @@ export const orderRouter = router({
                         });
 
                         await createCommissionSnapshots(tx, ctx.tenantId!, completedOrder);
-                    });
+                    }
                 }
-            }
 
-            return payment;
+                return payment;
+            });
         }),
 
     getStats: protectedProcedure
@@ -1415,22 +1415,26 @@ export const orderRouter = router({
                 throw new TRPCError({ code: 'FORBIDDEN', message: 'Apenas gestores podem realizar acertos' });
             }
 
-            const commissions = await ctx.db.orderItemCommission.findMany({
-                where: {
-                    id: { in: input.commissionIds },
-                    userId: input.userId,
-                    settlementId: null,
-                    status: 'ACTIVE',
+            return await ctx.db.$transaction(async (tx: any) => {
+                if (input.commissionIds.length > 0) {
+                    await tx.$executeRaw`SELECT id FROM "OrderItemCommission" WHERE id IN (${Prisma.join(input.commissionIds)}) FOR UPDATE`;
                 }
-            });
 
-            if (commissions.length === 0) {
-                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Nenhuma comissão pendente encontrada para este técnico' });
-            }
+                const commissions = await tx.orderItemCommission.findMany({
+                    where: {
+                        id: { in: input.commissionIds },
+                        userId: input.userId,
+                        settlementId: null,
+                        status: 'ACTIVE',
+                    }
+                });
 
-            const totalPaid = commissions.reduce((acc, c) => acc + Number(c.commissionValue), 0);
+                if (commissions.length !== input.commissionIds.length) {
+                    throw new TRPCError({ code: 'CONFLICT', message: 'Algumas comissões já foram processadas ou foram canceladas' });
+                }
 
-            return await ctx.db.$transaction(async (tx) => {
+                const totalPaid = commissions.reduce((acc: number, c: any) => acc + Number(c.commissionValue), 0);
+
                 const settlement = await tx.commissionSettlement.create({
                     data: {
                         tenantId: ctx.tenantId!,
@@ -1449,7 +1453,7 @@ export const orderRouter = router({
                     data: { settlementId: settlement.id }
                 });
 
-                await (tx.auditLog as any).create({
+                await tx.auditLog.create({
                     data: {
                         tenantId: ctx.tenantId!,
                         userId: ctx.user!.id,
@@ -1793,61 +1797,64 @@ export const orderRouter = router({
     verifyTrackingPhone: publicProcedure
         .input(z.object({
             orderId: z.string(),
-            phoneExact: z.string().regex(/^\d{8,11}$/, 'Número inválido. Digite apenas números')
+            phoneExact: z.string().regex(/^\d{8,11}$/, 'Número inválido. Digite apenas números'),
+            documentExact: z.string().min(3, 'Mínimo de 3 dígitos do documento'),
         }))
         .mutation(async ({ ctx, input }) => {
+            const ipAddress = ctx.headers?.ipAddress || 'unknown';
+
+            // SECURITY: Rate limit (5 tentativas falhas = bloqueio 1 hora) limitando no Redis!
+            if (ipAddress !== 'unknown') {
+                try {
+                    const { redis } = await import('@/lib/redis');
+                    if (redis) {
+                        const failCount = await redis.get<number>(`fails:${ipAddress}`);
+                        if (failCount && failCount >= 5) {
+                            throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Muitas tentativas falhas. Acesso bloqueado por segurança.' });
+                        }
+                    }
+                } catch {
+                    // Fallback to db rate limit if redis fails temporarily
+                }
+            }
+
             const order = await ctx.db.serviceOrder.findUnique({
                 where: { id: input.orderId },
                 select: {
                     tenantId: true,
-                    customer: { select: { phone: true } },
-                    vehicle: { select: { customer: { select: { phone: true } } } }
+                    customer: { select: { phone: true, document: true } },
+                    vehicle: { select: { customer: { select: { phone: true, document: true } } } }
                 }
             });
 
             if (!order) return { isValid: false, token: null };
 
-            // 🛡️ SECURITY: Rate limit (5 tentativas por minuto para mitigar brute-force)
-            const oneMinuteAgo = new Date(Date.now() - 60000);
-            const ipAddress = ctx.headers?.ipAddress || 'unknown';
-
-            const recentFails = await ctx.db.auditLog.count({
-                where: {
-                    action: 'TRACKING_AUTH_FAILED',
-                    entityType: 'ServiceOrder',
-                    entityId: input.orderId,
-                    createdAt: { gte: oneMinuteAgo }
-                }
-            });
-
-            // Rate limit GLOBAL por IP (15/min) para impedir distribuição entre múltiplos orderIds
-            const recentFailsByIp = await ctx.db.auditLog.count({
-                where: {
-                    action: 'TRACKING_AUTH_FAILED',
-                    metadata: {
-                        path: ['ipAddress'],
-                        equals: ipAddress
-                    },
-                    createdAt: { gte: oneMinuteAgo }
-                }
-            });
-
-            if (recentFails >= 5 || recentFailsByIp >= 15) {
-                throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Muitas tentativas inválidas. Acesso temporariamente bloqueado. Tente novamente em 1 minuto.' });
-            }
-
             const phone = order.customer?.phone || order.vehicle?.customer?.phone;
-            if (!phone) return { isValid: false, token: null };
+            const document = order.customer?.document || order.vehicle?.customer?.document;
+
+            if (!phone || !document) return { isValid: false, token: null };
 
             const digitsOnly = phone.replace(/\D/g, '');
             const inputDigits = input.phoneExact.replace(/\D/g, '');
-
             const coreLength = Math.min(Math.max(digitsOnly.length, 8), 9);
             const storedCore = digitsOnly.slice(-coreLength);
             const inputCore = inputDigits.slice(-coreLength);
-            const isValid = storedCore === inputCore && storedCore.length >= 8;
+            const isPhoneValid = storedCore === inputCore && storedCore.length >= 8;
 
-            if (!isValid) {
+            const docDigits = document.replace(/\D/g, '');
+            const inputDocDigits = input.documentExact.replace(/\D/g, '');
+            const isDocValid = docDigits.slice(-3) === inputDocDigits.slice(-3) && inputDocDigits.length >= 3;
+
+            if (!isPhoneValid || !isDocValid) {
+                if (ipAddress !== 'unknown') {
+                    const { redis } = await import('@/lib/redis');
+                    if (redis) {
+                        const key = `fails:${ipAddress}`;
+                        const current = await redis.incr(key);
+                        if (current === 1) await redis.expire(key, 3600);
+                    }
+                }
+
                 await ctx.db.auditLog.create({
                     data: {
                         tenantId: order.tenantId,
@@ -1857,7 +1864,14 @@ export const orderRouter = router({
                         metadata: { attempted: "MASKED", ipAddress } as any
                     }
                 }).catch(() => { });
+
                 return { isValid: false, token: null };
+            }
+
+            // Limpa as falhas após um sucesso verificável
+            if (ipAddress !== 'unknown') {
+                const { redis } = await import('@/lib/redis');
+                if (redis) await redis.del(`fails:${ipAddress}`);
             }
 
             // 🛡️ Generate JWT Token

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/storage';
+import { auth } from '@clerk/nextjs/server';
+import { jwtVerify } from 'jose';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_MIME_TYPES = [
@@ -22,6 +24,26 @@ function sanitizeFilename(name: string): string {
 
 export async function POST(request: NextRequest) {
     try {
+        const { userId } = await auth();
+
+        if (!userId) {
+            const token = request.nextUrl.searchParams.get("token") || request.headers.get("Authorization")?.replace("Bearer ", "");
+            if (!token) {
+                return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+            }
+
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey) {
+                return NextResponse.json({ success: false, error: 'Server error: missing keys' }, { status: 500 });
+            }
+
+            try {
+                await jwtVerify(token, new TextEncoder().encode(secretKey));
+            } catch {
+                return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 });
+            }
+        }
+
         const data = await request.formData();
         const file: File | null = data.get('file') as unknown as File;
 
