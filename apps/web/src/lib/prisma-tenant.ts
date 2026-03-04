@@ -144,8 +144,46 @@ export function tenantExtension(tenantId: string | null) {
                             return query(args);
                         }
 
+                        if (!tenantId) {
+                            // Operando sem tenant no contexto (ex: public procedure, webhook)
+                            // Aplica política MISS-CLOSED: impede queries em models isolados que não tenham tenantId explícito.
+                            const checkHasTenantExplicitly = (obj: any): boolean => {
+                                if (!obj || typeof obj !== 'object') return false;
+                                if ('tenantId' in obj && obj.tenantId !== undefined && obj.tenantId !== null) return true;
+                                if (Array.isArray(obj.AND) && obj.AND.some(checkHasTenantExplicitly)) return true;
+                                if (Array.isArray(obj.OR) && obj.OR.some(checkHasTenantExplicitly)) return true;
+                                return false;
+                            };
+
+                            const isRead = ['findFirst', 'findUnique', 'findMany', 'count', 'aggregate', 'groupBy'].includes(operation);
+                            const isWrite = ['create', 'createMany', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'].includes(operation);
+                            const anyArgs = args as any;
+
+                            if (isRead && (!anyArgs?.where || !checkHasTenantExplicitly(anyArgs.where))) {
+                                throw new Error(`[SECURITY_FATAL] Tentativa de leitura global no model isolado '${model}' bloqueada. É obrigatório passar 'tenantId' no 'where' para rotas públicas.`);
+                            }
+
+                            if (isWrite) {
+                                if (operation === 'create' || operation === 'createMany') {
+                                    const dataArr = Array.isArray(anyArgs?.data) ? anyArgs.data : [anyArgs?.data];
+                                    const hasTenantInAll = dataArr.every((d: any) => d && 'tenantId' in d && d.tenantId !== undefined && d.tenantId !== null);
+                                    if (!hasTenantInAll) throw new Error(`[SECURITY_FATAL] Tentativa de criação no model '${model}' sem 'tenantId' explícito no 'data' bloqueada.`);
+                                } else if (['update', 'updateMany', 'delete', 'deleteMany'].includes(operation)) {
+                                    if (!anyArgs?.where || !checkHasTenantExplicitly(anyArgs.where)) {
+                                        throw new Error(`[SECURITY_FATAL] Tentativa de mutação global no model '${model}' bloqueada. Passe 'tenantId' explícito no 'where'.`);
+                                    }
+                                } else if (operation === 'upsert') {
+                                    if (!anyArgs?.where || !checkHasTenantExplicitly(anyArgs.where) || !anyArgs?.create || !('tenantId' in anyArgs.create && anyArgs.create.tenantId !== undefined && anyArgs.create.tenantId !== null)) {
+                                        throw new Error(`[SECURITY_FATAL] Upsert bloqueado no model '${model}'. 'tenantId' deve estar explícito no 'where' e no 'create'.`);
+                                    }
+                                }
+                            }
+
+                            return query(args);
+                        }
+
                         // For tenant-specific models, inject tenantId filter
-                        if (tenantId && ['findFirst', 'findUnique', 'findMany', 'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'].includes(operation)) {
+                        if (['findFirst', 'findUnique', 'findMany', 'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'].includes(operation)) {
                             const newArgs = { ...args } as any;
                             newArgs.where = {
                                 ...newArgs.where,
@@ -168,7 +206,7 @@ export function tenantExtension(tenantId: string | null) {
                         }
 
                         // For creation, ensure tenantId is injected and deep connects are verified
-                        if (tenantId && (operation === 'create' || operation === 'createMany' || operation === 'update')) {
+                        if (operation === 'create' || operation === 'createMany' || operation === 'update') {
                             const newArgs = { ...args } as any;
 
                             if (newArgs.data) {

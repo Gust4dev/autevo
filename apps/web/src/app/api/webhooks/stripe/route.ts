@@ -381,6 +381,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Webhook signature verification failed: ${message}` }, { status: 400 });
     }
 
+    // 🛡️ Stripe Webhook Idempotency & Replay Protection
+    // Evita processamento e side-effects duplicados (como comissões pagas duas vezes)
+    // caso o Stripe dispare o mesmo evento simultaneamente ou repita em timeout falso.
+    const existingLog = await prisma.webhookLog.findUnique({
+        where: { externalId: event.id },
+    });
+
+    if (existingLog && existingLog.status === 'success') {
+        console.log(`[Webhook Idempotency] Ignorando evento já processado: ${event.id}`);
+        return NextResponse.json({ received: true, message: 'Already processed' });
+    }
+
     try {
         switch (event.type) {
             case STRIPE_WEBHOOK_EVENTS.CHECKOUT_SESSION_COMPLETED:

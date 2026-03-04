@@ -32,7 +32,12 @@ export async function GET(req: NextRequest) {
 
     try {
         const signedUrl = await getSignedFileUrl(key);
-        return NextResponse.redirect(signedUrl, 302);
+        return NextResponse.redirect(signedUrl, {
+            status: 302,
+            headers: {
+                "Cache-Control": "public, s-maxage=1800, max-age=1800, stale-while-revalidate=60",
+            },
+        });
     } catch (err) {
         console.error("[MEDIA_PROXY_ERROR]", err);
         return NextResponse.json({ error: "Could not generate link" }, { status: 500 });

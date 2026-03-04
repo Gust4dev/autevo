@@ -142,24 +142,22 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
     try {
       const result = await lookupCustomerQuery.refetch();
 
-      if (result.data) {
-        // Cliente encontrado
+      if (result.data && result.data.exists) {
+        // Cliente encontrado (Dados sensíveis omitidos por LGPD)
         const customerData = result.data;
-        setExistingCustomer(customerData);
+        setExistingCustomer(customerData as any);
         setFormData((prev) => ({
           ...prev,
           document: cleanedCpf,
-          name: customerData.name,
-          phone: customerData.phone,
-          email: customerData.email || "",
-          birthDate: customerData.birthDate
-            ? new Date(customerData.birthDate).toISOString().split("T")[0]
-            : "",
+          name: "Cliente Cadastrado",
+          phone: "00000000000",
+          email: "",
+          birthDate: "",
         }));
 
-        if (customerData.vehicles.length > 0) {
-          setSelectedVehicleId(customerData.vehicles[0].id);
-        }
+        // Força o usuário a digitar a placa do carro para vinculo seguro
+        setUseNewVehicle(true);
+        setSelectedVehicleId(null);
       } else {
         // Cliente não encontrado - avança para cadastro
         setExistingCustomer(null);

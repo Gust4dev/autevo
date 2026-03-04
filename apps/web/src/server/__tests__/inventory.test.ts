@@ -18,11 +18,11 @@ describe('Inventory & Order Integration', () => {
 
     beforeAll(async () => {
         // Clean previous test data safely
-        await prisma.tenant.deleteMany({ where: { name: 'Oficina Teste Integration' } });
+        await prisma.tenant.deleteMany({ where: { name: 'Oficina Teste Inventory' } });
 
         // 1. Arrange: Create isolated test data directly via Prisma
         const tenant = await prisma.tenant.create({
-            data: { name: 'Oficina Teste Integration', cnpj: '000', status: 'ACTIVE', slug: 'oficina-teste-inv' }
+            data: { name: 'Oficina Teste Inventory', cnpj: '000', status: 'ACTIVE', slug: 'oficina-teste-inv' }
         });
         tenantId = tenant.id;
 

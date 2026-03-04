@@ -647,7 +647,11 @@ export const inspectionRouter = router({
         .mutation(async ({ ctx, input }) => {
             const inspection = await ctx.db.inspection.findUnique({
                 where: { id: input.inspectionId },
-                include: { order: { select: { tenantId: true, code: true } } },
+                include: {
+                    order: { select: { tenantId: true, code: true } },
+                    items: { select: { id: true, itemKey: true, status: true, damageType: true, severity: true, notes: true } },
+                    damages: { select: { id: true, position: true, damageType: true, notes: true } }
+                },
             });
 
             if (!inspection || inspection.order.tenantId !== ctx.tenantId) {
@@ -658,6 +662,13 @@ export const inspectionRouter = router({
             }
 
             const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
+
+            // 🛡️ Anti-OOM Limit: Prevenção de DoS em conversões Base64 (~5MB)
+            const sizeInBytes = (base64Data.length * 3) / 4;
+            if (sizeInBytes > 5 * 1024 * 1024) {
+                throw new TRPCError({ code: 'PAYLOAD_TOO_LARGE', message: 'Assinatura excede o limite de 5MB' });
+            }
+
             const buffer = Buffer.from(base64Data, 'base64');
             const fileName = `${inspection.order.code}-${inspection.type}-signature-${Date.now()}.png`;
             const uploadContext: UploadContext = {
@@ -667,12 +678,29 @@ export const inspectionRouter = router({
 
             const signatureUrl = await uploadFile(buffer, fileName, 'image/png', uploadContext);
 
+            // Geração de Hash Forense para integridade da assinatura
+            const crypto = await import('crypto');
+            const forensicPayload = {
+                metadata: {
+                    ipAddress: ctx.headers?.ipAddress || 'unknown',
+                    userAgent: ctx.headers?.userAgent || 'unknown',
+                    signedAt: new Date().toISOString(),
+                    tenantId: ctx.tenantId!,
+                    orderId: inspection.order.code,
+                },
+                items: inspection.items,
+                damages: inspection.damages,
+            };
+
+            const documentHash = crypto.createHash('sha256').update(JSON.stringify(forensicPayload)).digest('base64');
+
             const updated = await ctx.db.inspection.update({
                 where: { id: input.inspectionId },
                 data: {
                     signatureUrl,
                     signedAt: new Date(),
                     signedVia: 'digital_canvas',
+                    documentHash,
                 },
             });
 
@@ -712,7 +740,8 @@ export const inspectionRouter = router({
             const inspection = await ctx.db.inspection.findUnique({
                 where: { id: input.inspectionId },
                 include: {
-                    items: true,
+                    items: { select: { id: true, itemKey: true, status: true, damageType: true, severity: true, notes: true, isRequired: true } },
+                    damages: { select: { id: true, position: true, damageType: true, notes: true } },
                     order: {
                         select: {
                             id: true,
@@ -757,6 +786,13 @@ export const inspectionRouter = router({
             }
 
             const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
+
+            // 🛡️ Anti-OOM Limit: Prevenção de DoS em conversões Base64 (~5MB)
+            const sizeInBytes = (base64Data.length * 3) / 4;
+            if (sizeInBytes > 5 * 1024 * 1024) {
+                throw new TRPCError({ code: 'PAYLOAD_TOO_LARGE', message: 'Assinatura excede o limite de 5MB' });
+            }
+
             const buffer = Buffer.from(base64Data, 'base64');
             const fileName = `${inspection.order.code}-${inspection.type}-signature-${Date.now()}.png`;
             const uploadContext: UploadContext = {
@@ -766,6 +802,22 @@ export const inspectionRouter = router({
 
             const signatureUrl = await uploadFile(buffer, fileName, 'image/png', uploadContext);
 
+            // Geração de Hash Forense para validade jurídica da assinatura pública
+            const crypto = await import('crypto');
+            const forensicPayload = {
+                metadata: {
+                    ipAddress: ctx.headers?.ipAddress || 'unknown',
+                    userAgent: ctx.headers?.userAgent || 'unknown',
+                    signedAt: new Date().toISOString(),
+                    tenantId: payload.tenantId,
+                    orderId: inspection.order.code,
+                },
+                items: inspection.items,
+                damages: inspection.damages,
+            };
+
+            const documentHash = crypto.createHash('sha256').update(JSON.stringify(forensicPayload)).digest('base64');
+
             const updated = await ctx.db.$transaction(async (tx) => {
                 const updatedInspection = await tx.inspection.update({
                     where: { id: input.inspectionId },
@@ -774,6 +826,7 @@ export const inspectionRouter = router({
                         signedAt: new Date(),
                         signedVia: 'public_tracking',
                         status: 'concluida',
+                        documentHash,
                     },
                 });
 

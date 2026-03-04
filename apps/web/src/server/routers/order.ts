@@ -858,20 +858,45 @@ export const orderRouter = router({
                 timestamps.completedAt = new Date();
             }
 
-            const order = await ctx.db.$transaction(async (tx: any) => {
+            const { updatedOrder, isRevertingStatus } = await ctx.db.$transaction(async (tx: any) => {
+                // 🔒 LOCK PESSIMISTA (Anti-TOCTOU)
+                const lockedOrders = await tx.$queryRaw<any[]>`
+                    SELECT "inventoryDeducted", status
+                    FROM "ServiceOrder"
+                    WHERE id = ${input.id} AND "tenantId" = ${ctx.tenantId!} FOR UPDATE
+                `;
+
+                if (!lockedOrders || lockedOrders.length === 0) {
+                    throw new TRPCError({ code: 'NOT_FOUND', message: 'OS não encontrada.' });
+                }
+
+                const lockedOrder = lockedOrders[0];
+                const wasDeducted = lockedOrder.inventoryDeducted;
+                const isReverting = wasDeducted && (input.status === 'CANCELADO' || input.status === 'AGENDADO' || input.status === 'EM_VISTORIA');
+
+                if (isReverting) {
+                    // 🛡️ GUARD: Block reversal if any commissions are already settled
+                    const settledCount = await tx.orderItemCommission.count({
+                        where: { orderItem: { orderId: input.id }, status: 'ACTIVE', settlementId: { not: null } }
+                    });
+                    if (settledCount > 0) {
+                        throw new TRPCError({ code: 'FORBIDDEN', message: 'Comissões pagas. Estorne o financeiro primeiro.' });
+                    }
+                }
+
                 const updated = await tx.serviceOrder.update({
                     where: { id: input.id },
                     data: {
                         status: input.status,
-                        ...(input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted ? { inventoryDeducted: true } : {}),
+                        ...(input.status === 'EM_EXECUCAO' && !wasDeducted ? { inventoryDeducted: true } : {}),
+                        ...(isReverting ? { inventoryDeducted: false } : {}),
                         ...timestamps,
                     },
                     include: {
                         products: true,
-                        items: {
-                            include: { service: true }
-                        },
+                        items: { include: { service: true } },
                         assignedTo: true,
+                        pendingRestocks: true,
                     }
                 });
 
@@ -886,167 +911,63 @@ export const orderRouter = router({
                     }
                 }
 
-                if (input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted) {
-                    if (updated.products && updated.products.length > 0) {
-                        for (const op of updated.products) {
-                            if (!op.productId) continue;
-
-                            const product = await tx.product.findUnique({ where: { id: op.productId } });
-                            if (!product) continue;
-
-                            const updatedRows = await tx.$executeRaw`
-                                UPDATE "Product" 
-                                SET stock = stock - ${op.quantity}
-                                WHERE id = ${op.productId} AND stock >= ${op.quantity}
-                            `;
-
-                            if (updatedRows === 0) {
-                                await tx.pendingRestock.create({
-                                    data: {
-                                        tenantId: ctx.tenantId!,
-                                        productId: op.productId,
-                                        orderId: input.id,
-                                        quantity: op.quantity,
-                                    }
-                                });
-                            } else {
-                                await tx.stockMovement.create({
-                                    data: {
-                                        tenantId: ctx.tenantId!,
-                                        productId: op.productId,
-                                        quantity: -op.quantity,
-                                        type: 'SAIDA_OS',
-                                        reference: `OS-${updated.code}`,
-                                        notes: `Baixa automática: OS #${updated.code} em execução`,
-                                        createdBy: ctx.user!.id,
-                                    }
-                                });
-                            }
+                if (input.status === 'EM_EXECUCAO' && !wasDeducted && updated.products?.length > 0) {
+                    for (const op of updated.products) {
+                        if (!op.productId) continue;
+                        const updatedRows = await tx.$executeRaw`
+                            UPDATE "Product" SET stock = stock - ${op.quantity}
+                            WHERE id = ${op.productId} AND "tenantId" = ${ctx.tenantId!} AND stock >= ${op.quantity}
+                        `;
+                        if (updatedRows === 0) {
+                            await tx.pendingRestock.create({
+                                data: { tenantId: ctx.tenantId!, productId: op.productId, orderId: input.id, quantity: op.quantity }
+                            });
+                        } else {
+                            await tx.stockMovement.create({
+                                data: { tenantId: ctx.tenantId!, productId: op.productId, quantity: -op.quantity, type: 'SAIDA_OS', reference: `OS-${updated.code}`, notes: 'Baixa automática', createdBy: ctx.user!.id }
+                            });
                         }
                     }
-                }
-
-                return updated;
-            });
-
-            // 🚫 GATILHO DE CANCELAMENTO OU VOLTA DE STATUS: Estornar estoque e cancelar comissões (Sprint 2.1)
-            const isReverting = existing.inventoryDeducted && (input.status === 'CANCELADO' || input.status === 'AGENDADO' || input.status === 'EM_VISTORIA');
-            if (isReverting) {
-                // 🛡️ GUARD: Block reversal if any commissions are already settled (paid out)
-                const settledCount = await ctx.db.orderItemCommission.count({
-                    where: {
-                        orderItem: { orderId: order.id },
-                        status: 'ACTIVE',
-                        settlementId: { not: null },
-                    }
-                });
-
-                if (settledCount > 0) {
-                    throw new TRPCError({
-                        code: 'FORBIDDEN',
-                        message: `Não é possível reverter: ${settledCount} comissão(ões) já foram liquidadas(settlement).Estorne o pagamento antes de reverter a OS.`,
-                    });
-                }
-
-                // Fetch products and pending restocks BEFORE the transaction
-                const orderWithProducts = await ctx.db.serviceOrder.findUnique({
-                    where: { id: input.id },
-                    include: { products: true, pendingRestocks: true, items: true }
-                });
-
-                // 🔒 ATOMIC: Cancel commissions + reverse stock in a single transaction
-                await ctx.db.$transaction(async (tx: any) => {
-                    // 1. Soft-cancel all ACTIVE unsettled commissions (preserva trilha de auditoria)
-                    if (orderWithProducts?.items && orderWithProducts.items.length > 0) {
-                        const itemIds = orderWithProducts.items.map((i: any) => i.id);
+                } else if (isReverting) {
+                    // REVERSAL LOGIC
+                    if (updated.items && updated.items.length > 0) {
                         await tx.orderItemCommission.updateMany({
-                            where: {
-                                orderItemId: { in: itemIds },
-                                status: 'ACTIVE',
-                                settlementId: null,
-                            },
-                            data: {
-                                status: 'CANCELLED',
-                                cancelledAt: new Date(),
-                            }
+                            where: { orderItemId: { in: updated.items.map((i: any) => i.id) }, status: 'ACTIVE', settlementId: null },
+                            data: { status: 'CANCELLED', cancelledAt: new Date() }
                         });
                     }
 
-                    // 2. Reverse stock for each product
-                    if (orderWithProducts?.products) {
-                        for (const op of orderWithProducts.products) {
+                    if (updated.products && updated.products.length > 0) {
+                        for (const op of updated.products) {
                             if (!op.productId) continue;
-
-                            // If it was in pendingRestock, just delete the pending record
-                            const pendingForThisProd = orderWithProducts.pendingRestocks.find((pr: any) => pr.productId === op.productId);
-                            if (pendingForThisProd && !pendingForThisProd.resolved) {
-                                await tx.pendingRestock.delete({ where: { id: pendingForThisProd.id } });
+                            const pr = updated.pendingRestocks.find((p: any) => p.productId === op.productId);
+                            if (pr && !pr.resolved) {
+                                await tx.pendingRestock.delete({ where: { id: pr.id } });
                                 continue;
                             }
-
-                            const productExists = await tx.product.findUnique({
-                                where: { id: op.productId },
-                                select: { id: true }
-                            });
-
-                            if (productExists) {
-                                await tx.product.update({
-                                    where: { id: op.productId },
-                                    data: { stock: { increment: op.quantity } }
-                                });
-                            } else {
-                                await tx.auditLog.create({
-                                    data: {
-                                        tenantId: ctx.tenantId!,
-                                        userId: ctx.user!.id,
-                                        action: 'STOCK_REVERSAL_FAILED',
-                                        entityType: 'Product',
-                                        entityId: op.productId,
-                                        metadata: {
-                                            reason: 'PRODUCT_DELETED',
-                                            orderId: order.id,
-                                            orderCode: order.code,
-                                            quantity: op.quantity,
-                                        } as any,
-                                    }
-                                });
-                            }
-
-                            // Find the original movement
+                            await tx.$executeRaw`
+                                UPDATE "Product" SET stock = stock + ${op.quantity}
+                                WHERE id = ${op.productId} AND "tenantId" = ${ctx.tenantId!}
+                            `;
                             const origMove = await tx.stockMovement.findFirst({
-                                where: { reference: `OS - ${order.code}`, productId: op.productId, type: 'SAIDA_OS' },
+                                where: { reference: `OS-${updated.code}`, productId: op.productId, type: 'SAIDA_OS' },
                                 orderBy: { createdAt: 'desc' }
                             });
-
                             if (origMove) {
-                                await tx.stockMovement.update({
-                                    where: { id: origMove.id },
-                                    data: { status: 'REVERSED' }
-                                });
+                                await tx.stockMovement.update({ where: { id: origMove.id }, data: { status: 'REVERSED' } });
                             }
-
                             await tx.stockMovement.create({
-                                data: {
-                                    tenantId: ctx.tenantId!,
-                                    productId: op.productId,
-                                    quantity: op.quantity,
-                                    type: 'ENTRADA',
-                                    reference: `OS - ${order.code} - REVERSE`,
-                                    notes: `Estorno automático: OS #${order.code} reverteu baixa`,
-                                    status: 'COMPLETED',
-                                    createdBy: ctx.user!.id,
-                                }
+                                data: { tenantId: ctx.tenantId!, productId: op.productId, quantity: op.quantity, type: 'ENTRADA', reference: `OS-${updated.code}-REVERSE`, notes: 'Estorno automático', status: 'COMPLETED', createdBy: ctx.user!.id }
                             });
                         }
                     }
-                });
+                }
 
-                // Resetar flags no banco
-                await ctx.db.serviceOrder.update({
-                    where: { id: order.id },
-                    data: { inventoryDeducted: false }
-                });
-            }
+                return { updatedOrder: updated, isRevertingStatus: isReverting };
+            });
+
+            const order = updatedOrder;
+
 
             // 🛡️ AUDITORIA: Registrar mudança de status
             await ctx.db.auditLog.create({
@@ -1417,7 +1338,7 @@ export const orderRouter = router({
 
             return await ctx.db.$transaction(async (tx: any) => {
                 if (input.commissionIds.length > 0) {
-                    await tx.$executeRaw`SELECT id FROM "OrderItemCommission" WHERE id IN (${Prisma.join(input.commissionIds)}) FOR UPDATE`;
+                    await tx.$executeRaw`SELECT id FROM "OrderItemCommission" WHERE "tenantId" = ${ctx.tenantId!} AND id IN (${Prisma.join(input.commissionIds)}) FOR UPDATE`;
                 }
 
                 const commissions = await tx.orderItemCommission.findMany({

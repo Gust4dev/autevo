@@ -175,24 +175,18 @@ export const scheduleRouter = router({
                 },
                 select: {
                     id: true,
-                    name: true,
-                    phone: true,
-                    email: true,
-                    birthDate: true,
-                    vehicles: {
-                        where: { deletedAt: null },
-                        select: {
-                            id: true,
-                            plate: true,
-                            brand: true,
-                            model: true,
-                            color: true,
-                        },
-                    },
                 },
             });
 
-            return customer;
+            if (!customer) {
+                return { exists: false };
+            }
+
+            return {
+                exists: true,
+                id: customer.id,
+                message: "Cliente localizado. Por segurança, os detalhes foram omitidos. Prosiga com o agendamento.",
+            };
         }),
 
     /**
@@ -288,18 +282,16 @@ export const scheduleRouter = router({
                 : undefined;
 
             if (customer) {
-                // Atualizar dados do cliente existente
-                customer = await ctx.db.customer.update({
-                    where: { id: customer.id },
-                    data: {
-                        name: sanitizeInput(input.customer.name),
-                        phone: input.customer.phone,
-                        email: emailData,
-                        birthDate: birthDateData,
-                        // Atualizar documento apenas se não tinha e foi informado agora
-                        ...(cleanDoc && !customer.document ? { document: cleanDoc } : {}),
-                    },
-                });
+                // 🛡️ SECURITY: Não atualizamos os dados sensíveis (email, phone, name)
+                // de um cliente existente com base em um formulário público não-autenticado.
+                // Isso previne sequestro de cadastro (Account Takeover) e sabotagem de WhatsApp.
+                // Atualizamos apenas o documento se estiver em branco.
+                if (cleanDoc && !customer.document) {
+                    customer = await ctx.db.customer.update({
+                        where: { id: customer.id, tenantId: input.tenantId },
+                        data: { document: cleanDoc }
+                    });
+                }
             } else {
                 // Criar novo cliente
                 customer = await ctx.db.customer.create({
