@@ -13,7 +13,8 @@ export function tenantExtension(tenantId: string | null) {
             'ServiceOrder', 'OrderItem', 'OrderItemCommission', 'CommissionSettlement',
             'OrderProduct', 'Inspection', 'InspectionItem', 'InspectionDamage',
             'Payment', 'NotificationLog', 'AuditLog', 'MessageTemplate',
-            'Subscription', 'PartnerCommission', 'TenantSequence', 'PendingRestock'
+            'Subscription', 'PartnerCommission', 'TenantSequence', 'PendingRestock',
+            'ServiceProductTemplate'
         ];
     }
 

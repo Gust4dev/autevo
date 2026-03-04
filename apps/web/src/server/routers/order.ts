@@ -4,6 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { sanitizeInput } from '@/lib/sanitize';
 import { OrderStatus as PrismaOrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 import { sendPushToOwners, sendPushToMember } from '@/lib/push-notifications';
+import { Decimal } from 'decimal.js';
 
 const validTransitions: Record<string, string[]> = {
     AGENDADO: ['EM_VISTORIA', 'CANCELADO'],
@@ -73,15 +74,14 @@ async function createCommissionSnapshots(
     order: { assignedToId: string; assignedTo: any; items: any[] }
 ): Promise<void> {
     for (const item of order.items) {
-        const servicePercent = item.service?.defaultCommissionPercent
-            ? Number(item.service.defaultCommissionPercent) : 0;
-        const userPercent = order.assignedTo?.defaultCommissionPercent
-            ? Number(order.assignedTo.defaultCommissionPercent) : 0;
+        const servicePercent = new Decimal(item.service?.defaultCommissionPercent || 0);
+        const userPercent = new Decimal(order.assignedTo?.defaultCommissionPercent || 0);
 
-        const commissionPercent = servicePercent > 0 ? servicePercent : userPercent;
-        const commissionValue = (Number(item.price) * item.quantity) * (commissionPercent / 100);
+        const commissionPercent = servicePercent.greaterThan(0) ? servicePercent : userPercent;
+        const itemTotal = new Decimal(item.price).times(item.quantity);
+        const commissionValueDecimal = itemTotal.times(commissionPercent).dividedBy(100).toDecimalPlaces(2);
 
-        if (commissionValue <= 0) continue;
+        if (commissionValueDecimal.lessThanOrEqualTo(0)) continue;
 
         const existingCommission = await tx.orderItemCommission.findFirst({
             where: { orderItemId: item.id, settlementId: null, status: 'ACTIVE' }
@@ -90,7 +90,7 @@ async function createCommissionSnapshots(
         if (existingCommission) {
             await tx.orderItemCommission.update({
                 where: { id: existingCommission.id },
-                data: { commissionValue }
+                data: { commissionValue: commissionValueDecimal.toNumber() }
             });
         } else {
             await tx.orderItemCommission.create({
@@ -98,7 +98,7 @@ async function createCommissionSnapshots(
                     tenantId,
                     orderItemId: item.id,
                     userId: order.assignedToId,
-                    commissionValue,
+                    commissionValue: commissionValueDecimal.toNumber(),
                 }
             });
         }
@@ -398,6 +398,8 @@ export const orderRouter = router({
             status: z.array(z.nativeEnum(PrismaOrderStatus)).optional(),
             dateFrom: z.date().optional(),
             dateTo: z.date().optional(),
+            cursor: z.string().optional(),
+            limit: z.number().min(1).max(5000).default(500),
         }).optional())
         .query(async ({ ctx, input }) => {
             const isMember = ctx.user?.role === 'MEMBER';
@@ -427,7 +429,9 @@ export const orderRouter = router({
 
             return ctx.db.serviceOrder.findMany({
                 where,
-                take: 5000,
+                take: input?.limit || 500,
+                skip: input?.cursor ? 1 : 0,
+                cursor: input?.cursor ? { id: input.cursor } : undefined,
                 orderBy: { createdAt: 'desc' },
                 include: {
                     vehicle: {
@@ -438,8 +442,6 @@ export const orderRouter = router({
                     assignedTo: { select: { name: true } },
                 },
             });
-
-            return { success: true };
         }),
 
     addProduct: protectedProcedure
@@ -885,25 +887,14 @@ export const orderRouter = router({
                     }
                 }
 
-                return updated;
-            });
-
-            // 📦 GATILHO DE ESTOQUE: Baixa automática ao entrar em execução (Sprint 2.1 e 2.2)
-            if (input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted) {
-                const orderWithProducts = await ctx.db.serviceOrder.findUnique({
-                    where: { id: input.id },
-                    include: { products: true }
-                });
-
-                if (orderWithProducts?.products && orderWithProducts.products.length > 0) {
-                    await ctx.db.$transaction(async (tx: any) => {
-                        for (const op of orderWithProducts.products) {
+                if (input.status === 'EM_EXECUCAO' && !existing.inventoryDeducted) {
+                    if (updated.products && updated.products.length > 0) {
+                        for (const op of updated.products) {
                             if (!op.productId) continue;
 
                             const product = await tx.product.findUnique({ where: { id: op.productId } });
                             if (!product) continue;
 
-                            // 📦 ATOMICIDADE TOTAIS: Check-then-act eliminado. O DB tenta deduzir.
                             const updatedRows = await tx.$executeRaw`
                                 UPDATE "Product" 
                                 SET stock = stock - ${op.quantity}
@@ -911,7 +902,6 @@ export const orderRouter = router({
                             `;
 
                             if (updatedRows === 0) {
-                                // 📦 ESTOQUE INTELIGENTE: Pending Restock por falta de saldo no DB.
                                 await tx.pendingRestock.create({
                                     data: {
                                         tenantId: ctx.tenantId!,
@@ -927,16 +917,18 @@ export const orderRouter = router({
                                         productId: op.productId,
                                         quantity: -op.quantity,
                                         type: 'SAIDA_OS',
-                                        reference: `OS-${order.code}`,
-                                        notes: `Baixa automática: OS #${order.code} em execução`,
+                                        reference: `OS-${updated.code}`,
+                                        notes: `Baixa automática: OS #${updated.code} em execução`,
                                         createdBy: ctx.user!.id,
                                     }
                                 });
                             }
                         }
-                    });
+                    }
                 }
-            }
+
+                return updated;
+            });
 
             // 🚫 GATILHO DE CANCELAMENTO OU VOLTA DE STATUS: Estornar estoque e cancelar comissões (Sprint 2.1)
             const isReverting = existing.inventoryDeducted && (input.status === 'CANCELADO' || input.status === 'AGENDADO' || input.status === 'EM_VISTORIA');
@@ -953,7 +945,7 @@ export const orderRouter = router({
                 if (settledCount > 0) {
                     throw new TRPCError({
                         code: 'FORBIDDEN',
-                        message: `Não é possível reverter: ${settledCount} comissão(ões) já foram liquidadas (settlement). Estorne o pagamento antes de reverter a OS.`,
+                        message: `Não é possível reverter: ${settledCount} comissão(ões) já foram liquidadas(settlement).Estorne o pagamento antes de reverter a OS.`,
                     });
                 }
 
@@ -1004,12 +996,26 @@ export const orderRouter = router({
                                     data: { stock: { increment: op.quantity } }
                                 });
                             } else {
-                                console.warn(`[STOCK_REVERSAL] Product ${op.productId} was deleted. Skipping stock increment for OS #${order.code}. Audit trail preserved via StockMovement.`);
+                                await tx.auditLog.create({
+                                    data: {
+                                        tenantId: ctx.tenantId!,
+                                        userId: ctx.user!.id,
+                                        action: 'STOCK_REVERSAL_FAILED',
+                                        entityType: 'Product',
+                                        entityId: op.productId,
+                                        metadata: {
+                                            reason: 'PRODUCT_DELETED',
+                                            orderId: order.id,
+                                            orderCode: order.code,
+                                            quantity: op.quantity,
+                                        } as any,
+                                    }
+                                });
                             }
 
                             // Find the original movement
                             const origMove = await tx.stockMovement.findFirst({
-                                where: { reference: `OS-${order.code}`, productId: op.productId, type: 'SAIDA_OS' },
+                                where: { reference: `OS - ${order.code}`, productId: op.productId, type: 'SAIDA_OS' },
                                 orderBy: { createdAt: 'desc' }
                             });
 
@@ -1026,7 +1032,7 @@ export const orderRouter = router({
                                     productId: op.productId,
                                     quantity: op.quantity,
                                     type: 'ENTRADA',
-                                    reference: `OS-${order.code}-REVERSE`,
+                                    reference: `OS - ${order.code} - REVERSE`,
                                     notes: `Estorno automático: OS #${order.code} reverteu baixa`,
                                     status: 'COMPLETED',
                                     createdBy: ctx.user!.id,
@@ -1062,8 +1068,8 @@ export const orderRouter = router({
                 sendPushToOwners(ctx.tenantId!, {
                     title: '✅ OS Concluída',
                     body: `OS #${order.code} foi finalizada`,
-                    url: `/dashboard/orders/${order.id}`,
-                    tag: `completed-${order.id}`,
+                    url: `/ dashboard / orders / ${order.id}`,
+                    tag: `completed - ${order.id}`,
                 }, 'onOrderCompleted').catch(() => {
                     // Silently fail
                 });
@@ -1081,8 +1087,8 @@ export const orderRouter = router({
                 sendPushToMember(existing.assignedToId, {
                     title: '🔄 Status Alterado',
                     body: `OS #${order.code}: ${statusLabels[input.status] || input.status}`,
-                    url: `/dashboard/orders/${order.id}`,
-                    tag: `status-${order.id}`,
+                    url: `/ dashboard / orders / ${order.id}`,
+                    tag: `status - ${order.id}`,
                 }, 'onMyOrderStatusChange').catch(() => {
                     // Silently fail
                 });
@@ -1198,19 +1204,19 @@ export const orderRouter = router({
                 });
             }
 
-            const orderTotal = Number(order.total);
+            const orderTotal = new Decimal(order.total);
             const currentPaid = order.payments.reduce(
-                (sum: number, p: any) => sum + Number(p.amount),
-                0
+                (sum: Decimal, p: any) => sum.plus(new Decimal(p.amount)),
+                new Decimal(0)
             );
-            const balance = orderTotal - currentPaid;
+            const balance = orderTotal.minus(currentPaid);
 
-            const EPSILON = 0.01;
+            const EPSILON = new Decimal('0.01');
 
-            if (input.amount - balance > EPSILON) {
+            if (new Decimal(input.amount).minus(balance).greaterThan(EPSILON)) {
                 throw new TRPCError({
                     code: 'BAD_REQUEST',
-                    message: `Valor excede o saldo devedor de R$ ${balance.toFixed(2)}`,
+                    message: `Valor excede o saldo devedor de R$ ${balance.toDecimalPlaces(2).toString()}`,
                 });
             }
 
@@ -1226,10 +1232,10 @@ export const orderRouter = router({
                 },
             });
 
-            const newTotalPaid = currentPaid + input.amount;
-            const remaining = orderTotal - newTotalPaid;
+            const newTotalPaid = currentPaid.plus(new Decimal(input.amount));
+            const remaining = orderTotal.minus(newTotalPaid);
 
-            if (remaining < EPSILON) {
+            if (remaining.lessThan(EPSILON)) {
                 const tenant = await ctx.db.tenant.findUnique({
                     where: { id: ctx.tenantId! },
                     select: { inspectionRequired: true }
@@ -1459,7 +1465,7 @@ export const orderRouter = router({
         }),
 
     getTrackingHeader: publicProcedure
-        .input(z.object({ orderId: z.string() }))
+        .input(z.object({ orderId: z.string(), token: z.string().optional() }))
         .output(z.object({
             id: z.string(),
             status: z.nativeEnum(PrismaOrderStatus).or(z.string()),
@@ -1474,6 +1480,26 @@ export const orderRouter = router({
             }),
         }))
         .query(async ({ ctx, input }) => {
+            let isAuthenticated = false;
+
+            if (input.token) {
+                const { jwtVerify } = await import('jose');
+                const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+                if (!secretKey || secretKey.length < 32) {
+                    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY] Chave JWT ausente no servidor.' });
+                }
+                const secret = new TextEncoder().encode(secretKey);
+
+                try {
+                    const { payload } = await jwtVerify(input.token, secret);
+                    if (payload.orderId === input.orderId) {
+                        isAuthenticated = true;
+                    }
+                } catch {
+                    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Verifique seu telefone novamente.' });
+                }
+            }
+
             const order = await ctx.db.serviceOrder.findUnique({
                 where: { id: input.orderId },
                 include: {
@@ -1488,8 +1514,8 @@ export const orderRouter = router({
 
             return {
                 id: order.id,
-                status: order.status,
-                vehicleName: `${order.vehicle.brand} ${order.vehicle.model}`,
+                status: isAuthenticated ? order.status : 'AGENDADO',
+                vehicleName: isAuthenticated ? `${order.vehicle.brand} ${order.vehicle.model}` : 'Seu Veículo',
                 tenantContact: {
                     name: order.tenant.name,
                     whatsapp: order.tenant.phone,
@@ -1555,11 +1581,21 @@ export const orderRouter = router({
     getForApproval: publicProcedure
         .input(z.object({ token: z.string() }))
         .query(async ({ ctx, input }) => {
-            // Let's rely on standard try/catch if token is malformed
-            const [header, payloadObj, sig] = input.token.split('.');
-            if (!header || !payloadObj || !sig) throw new TRPCError({ code: 'UNAUTHORIZED' });
+            const { jwtVerify } = await import('jose');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY] JWT signing key missing' });
+            }
+            const secret = new TextEncoder().encode(secretKey);
 
-            const payload = JSON.parse(Buffer.from(payloadObj, 'base64').toString('utf8'));
+            let payload: { orderId: string; tenantId: string };
+            try {
+                const { payload: p } = await jwtVerify(input.token, secret);
+                payload = p as unknown as { orderId: string; tenantId: string };
+            } catch {
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Link expirado ou inválido. Solicite um novo link à oficina.' });
+            }
+
             if (!payload.orderId) throw new TRPCError({ code: 'UNAUTHORIZED' });
 
             const order = await ctx.db.serviceOrder.findUnique({
@@ -1773,6 +1809,8 @@ export const orderRouter = router({
 
             // 🛡️ SECURITY: Rate limit (5 tentativas por minuto para mitigar brute-force)
             const oneMinuteAgo = new Date(Date.now() - 60000);
+            const ipAddress = ctx.headers?.ipAddress || 'unknown';
+
             const recentFails = await ctx.db.auditLog.count({
                 where: {
                     action: 'TRACKING_AUTH_FAILED',
@@ -1782,7 +1820,19 @@ export const orderRouter = router({
                 }
             });
 
-            if (recentFails >= 5) {
+            // Rate limit GLOBAL por IP (15/min) para impedir distribuição entre múltiplos orderIds
+            const recentFailsByIp = await ctx.db.auditLog.count({
+                where: {
+                    action: 'TRACKING_AUTH_FAILED',
+                    metadata: {
+                        path: ['ipAddress'],
+                        equals: ipAddress
+                    },
+                    createdAt: { gte: oneMinuteAgo }
+                }
+            });
+
+            if (recentFails >= 5 || recentFailsByIp >= 15) {
                 throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Muitas tentativas inválidas. Acesso temporariamente bloqueado. Tente novamente em 1 minuto.' });
             }
 
@@ -1804,7 +1854,7 @@ export const orderRouter = router({
                         action: 'TRACKING_AUTH_FAILED',
                         entityType: 'ServiceOrder',
                         entityId: input.orderId,
-                        metadata: { attempted: "MASKED" } as any
+                        metadata: { attempted: "MASKED", ipAddress } as any
                     }
                 }).catch(() => { });
                 return { isValid: false, token: null };
@@ -1880,7 +1930,11 @@ export const orderRouter = router({
         }))
         .mutation(async ({ ctx, input }) => {
             const { jwtVerify } = await import('jose');
-            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY] JWT signing key missing' });
+            }
+            const secret = new TextEncoder().encode(secretKey);
 
             let payload: { orderId: string; tenantId: string };
             try {
@@ -2000,19 +2054,22 @@ function calculateTotals(
     discountType?: string | null,
     discountValue?: number | null
 ) {
-    const subtotal = items.reduce((acc, item) => acc + (Number(item.price) * item.quantity), 0);
+    const subtotal = items.reduce(
+        (acc, item) => acc.plus(new Decimal(item.price).times(item.quantity)),
+        new Decimal(0)
+    );
     let total = subtotal;
 
     if (discountType && discountValue) {
         if (discountType === 'PERCENTAGE') {
-            total -= subtotal * (discountValue / 100);
+            total = subtotal.minus(subtotal.times(new Decimal(discountValue)).dividedBy(100));
         } else if (discountType === 'FIXED') {
-            total -= discountValue;
+            total = subtotal.minus(new Decimal(discountValue));
         }
     }
 
     return {
-        subtotal,
-        total: Math.max(0, total),
+        subtotal: subtotal.toDecimalPlaces(2).toNumber(),
+        total: Decimal.max(0, total).toDecimalPlaces(2).toNumber(),
     };
 }

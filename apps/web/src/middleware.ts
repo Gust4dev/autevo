@@ -17,7 +17,6 @@ const isPublicRoute = createRouteMatcher([
     '/privacy',
     '/api/cron/(.*)',
     '/api/webhooks/(.*)',
-    '/api/debug/(.*)',
     '/api/trpc/(.*)',
 ]);
 

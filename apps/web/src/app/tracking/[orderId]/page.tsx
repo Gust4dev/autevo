@@ -147,8 +147,8 @@ export default function TrackingPage({ params }: PageProps) {
     refetch: refetchHeader,
     dataUpdatedAt: headerUpdatedAt,
   } = trpc.order.getTrackingHeader.useQuery(
-    { orderId },
-    { refetchInterval: accessToken ? false : 30000 },
+    { orderId, token: accessToken || undefined },
+    { enabled: termsAccepted, refetchInterval: accessToken ? false : 30000 },
   );
 
   // 🔒 JWT PROTECTED: Fetch details only after phone is verified and token obtained
@@ -733,11 +733,15 @@ export default function TrackingPage({ params }: PageProps) {
                                 key={d.id}
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => setLightboxImage(d.photoUrl!)}
+                                onClick={() =>
+                                  setLightboxImage(
+                                    `/api/media?key=${encodeURIComponent(d.photoUrl!)}&token=${accessToken}`,
+                                  )
+                                }
                                 className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
                               >
                                 <Image
-                                  src={d.photoUrl!}
+                                  src={`/api/media?key=${encodeURIComponent(d.photoUrl!)}&token=${accessToken}`}
                                   alt="Dano"
                                   fill
                                   sizes="(max-width: 768px) 33vw, 20vw"
@@ -761,11 +765,15 @@ export default function TrackingPage({ params }: PageProps) {
                                 key={item.id}
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => setLightboxImage(item.photoUrl!)}
+                                onClick={() =>
+                                  setLightboxImage(
+                                    `/api/media?key=${encodeURIComponent(item.photoUrl!)}&token=${accessToken}`,
+                                  )
+                                }
                                 className="aspect-square relative rounded-lg overflow-hidden group bg-muted"
                               >
                                 <Image
-                                  src={item.photoUrl!}
+                                  src={`/api/media?key=${encodeURIComponent(item.photoUrl!)}&token=${accessToken}`}
                                   alt={item.label}
                                   fill
                                   sizes="(max-width: 768px) 33vw, 20vw"

@@ -317,7 +317,6 @@ export const productRouter = router({
                     take: limit,
                     include: {
                         product: { select: { name: true, sku: true } },
-                        user: { select: { name: true } }
                     },
                     orderBy: { createdAt: 'desc' },
                 }),

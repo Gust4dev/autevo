@@ -50,7 +50,6 @@ export async function uploadFile(
         Key: fileKey,
         Body: file,
         ContentType: contentType,
-        ACL: 'public-read', // Supabase requires this or relies on bucket policies
     });
 
     try {
@@ -59,11 +58,5 @@ export async function uploadFile(
         throw error;
     }
 
-    if (process.env.AWS_ENDPOINT?.includes('supabase.co')) {
-        const baseUrl = process.env.AWS_ENDPOINT.replace('/s3', '/object/public');
-        // For public buckets, construct the URL directly
-        return `${process.env.AWS_ENDPOINT}/${process.env.AWS_BUCKET_NAME}/${fileKey}`;
-    } else {
-        return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
-    }
+    return fileKey;
 }

@@ -8,8 +8,10 @@ import { checkRateLimit, redis } from '@/lib/rate-limit';
 
 
 
+import type { PrismaClient } from '@autevo/database';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma $extends() returns a different type than PrismaClient
 export interface Context {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     db: any;
     user: User | null;
     tenantId: string | null;

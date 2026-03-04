@@ -152,7 +152,7 @@ export async function POST(req: Request) {
 
         // Generate PDF stream via React-PDF (No Puppeteer/Chromium = Fast & Secure)
         const pdfStream = await renderToStream(
-            InspectionPDF({ data, qrCodeUrl, trackingUrl })
+            InspectionPDF({ data: data as any, qrCodeUrl, trackingUrl })
         );
 
         // 🛡️ SECURITY: Scope PDF path by tenantId to prevent cross-tenant enumeration

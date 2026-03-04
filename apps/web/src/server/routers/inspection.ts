@@ -264,6 +264,7 @@ export const inspectionRouter = router({
                             },
                             damages: {
                                 create: entryInspection.damages.map((d: any) => ({
+                                    tenantId: ctx.tenantId!,
                                     position: d.position,
                                     damageType: d.damageType,
                                     notes: d.notes,
@@ -687,7 +688,14 @@ export const inspectionRouter = router({
         }))
         .mutation(async ({ ctx, input }) => {
             const { jwtVerify } = await import('jose');
-            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'autevo-fallback-secret');
+            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!secretKey || secretKey.length < 32) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: '[SECURITY] Chave JWT ausente ou muito fraca no servidor.',
+                });
+            }
+            const secret = new TextEncoder().encode(secretKey);
 
             let payload: { orderId: string; tenantId: string };
             try {

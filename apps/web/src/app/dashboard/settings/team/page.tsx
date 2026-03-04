@@ -196,7 +196,7 @@ export default function TeamSettingsPage() {
                     <div className="flex items-center justify-end gap-1">
                       {user.role !== "OWNER" && (
                         <EditMemberModal
-                          user={user}
+                          user={user as any}
                           onSuccess={() => utils.user.list.invalidate()}
                         />
                       )}

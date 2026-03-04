@@ -104,7 +104,7 @@ export const serviceRouter = router({
                     ...serviceData,
                     tenantId: ctx.tenantId!,
                     productTemplates: productTemplates ? {
-                        create: productTemplates
+                        create: productTemplates.map(pt => ({ ...pt, tenantId: ctx.tenantId! }))
                     } : undefined
                 },
             });
@@ -142,7 +142,7 @@ export const serviceRouter = router({
                     ...serviceData,
                     productTemplates: productTemplates ? {
                         deleteMany: {},
-                        create: productTemplates
+                        create: productTemplates.map(pt => ({ ...pt, tenantId: ctx.tenantId! }))
                     } : undefined
                 },
             });
