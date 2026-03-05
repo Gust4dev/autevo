@@ -60,3 +60,11 @@ export async function uploadFile(
 
     return fileKey;
 }
+
+/**
+ * 🛡️ P2-6: Runtime assertion for S3 configuration.
+ * Logs a warning at startup if S3 is not configured.
+ */
+if (!process.env.AWS_BUCKET_NAME || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    console.warn('[Storage] ⚠️ AWS S3 credentials not fully configured. File uploads will fail.');
+}

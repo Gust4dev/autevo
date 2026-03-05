@@ -50,120 +50,127 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     // Get subscription details from Stripe
     const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-    // Calculate promo discount months
-    let promoMonthsRemaining = 0;
-    if (promoCodeId) {
-        const promoCode = await prisma.promoCode.findUnique({
-            where: { id: promoCodeId },
-        });
-        if (promoCode) {
-            const isYearly = stripeSubscription.items.data[0]?.price.recurring?.interval === 'year';
-            promoMonthsRemaining = isYearly ? promoCode.yearlyDuration : promoCode.monthlyDuration;
-
-            // Increment usage count
-            await prisma.promoCode.update({
+    // 🛡️ P1-2: Wrap all DB operations in a transaction to prevent partial writes
+    await prisma.$transaction(async (tx) => {
+        // Calculate promo discount months
+        let promoMonthsRemaining = 0;
+        if (promoCodeId) {
+            const promoCode = await tx.promoCode.findUnique({
                 where: { id: promoCodeId },
-                data: { usedCount: { increment: 1 } },
             });
+            if (promoCode) {
+                const isYearly = stripeSubscription.items.data[0]?.price.recurring?.interval === 'year';
+                promoMonthsRemaining = isYearly ? promoCode.yearlyDuration : promoCode.monthlyDuration;
 
-            // Record usage
-            await prisma.promoCodeUsage.create({
-                data: {
-                    promoCodeId,
-                    usedByTenantId: tenantId,
-                    originalAmount: Number(session.amount_total || 0) / 100,
-                    discountAmount: Number(session.total_details?.amount_discount || 0) / 100,
-                },
-            });
+                // Increment usage count
+                await tx.promoCode.update({
+                    where: { id: promoCodeId },
+                    data: { usedCount: { increment: 1 } },
+                });
+
+                // Record usage
+                await tx.promoCodeUsage.create({
+                    data: {
+                        promoCodeId,
+                        usedByTenantId: tenantId,
+                        originalAmount: Number(session.amount_total || 0) / 100,
+                        discountAmount: Number(session.total_details?.amount_discount || 0) / 100,
+                    },
+                });
+            }
         }
-    }
 
-    // Create or update subscription
-    const sub = stripeSubscription as any;
-    await prisma.subscription.upsert({
-        where: { tenantId },
-        create: {
-            tenantId,
-            stripeCustomerId: customerId,
-            stripeSubscriptionId: subscriptionId,
-            stripePriceId: stripeSubscription.items.data[0]?.price.id,
-            status: mapStripeStatus(stripeSubscription.status),
-            billingInterval: stripeSubscription.items.data[0]?.price.recurring?.interval === 'year' ? 'YEARLY' : 'MONTHLY',
-            currentPeriodStart: new Date(sub.current_period_start * 1000),
-            currentPeriodEnd: new Date(sub.current_period_end * 1000),
-            isFounder,
-            founderExpiresAt: isFounder ? new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) : null,
-            promoCodeId,
-            promoDiscountApplied: !!promoCodeId,
-            promoMonthsRemaining,
-        },
-        update: {
-            stripeCustomerId: customerId,
-            stripeSubscriptionId: subscriptionId,
-            stripePriceId: stripeSubscription.items.data[0]?.price.id,
-            status: mapStripeStatus(stripeSubscription.status),
-            currentPeriodStart: new Date(sub.current_period_start * 1000),
-            currentPeriodEnd: new Date(sub.current_period_end * 1000),
-        },
-    });
-
-    // Update tenant status
-    await prisma.tenant.update({
-        where: { id: tenantId },
-        data: {
-            status: 'ACTIVE',
-            stripeCustomerId: customerId,
-            isFoundingMember: isFounder,
-        },
-    });
-
-    // Increment founder slots if applicable
-    if (isFounder) {
-        await prisma.founderSlot.updateMany({
-            data: { usedSlots: { increment: 1 } },
-        });
-    }
-
-    // Process partner referral if applicable
-    if (partnerTenantId) {
-        await prisma.tenant.update({
-            where: { id: tenantId },
-            data: { referredByTenantId: partnerTenantId },
-        });
-
-        await prisma.partnerReferral.upsert({
-            where: {
-                partnerTenantId_referredTenantId: {
-                    partnerTenantId,
-                    referredTenantId: tenantId,
-                },
-            },
+        // Create or update subscription
+        const sub = stripeSubscription as any;
+        await tx.subscription.upsert({
+            where: { tenantId },
             create: {
-                partnerTenantId,
-                referredTenantId: tenantId,
-                status: 'PENDING',
-            },
-            update: {},
-        });
-    }
-
-    // Update Clerk metadata
-    const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        include: { users: { where: { role: 'OWNER' } } },
-    });
-
-    if (tenant?.users[0]?.clerkId) {
-        const clerk = await clerkClient();
-        await clerk.users.updateUser(tenant.users[0].clerkId, {
-            publicMetadata: {
                 tenantId,
-                role: 'OWNER',
-                dbUserId: tenant.users[0].id,
-                tenantStatus: 'ACTIVE',
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+                stripePriceId: stripeSubscription.items.data[0]?.price.id,
+                status: mapStripeStatus(stripeSubscription.status),
+                billingInterval: stripeSubscription.items.data[0]?.price.recurring?.interval === 'year' ? 'YEARLY' : 'MONTHLY',
+                currentPeriodStart: new Date(sub.current_period_start * 1000),
+                currentPeriodEnd: new Date(sub.current_period_end * 1000),
+                isFounder,
+                founderExpiresAt: isFounder ? new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) : null,
+                promoCodeId,
+                promoDiscountApplied: !!promoCodeId,
+                promoMonthsRemaining,
+            },
+            update: {
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+                stripePriceId: stripeSubscription.items.data[0]?.price.id,
+                status: mapStripeStatus(stripeSubscription.status),
+                currentPeriodStart: new Date(sub.current_period_start * 1000),
+                currentPeriodEnd: new Date(sub.current_period_end * 1000),
+            },
+        });
+
+        // Update tenant status
+        await tx.tenant.update({
+            where: { id: tenantId },
+            data: {
+                status: 'ACTIVE',
+                stripeCustomerId: customerId,
                 isFoundingMember: isFounder,
             },
         });
+
+        // Increment founder slots if applicable
+        if (isFounder) {
+            await tx.founderSlot.updateMany({
+                data: { usedSlots: { increment: 1 } },
+            });
+        }
+
+        // Process partner referral if applicable
+        if (partnerTenantId) {
+            await tx.tenant.update({
+                where: { id: tenantId },
+                data: { referredByTenantId: partnerTenantId },
+            });
+
+            await tx.partnerReferral.upsert({
+                where: {
+                    partnerTenantId_referredTenantId: {
+                        partnerTenantId,
+                        referredTenantId: tenantId,
+                    },
+                },
+                create: {
+                    partnerTenantId,
+                    referredTenantId: tenantId,
+                    status: 'PENDING',
+                },
+                update: {},
+            });
+        }
+    });
+
+    // External API calls (Clerk) outside transaction — failure here is non-critical
+    try {
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            include: { users: { where: { role: 'OWNER' } } },
+        });
+
+        if (tenant?.users[0]?.clerkId) {
+            const clerk = await clerkClient();
+            await clerk.users.updateUser(tenant.users[0].clerkId, {
+                publicMetadata: {
+                    tenantId,
+                    role: 'OWNER',
+                    dbUserId: tenant.users[0].id,
+                    tenantStatus: 'ACTIVE',
+                    isFoundingMember: isFounder,
+                },
+            });
+        }
+    } catch (err) {
+        console.error('[Webhook] Failed to update Clerk metadata (non-critical):', err);
     }
 }
 

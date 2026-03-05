@@ -63,6 +63,12 @@ const nextConfig: NextConfig = {
         ignoreBuildErrors: true,
     },
 
+    serverExternalPackages: [
+        '@react-pdf/renderer',
+        '@react-pdf/layout',
+        '@react-pdf/stylesheet',
+    ],
+
     experimental: {
         serverActions: {
             bodySizeLimit: '10mb',

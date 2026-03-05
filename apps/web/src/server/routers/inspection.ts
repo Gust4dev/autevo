@@ -356,6 +356,15 @@ export const inspectionRouter = router({
             orderId: z.string(),
         }))
         .mutation(async ({ ctx, input }) => {
+            // 🛡️ P2-7: Validate order belongs to this tenant
+            const order = await ctx.db.serviceOrder.findFirst({
+                where: { id: input.orderId, tenantId: ctx.tenantId! },
+                select: { id: true },
+            });
+            if (!order) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem de serviço não encontrada' });
+            }
+
             const { PutObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
             const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
 
@@ -825,15 +834,21 @@ export const inspectionRouter = router({
                 });
             }
 
-            // Verify HMAC Token
-            const crypto = require('crypto');
-            const secret = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'default_secret';
-            const hmac = crypto.createHmac('sha256', secret);
-            hmac.update(`${inspection.order.id}:${inspection.order.tenantId}`);
-            const expectedToken = hmac.digest('hex').substring(0, 16);
-
-            if (input.token !== expectedToken) {
-                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Autentique-se novamente.' });
+            // 🛡️ P0-1/P1-3: Verify JWT tracking token (replaces non-expiring HMAC with default_secret)
+            const { jwtVerify } = await import('jose');
+            const jwtSecret = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+            if (!jwtSecret) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY] Chave JWT ausente no servidor.' });
+            }
+            try {
+                const { payload } = await jwtVerify(input.token, new TextEncoder().encode(jwtSecret));
+                const tkData = payload as unknown as { orderId: string; tenantId: string };
+                if (tkData.orderId !== inspection.order.id || tkData.tenantId !== inspection.order.tenantId) {
+                    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Token inválido para esta OS.' });
+                }
+            } catch (err) {
+                if (err instanceof TRPCError) throw err;
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão expirada. Autentique-se novamente.' });
             }
 
             if (inspection.order.id !== input.orderId) {

@@ -6,11 +6,10 @@ import { stripe } from '@/lib/stripe';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-    // Verify cron secret in production
+    // 🛡️ P0-3: Reject if CRON_SECRET is not configured (prevents unauthenticated access)
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

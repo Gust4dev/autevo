@@ -96,8 +96,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ url: signedUrl, success: true, immutable: true });
         }
 
+        // 🛡️ P1-7: Filter inspections by tenantId for defense-in-depth
         const inspections = await prisma.inspection.findMany({
-            where: { orderId },
+            where: { orderId, tenantId: tenantIdFromAuth },
             include: {
                 items: {
                     select: { id: true, category: true, itemKey: true, label: true, isRequired: true, isCritical: true, photoUrl: true, photos: true, status: true, damageType: true, severity: true, completedAt: true },
