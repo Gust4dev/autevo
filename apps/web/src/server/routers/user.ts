@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 import { router, protectedProcedure, ownerProcedure, managerProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';

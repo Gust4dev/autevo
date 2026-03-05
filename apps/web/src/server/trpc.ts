@@ -6,13 +6,11 @@ import { Prisma } from '@autevo/database';
 import type { User } from '@autevo/database';
 import { checkRateLimit, redis } from '@/lib/rate-limit';
 
-
-
-import type { PrismaClient } from '@autevo/database';
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma $extends() returns a different type than PrismaClient
+export type PrismaDbClient = any;
+
 export interface Context {
-    db: any;
+    db: PrismaDbClient;
     user: User | null;
     tenantId: string | null;
     headers?: { ipAddress: string | null; userAgent: string | null };
@@ -132,7 +130,7 @@ const tenantMiddleware = middleware(async ({ ctx, next, path }) => {
 const rateLimitMiddleware = middleware(async ({ ctx, next }) => {
     const identifier = ctx.user?.id || 'anonymous';
 
-    if (process.env.UPSTASH_REDIS_REST_URL) {
+    if (process.env.UPSTASH_REDIS_REST_URL && process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== 'true') {
         const { success } = await checkRateLimit(identifier);
         if (!success) {
             throw new TRPCError({

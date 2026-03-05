@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { z } from 'zod';
 import { router, protectedProcedure, protectedProcedureNoRateLimit, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
@@ -348,10 +349,46 @@ export const inspectionRouter = router({
             return updated;
         }),
 
+    getPresignedUrl: protectedProcedureNoRateLimit
+        .input(z.object({
+            filename: z.string(),
+            contentType: z.string(),
+            orderId: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { PutObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
+            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+
+            const s3Client = new S3Client({
+                region: process.env.AWS_REGION || 'sa-east-1',
+                credentials: {
+                    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+                    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+                },
+            });
+
+            const uniqueId = Math.random().toString(36).substring(2, 9);
+            // Prefix keys with tenantId to prevent IDOR on S3 objects
+            const key = `inspections/${ctx.tenantId}/${input.orderId}/${Date.now()}-${uniqueId}-${input.filename}`;
+
+            const command = new PutObjectCommand({
+                Bucket: process.env.AWS_BUCKET_NAME!,
+                Key: key,
+                ContentType: input.contentType,
+            });
+
+            const signedUrl = await getSignedUrl(s3Client as any, command, { expiresIn: 300 }); // 5 minutes validity
+
+            const publicUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+
+            return { signedUrl, publicUrl, key };
+        }),
+
     addPhoto: protectedProcedureNoRateLimit
         .input(z.object({
             itemId: z.string(),
-            photoBase64: z.string(),
+            photoBase64: z.string().optional(),
+            photoUrl: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
             const item = await ctx.db.inspectionItem.findUnique({
@@ -372,10 +409,13 @@ export const inspectionRouter = router({
             }
 
             const { uploadFile } = await import('@/lib/storage');
-            let publicUrl = input.photoBase64; // Fallback se não for base64 (embora devesse ser)
-
-            // 🛡️ SECURITY: Se for um base64, sobe pro S3, nunca grava binário no BD.
-            if (input.photoBase64.startsWith('data:image')) {
+            let publicUrl = '';
+            // 🚀 FAST PATH: Client Direct Upload (Presigned URL)
+            if (input.photoUrl) {
+                publicUrl = input.photoUrl;
+            }
+            // 🐌 SLOW PATH: Fallback para uploads antigos/quebrados via Base64 (OOM Risk)
+            else if (input.photoBase64?.startsWith('data:image')) {
                 const base64Data = input.photoBase64.replace(/^data:image\/\w+;base64,/, "");
                 const buffer = Buffer.from(base64Data, 'base64');
                 const contentType = input.photoBase64.substring(5, input.photoBase64.indexOf(';'));
@@ -385,6 +425,10 @@ export const inspectionRouter = router({
                     tenantId: ctx.tenantId!,
                     orderId: item.inspection.order.code
                 });
+            } else if (input.photoBase64) {
+                publicUrl = input.photoBase64;
+            } else {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'photoUrl ou photoBase64 é obrigatório' });
             }
 
             const updatedPhotos = [...item.photos, publicUrl];
@@ -426,6 +470,33 @@ export const inspectionRouter = router({
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Vistoria já concluída' });
             }
 
+            // Excluir orfão do S3 para evitar Technical Debt (Phase 4.8)
+            const photoToRemove = input.photoBase64;
+            if (photoToRemove && photoToRemove.includes('s3.') && photoToRemove.includes('amazonaws.com')) {
+                try {
+                    const { DeleteObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
+                    const s3Client = new S3Client({
+                        region: process.env.AWS_REGION || 'sa-east-1',
+                        credentials: {
+                            accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+                            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+                        },
+                    });
+
+                    // Extrair Key da URL (ex: https://meu-bucket.s3.sa-east-1.amazonaws.com/uploads/tenant/file.jpg)
+                    const urlPath = new URL(photoToRemove).pathname;
+                    const objectKey = urlPath.startsWith('/') ? urlPath.substring(1) : urlPath;
+
+                    await s3Client.send(new DeleteObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME!,
+                        Key: objectKey,
+                    }));
+                } catch (err) {
+                    console.error('Falha ao deletar orfão do S3 (removePhoto):', err);
+                    // Silently fail para não impedir o cliente de continuar a UI process
+                }
+            }
+
             const updatedPhotos = item.photos.filter((p) => p !== input.photoBase64);
 
             const updated = await ctx.db.inspectionItem.update({
@@ -435,8 +506,6 @@ export const inspectionRouter = router({
                     photoUrl: updatedPhotos[0] ?? null,
                 },
             });
-
-            // TODO: call S3 delete for the URL (Omitindo por hora pois storage precisa de deleteMethod)
 
             return updated;
         }),
@@ -487,11 +556,28 @@ export const inspectionRouter = router({
                 });
             }
 
+            let finalPhotoUrl = input.damage.photoUrl;
+
+            // 🐌 SLOW PATH: Interceptar Base64 sendo salvo no BD e redirecionar pro S3
+            if (finalPhotoUrl && finalPhotoUrl.startsWith('data:image')) {
+                const { uploadFile } = await import('@/lib/storage');
+                const base64Data = finalPhotoUrl.replace(/^data:image\/\w+;base64,/, "");
+                const buffer = Buffer.from(base64Data, 'base64');
+                const contentType = finalPhotoUrl.substring(5, finalPhotoUrl.indexOf(';'));
+                const fileName = `damage-${input.inspectionId}-${Date.now()}.${contentType.split('/')[1] || 'jpeg'}`;
+
+                finalPhotoUrl = await uploadFile(buffer, fileName, contentType, {
+                    tenantId: ctx.tenantId!,
+                    orderId: inspection.order.code || 'unknown'
+                });
+            }
+
             const damage = await ctx.db.inspectionDamage.create({
                 data: {
                     tenantId: ctx.tenantId!,
                     inspectionId: input.inspectionId,
                     ...input.damage,
+                    photoUrl: finalPhotoUrl,
                 },
             });
 
@@ -715,28 +801,7 @@ export const inspectionRouter = router({
             token: z.string(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const { jwtVerify } = await import('jose');
-            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
-            if (!secretKey || secretKey.length < 32) {
-                throw new TRPCError({
-                    code: 'INTERNAL_SERVER_ERROR',
-                    message: '[SECURITY] Chave JWT ausente ou muito fraca no servidor.',
-                });
-            }
-            const secret = new TextEncoder().encode(secretKey);
-
-            let payload: { orderId: string; tenantId: string };
-            try {
-                const { payload: p } = await jwtVerify(input.token, secret);
-                payload = p as unknown as { orderId: string; tenantId: string };
-            } catch {
-                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Autentique-se novamente.' });
-            }
-
-            if (payload.orderId !== input.orderId) {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Token não corresponde a esta ordem de serviço.' });
-            }
-
+            // 🛡️ SECURITY: Fetch order first to compute HMAC
             const inspection = await ctx.db.inspection.findUnique({
                 where: { id: input.inspectionId },
                 include: {
@@ -760,7 +825,18 @@ export const inspectionRouter = router({
                 });
             }
 
-            if (inspection.order.id !== input.orderId || inspection.order.tenantId !== payload.tenantId) {
+            // Verify HMAC Token
+            const crypto = require('crypto');
+            const secret = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'default_secret';
+            const hmac = crypto.createHmac('sha256', secret);
+            hmac.update(`${inspection.order.id}:${inspection.order.tenantId}`);
+            const expectedToken = hmac.digest('hex').substring(0, 16);
+
+            if (input.token !== expectedToken) {
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Autentique-se novamente.' });
+            }
+
+            if (inspection.order.id !== input.orderId) {
                 throw new TRPCError({
                     code: 'BAD_REQUEST',
                     message: 'Vistoria não pertence a esta OS ou o Inquilino é inválido',
@@ -803,20 +879,20 @@ export const inspectionRouter = router({
             const signatureUrl = await uploadFile(buffer, fileName, 'image/png', uploadContext);
 
             // Geração de Hash Forense para validade jurídica da assinatura pública
-            const crypto = await import('crypto');
+            const cryptoModule = await import('crypto');
             const forensicPayload = {
                 metadata: {
                     ipAddress: ctx.headers?.ipAddress || 'unknown',
                     userAgent: ctx.headers?.userAgent || 'unknown',
                     signedAt: new Date().toISOString(),
-                    tenantId: payload.tenantId,
+                    tenantId: inspection.order.tenantId,
                     orderId: inspection.order.code,
                 },
                 items: inspection.items,
                 damages: inspection.damages,
             };
 
-            const documentHash = crypto.createHash('sha256').update(JSON.stringify(forensicPayload)).digest('base64');
+            const documentHash = cryptoModule.createHash('sha256').update(JSON.stringify(forensicPayload)).digest('base64');
 
             const updated = await ctx.db.$transaction(async (tx) => {
                 const updatedInspection = await tx.inspection.update({

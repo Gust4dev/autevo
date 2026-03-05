@@ -525,7 +525,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                   {
                     nome: order.vehicle.customer.name.split(" ")[0],
                     veiculo: `${order.vehicle.brand} ${order.vehicle.model}`,
-                    link: getTrackingUrl(id),
+                    link: order.trackingUrl || getTrackingUrl(id),
                   },
                 )}
                 whatsappOptIn={order.vehicle.customer.whatsappOptIn}
@@ -536,6 +536,7 @@ export default function OrderDetailPage({ params }: PageProps) {
                 orderId={id}
                 customerName={order.vehicle.customer.name.split(" ")[0]}
                 vehicleName={`${order.vehicle.brand} ${order.vehicle.model}`}
+                trackingUrl={order.trackingUrl}
               />
             </>
           )}

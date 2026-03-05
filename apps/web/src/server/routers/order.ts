@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 import { router, protectedProcedure, publicProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
@@ -88,10 +91,9 @@ async function createCommissionSnapshots(
         });
 
         if (existingCommission) {
-            await tx.orderItemCommission.update({
-                where: { id: existingCommission.id },
-                data: { commissionValue: commissionValueDecimal.toNumber() }
-            });
+            // SNAPSHOT CONGELADO: Não atualizamos o valor se já existir.
+            // A edição da OS via orderRouter.update exclui e recria os itens.
+            continue;
         } else {
             await tx.orderItemCommission.create({
                 data: {
@@ -117,15 +119,36 @@ export const orderRouter = router({
 
             // Fetch vehicle to get current owner
             const vehicle = await ctx.db.vehicle.findFirst({
-                where: { id: input.vehicleId, deletedAt: null },
+                where: { id: input.vehicleId, tenantId: ctx.tenantId!, deletedAt: null },
                 select: { customerId: true, plate: true }
             });
 
             if (!vehicle) {
                 throw new TRPCError({
                     code: 'NOT_FOUND',
-                    message: 'Veículo não encontrado'
+                    message: 'Veículo não encontrado ou pertence a outro inquilino'
                 });
+            }
+
+            // 🛡️ SECURITY: Pre-banco validação multi-tenant (IDOR)
+            const inputServiceIds = [...new Set(input.items.map((i: any) => i.serviceId).filter(Boolean))] as string[];
+            if (inputServiceIds.length > 0) {
+                const count = await ctx.db.service.count({
+                    where: { id: { in: inputServiceIds }, tenantId: ctx.tenantId! }
+                });
+                if (count !== inputServiceIds.length) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: 'Serviço(s) inválido(s) ou pertencente a outro inquilino.' });
+                }
+            }
+
+            const inputProductIds = input.products ? [...new Set(input.products.map((p: any) => p.productId).filter(Boolean))] as string[] : [];
+            if (inputProductIds.length > 0) {
+                const count = await ctx.db.product.count({
+                    where: { id: { in: inputProductIds }, tenantId: ctx.tenantId! }
+                });
+                if (count !== inputProductIds.length) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: 'Produto(s) inválido(s) ou pertencente a outro inquilino.' });
+                }
             }
 
             const order = await ctx.db.$transaction(async (tx: any) => {
@@ -178,8 +201,19 @@ export const orderRouter = router({
                             })),
                         } : undefined,
                     },
+                    include: {
+                        items: { include: { service: true } },
+                        assignedTo: true,
+                    }
                 });
             });
+
+            // 📸 SNAPSHOT DE COMISSÃO NATIVO DA CRIAÇÃO (Imutabilidade)
+            if (order.items && order.items.length > 0) {
+                await ctx.db.$transaction(async (tx: any) => {
+                    await createCommissionSnapshots(tx, ctx.tenantId!, order);
+                });
+            }
 
             // 📦 AUTOMATIC INVENTORY TEMPLATES
             // Fetch standard products for the services added
@@ -290,8 +324,19 @@ export const orderRouter = router({
             );
             const balance = Number(order.total) - paidAmount;
 
+            // 🛡️ SECURITY: Gerar Tracking Token Stateless (HMAC)
+            const crypto = require('crypto');
+            const secret = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'default_secret';
+            const hmac = crypto.createHmac('sha256', secret);
+            hmac.update(`${order.id}:${order.tenantId}`);
+            const trackingToken = hmac.digest('hex').substring(0, 16);
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            const trackingUrl = `${baseUrl}/tracking/${order.id}?token=${trackingToken}`;
+
             return {
                 ...order,
+                trackingToken,
+                trackingUrl,
                 paidAmount,
                 balance,
             };
@@ -470,10 +515,11 @@ export const orderRouter = router({
                 const product = await ctx.db.product.findFirst({
                     where: { id: input.productId, tenantId: ctx.tenantId! }
                 });
-                if (product) {
-                    costPrice = input.costPrice !== undefined ? input.costPrice : Number(product.costPrice);
-                    name = input.customName || product.name;
+                if (!product) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: 'Produto inválido ou pertencente a outro inquilino.' });
                 }
+                costPrice = input.costPrice !== undefined ? input.costPrice : Number(product.costPrice);
+                name = input.customName || product.name;
             }
 
             // 🔒 ATOMIC: Create item, deduct stock and create movement in a single transaction
@@ -685,6 +731,17 @@ export const orderRouter = router({
             }
 
             if (input.data.items) {
+                // 🛡️ SECURITY: Pre-banco validação multi-tenant (IDOR)
+                const updateServiceIds = [...new Set(input.data.items.map((i: any) => i.serviceId).filter(Boolean))] as string[];
+                if (updateServiceIds.length > 0) {
+                    const count = await ctx.db.service.count({
+                        where: { id: { in: updateServiceIds }, tenantId: ctx.tenantId! }
+                    });
+                    if (count !== updateServiceIds.length) {
+                        throw new TRPCError({ code: 'FORBIDDEN', message: 'Serviço(s) inválido(s) ou pertencente a outro inquilino.' });
+                    }
+                }
+
                 // Delete existing items
                 await ctx.db.orderItem.deleteMany({
                     where: { orderId: input.id },
@@ -760,7 +817,18 @@ export const orderRouter = router({
                     subtotal,
                     total,
                 },
+                include: {
+                    items: { include: { service: true } },
+                    assignedTo: true,
+                }
             });
+
+            // 📸 SNAPSHOT DE COMISSÃO NA EDIÇÃO (Recalcula recriados)
+            if (input.data.items && input.data.items.length > 0) {
+                await ctx.db.$transaction(async (tx: any) => {
+                    await createCommissionSnapshots(tx, ctx.tenantId!, order);
+                });
+            }
 
             // Notificar membro se foi (re)atribuído
             if (input.data.assignedToId && input.data.assignedToId !== existing.assignedToId) {
@@ -988,11 +1056,33 @@ export const orderRouter = router({
                 sendPushToOwners(ctx.tenantId!, {
                     title: '✅ OS Concluída',
                     body: `OS #${order.code} foi finalizada`,
-                    url: `/ dashboard / orders / ${order.id}`,
-                    tag: `completed - ${order.id}`,
+                    url: `/dashboard/orders/${order.id}`,
+                    tag: `completed-${order.id}`,
                 }, 'onOrderCompleted').catch(() => {
                     // Silently fail
                 });
+
+                // 🛡️ SECURITY: Auto-gerar e selar PDF no S3 (Imutabilidade Forense)
+                try {
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+                    const { SignJWT } = await import('jose');
+                    const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
+                    if (secretKey) {
+                        const token = await new SignJWT({ orderId: order.id, tenantId: ctx.tenantId! })
+                            .setProtectedHeader({ alg: 'HS256' })
+                            .setExpirationTime('5m')
+                            .sign(new TextEncoder().encode(secretKey));
+
+                        // Fire and forget fetch (it will execute within Vercel's lifecycle if awaited)
+                        await fetch(`${baseUrl}/api/pdf`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orderId: order.id, token })
+                        }).catch(e => console.error('Erro na requisição interna do PDF:', e));
+                    }
+                } catch (err) {
+                    console.error('Falha ao auto-gerar PDF da OS:', err);
+                }
             }
 
             // Notificar membro atribuído sobre mudança de status
@@ -1405,26 +1495,6 @@ export const orderRouter = router({
             }),
         }))
         .query(async ({ ctx, input }) => {
-            let isAuthenticated = false;
-
-            if (input.token) {
-                const { jwtVerify } = await import('jose');
-                const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
-                if (!secretKey || secretKey.length < 32) {
-                    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY] Chave JWT ausente no servidor.' });
-                }
-                const secret = new TextEncoder().encode(secretKey);
-
-                try {
-                    const { payload } = await jwtVerify(input.token, secret);
-                    if (payload.orderId === input.orderId) {
-                        isAuthenticated = true;
-                    }
-                } catch {
-                    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Verifique seu telefone novamente.' });
-                }
-            }
-
             const order = await ctx.db.serviceOrder.findUnique({
                 where: { id: input.orderId },
                 include: {
@@ -1435,6 +1505,22 @@ export const orderRouter = router({
 
             if (!order) {
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem de serviço não encontrada.' });
+            }
+
+            let isAuthenticated = false;
+
+            if (input.token) {
+                const crypto = require('crypto');
+                const secret = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'default_secret';
+                const hmac = crypto.createHmac('sha256', secret);
+                hmac.update(`${order.id}:${order.tenantId}`);
+                const expectedToken = hmac.digest('hex').substring(0, 16);
+
+                if (input.token === expectedToken) {
+                    isAuthenticated = true;
+                } else {
+                    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Verifique seu telefone novamente.' });
+                }
             }
 
             return {
@@ -1524,7 +1610,7 @@ export const orderRouter = router({
             if (!payload.orderId) throw new TRPCError({ code: 'UNAUTHORIZED' });
 
             const order = await ctx.db.serviceOrder.findUnique({
-                where: { id: payload.orderId },
+                where: { id: payload.orderId }, // 👈 Usa do Payload!
                 include: {
                     vehicle: { select: { plate: true, model: true, brand: true, color: true, customer: { select: { name: true } } } },
                     tenant: { select: { name: true, phone: true, logo: true, primaryColor: true, secondaryColor: true, inspectionSignature: true } },
@@ -1596,22 +1682,6 @@ export const orderRouter = router({
             })),
         }))
         .query(async ({ ctx, input }) => {
-            const { jwtVerify } = await import('jose');
-            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
-            if (!secretKey || secretKey.length < 32) {
-                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY_CRITICAL] Chave de assinatura JWT ausente ou muito fraca.' });
-            }
-            const secret = new TextEncoder().encode(secretKey);
-
-            try {
-                const { payload } = await jwtVerify(input.token, secret);
-                if (payload.orderId !== input.orderId) {
-                    throw new Error('Token mismatch');
-                }
-            } catch {
-                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada. Verifique seu telefone novamente.' });
-            }
-
             const order = await ctx.db.serviceOrder.findUnique({
                 where: { id: input.orderId },
                 include: {
@@ -1648,6 +1718,17 @@ export const orderRouter = router({
 
             if (!order) {
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem de serviço não encontrada' });
+            }
+
+            // 🛡️ SECURITY: Verify Tracking Token Stateless (HMAC)
+            const crypto = require('crypto');
+            const secretToken = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'default_secret';
+            const hmac = crypto.createHmac('sha256', secretToken);
+            hmac.update(`${order.id}:${order.tenantId}`);
+            const expectedToken = hmac.digest('hex').substring(0, 16);
+
+            if (input.token !== expectedToken) {
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Link inválido ou expirado. Verifique seu acesso.' });
             }
 
             const inspections = await ctx.db.inspection.findMany({
@@ -1795,18 +1876,12 @@ export const orderRouter = router({
                 if (redis) await redis.del(`fails:${ipAddress}`);
             }
 
-            // 🛡️ Generate JWT Token
-            const { SignJWT } = await import('jose');
-            const secretKey = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY;
-            if (!secretKey || secretKey.length < 32) {
-                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '[SECURITY_CRITICAL] Chave de assinatura JWT ausente ou muito fraca no servidor.' });
-            }
-            const secret = new TextEncoder().encode(secretKey);
-            const token = await new SignJWT({ orderId: input.orderId, tenantId: order.tenantId })
-                .setProtectedHeader({ alg: 'HS256' })
-                .setExpirationTime('1h')
-                .setIssuedAt()
-                .sign(secret);
+            // 🛡️ Generate HMAC Tracking Token
+            const crypto = require('crypto');
+            const secret = process.env.NEXTAUTH_SECRET || process.env.CLERK_SECRET_KEY || 'default_secret';
+            const hmac = crypto.createHmac('sha256', secret);
+            hmac.update(`${order.id}:${order.tenantId}`);
+            const token = hmac.digest('hex').substring(0, 16);
 
             return { isValid: true, token };
         }),

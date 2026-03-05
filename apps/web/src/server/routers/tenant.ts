@@ -17,8 +17,18 @@ export const tenantRouter = router({
     updateSetup: protectedProcedure
         .input(setupSchema)
         .mutation(async ({ ctx, input }) => {
-            const isOwnerOrAdmin = ctx.user?.role === 'OWNER' || ctx.user?.role === 'ADMIN_SAAS';
-            const isInitialSetup = !ctx.user?.jobTitle;
+            if (!ctx.user || !ctx.user.tenantId) {
+                throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Usuário não autenticado ou sem tenant' });
+            }
+
+            const userId = ctx.user.id;
+            const tenantId = ctx.user.tenantId;
+            const clerkId = ctx.user.clerkId;
+            const role = ctx.user.role;
+            const jobTitle = ctx.user.jobTitle;
+
+            const isOwnerOrAdmin = role === 'OWNER' || role === 'ADMIN_SAAS';
+            const isInitialSetup = !jobTitle;
 
             if (!isOwnerOrAdmin && !isInitialSetup) {
                 throw new TRPCError({
@@ -34,9 +44,10 @@ export const tenantRouter = router({
                 });
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await ctx.db.$transaction(async (tx: any) => {
                 await tx.user.update({
-                    where: { id: ctx.user!.id },
+                    where: { id: userId },
                     data: { jobTitle: input.jobTitle },
                 });
 
@@ -52,27 +63,28 @@ export const tenantRouter = router({
                 if (isInitialSetup && input.tosAccepted) {
                     tenantData.tosAcceptedAt = new Date();
                     tenantData.tosVersion = 'v1.0';
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     tenantData.tosAcceptedByIp = (ctx as any).req?.headers?.['x-forwarded-for'] as string || 'unknown';
                 }
 
                 await tx.tenant.update({
-                    where: { id: ctx.user!.tenantId! },
+                    where: { id: tenantId },
                     data: tenantData,
                 });
             });
 
             // Invalidate ALL relevant caches to prevent redirect loops after setup
             // 1. In-memory user cache (for tRPC context)
-            if (ctx.user?.clerkId) {
+            if (clerkId) {
                 const { invalidateUserCache } = await import('@/lib/user-cache');
-                invalidateUserCache(ctx.user.clerkId);
+                invalidateUserCache(clerkId);
 
                 // Sync tosVersion to Clerk publicMetadata for middleware check
                 if (isInitialSetup && input.tosAccepted) {
                     const { clerkClient } = await import('@clerk/nextjs/server');
                     const clerk = await clerkClient();
-                    const currentUser = await clerk.users.getUser(ctx.user.clerkId);
-                    await clerk.users.updateUser(ctx.user.clerkId, {
+                    const currentUser = await clerk.users.getUser(clerkId);
+                    await clerk.users.updateUser(clerkId, {
                         publicMetadata: {
                             ...currentUser.publicMetadata,
                             tosVersion: 'v1.0',
@@ -83,7 +95,7 @@ export const tenantRouter = router({
 
             // 2. Tenant status cache (Redis) - THIS IS CRITICAL
             const { invalidateTenantCache } = await import('../trpc');
-            await invalidateTenantCache(ctx.user!.tenantId!);
+            await invalidateTenantCache(tenantId);
 
             // 3. Next.js unstable_cache (used by cached-queries.ts in dashboard layout)
             const { revalidateTag } = await import('next/cache');
@@ -103,34 +115,37 @@ export const tenantRouter = router({
 
         const email = ctx.user.email;
         const slug = `${email.split('@')[0].replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}`;
+        const userId = ctx.user.id;
+        const clerkId = ctx.user.clerkId;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = await ctx.db.$transaction(async (tx: any) => {
             const newTenant = await tx.tenant.create({
                 data: { name: 'Minha Empresa', slug, status: 'ACTIVE' },
             });
 
             const updatedUser = await tx.user.update({
-                where: { id: ctx.user!.id },
+                where: { id: userId },
                 data: { tenantId: newTenant.id, role: 'OWNER', status: 'ACTIVE' },
             });
 
             return { tenant: newTenant, user: updatedUser };
         });
 
-        if (ctx.user.clerkId) {
+        if (clerkId) {
             const { clerkClient } = await import('@clerk/nextjs/server');
             const clerk = await clerkClient();
-            await clerk.users.updateUser(ctx.user.clerkId, {
+            await clerk.users.updateUser(clerkId, {
                 publicMetadata: {
                     tenantId: result.tenant.id,
                     role: 'OWNER',
-                    dbUserId: ctx.user.id,
+                    dbUserId: userId,
                     needsOnboarding: false,
                 },
             }).catch(() => { });
 
             const { invalidateUserCache } = await import('@/lib/user-cache');
-            invalidateUserCache(ctx.user.clerkId);
+            invalidateUserCache(clerkId);
         }
 
         return { success: true, tenantId: result.tenant.id };
@@ -149,8 +164,13 @@ export const tenantRouter = router({
                 });
             }
 
+            const tenantId = ctx.tenantId;
+            if (!tenantId) {
+                throw new TRPCError({ code: 'UNAUTHORIZED' });
+            }
+
             const existingOrders = await ctx.db.serviceOrder.count({
-                where: { tenantId: ctx.tenantId! },
+                where: { tenantId },
             });
 
             if (existingOrders > 0) {
@@ -161,9 +181,9 @@ export const tenantRouter = router({
             }
 
             await ctx.db.tenantSequence.upsert({
-                where: { tenantId: ctx.tenantId! },
+                where: { tenantId },
                 create: {
-                    tenantId: ctx.tenantId!,
+                    tenantId,
                     prefix: input.prefix,
                     currentValue: input.startValue,
                 },

@@ -40,6 +40,7 @@ interface WhatsAppMessageMenuProps {
   context?: "customer" | "order";
   orderId?: string;
   vehicleName?: string;
+  trackingUrl?: string; // 🛡️ URL completo e seguro de tracking (com token hmac)
 }
 
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
@@ -55,6 +56,7 @@ export function WhatsAppMessageMenu({
   context = "customer",
   orderId,
   vehicleName,
+  trackingUrl,
 }: WhatsAppMessageMenuProps) {
   const [showWarning, setShowWarning] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function WhatsAppMessageMenu({
     }
 
     if (orderId && templateKey === "tracking_link") {
-      variables.link = getTrackingUrl(orderId);
+      variables.link = trackingUrl || getTrackingUrl(orderId);
     }
 
     const message = replaceTemplateVariables(template.message, variables);
