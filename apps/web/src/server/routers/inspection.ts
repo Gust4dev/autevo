@@ -5,8 +5,9 @@ import { TRPCError } from '@trpc/server';
 import { generateChecklistItems, REQUIRED_CHECKLIST_ITEMS } from '@/lib/ChecklistDefinition';
 import { uploadFile, UploadContext } from '@/lib/storage';
 
+
 const inspectionTypeEnum = z.enum(['entrada', 'intermediaria', 'final']);
-const inspectionStatusEnum = z.enum(['em_andamento', 'concluida']);
+
 const itemStatusEnum = z.enum(['pendente', 'ok', 'com_avaria']);
 const damageTypeEnum = z.enum(['arranhao', 'amassado', 'trinca', 'mancha', 'risco', 'pintura', 'outro']);
 const severityEnum = z.enum(['leve', 'moderado', 'grave']);
@@ -417,22 +418,15 @@ export const inspectionRouter = router({
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Vistoria já concluída' });
             }
 
-            const { uploadFile } = await import('@/lib/storage');
             let publicUrl = '';
             // 🚀 FAST PATH: Client Direct Upload (Presigned URL)
             if (input.photoUrl) {
                 publicUrl = input.photoUrl;
-            }
-            // 🐌 SLOW PATH: Fallback para uploads antigos/quebrados via Base64 (OOM Risk)
-            else if (input.photoBase64?.startsWith('data:image')) {
-                const base64Data = input.photoBase64.replace(/^data:image\/\w+;base64,/, "");
-                const buffer = Buffer.from(base64Data, 'base64');
-                const contentType = input.photoBase64.substring(5, input.photoBase64.indexOf(';'));
-                const fileName = `inspection-${item.id}-${Date.now()}.${contentType.split('/')[1] || 'jpeg'}`;
-
-                publicUrl = await uploadFile(buffer, fileName, contentType, {
-                    tenantId: ctx.tenantId!,
-                    orderId: item.inspection.order.code
+            } else if (input.photoBase64?.startsWith('data:image')) {
+                // 🛑 SLOW PATH DESATIVADO: Prevenção de OOM (Out Of Memory)
+                throw new TRPCError({
+                    code: 'PAYLOAD_TOO_LARGE',
+                    message: '[OOM Prevention] O upload via Base64 direto foi desativado por questões de performance. O cliente deve utilizar o fluxo de upload direto pro S3 via Presigned URL.'
                 });
             } else if (input.photoBase64) {
                 publicUrl = input.photoBase64;
@@ -496,9 +490,9 @@ export const inspectionRouter = router({
                     const urlPath = new URL(photoToRemove).pathname;
                     const objectKey = urlPath.startsWith('/') ? urlPath.substring(1) : urlPath;
 
-                    // 🛡️ SECURITY (P0-1): S3 IDOR Fix - Verify key corresponds to current tenant
-                    if (!objectKey.startsWith(`inspections/${ctx.tenantId}/`) && !objectKey.includes(ctx.tenantId!)) {
-                        throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado ao objeto S3.' });
+                    // 🛡️ SECURITY (P0-1): S3 IDOR Fix - Strict Tenant Prefix Verification
+                    if (!objectKey.startsWith(`inspections/${ctx.tenantId}/`)) {
+                        throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado: Tentativa de adulteração de arquivo inter-locatário.' });
                     }
 
                     await s3Client.send(new DeleteObjectCommand({
@@ -570,19 +564,13 @@ export const inspectionRouter = router({
                 });
             }
 
-            let finalPhotoUrl = input.damage.photoUrl;
+            const finalPhotoUrl = input.damage.photoUrl;
 
-            // 🐌 SLOW PATH: Interceptar Base64 sendo salvo no BD e redirecionar pro S3
+            // 🛑 SLOW PATH DESATIVADO: Prevenção de OOM (Out Of Memory)
             if (finalPhotoUrl && finalPhotoUrl.startsWith('data:image')) {
-                const { uploadFile } = await import('@/lib/storage');
-                const base64Data = finalPhotoUrl.replace(/^data:image\/\w+;base64,/, "");
-                const buffer = Buffer.from(base64Data, 'base64');
-                const contentType = finalPhotoUrl.substring(5, finalPhotoUrl.indexOf(';'));
-                const fileName = `damage-${input.inspectionId}-${Date.now()}.${contentType.split('/')[1] || 'jpeg'}`;
-
-                finalPhotoUrl = await uploadFile(buffer, fileName, contentType, {
-                    tenantId: ctx.tenantId!,
-                    orderId: inspection.order.code || 'unknown'
+                throw new TRPCError({
+                    code: 'PAYLOAD_TOO_LARGE',
+                    message: '[OOM Prevention] O upload via Base64 direto foi desativado por questões de performance. O cliente deve utilizar o fluxo de upload direto pro S3 via Presigned URL.'
                 });
             }
 

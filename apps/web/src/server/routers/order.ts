@@ -166,7 +166,7 @@ export const orderRouter = router({
 
                 const orderCode = result.fn_get_next_sequence;
 
-                return tx.serviceOrder.create({
+                const createdOrder = await tx.serviceOrder.create({
                     data: {
                         tenantId: ctx.tenantId!,
                         vehicleId: input.vehicleId,
@@ -206,72 +206,72 @@ export const orderRouter = router({
                         assignedTo: true,
                     }
                 });
-            });
 
-            // 📸 SNAPSHOT DE COMISSÃO NATIVO DA CRIAÇÃO (Imutabilidade)
-            if (order.items && order.items.length > 0) {
-                await ctx.db.$transaction(async (tx: any) => {
-                    await createCommissionSnapshots(tx, ctx.tenantId!, order);
-                });
-            }
+                // 📸 SNAPSHOT DE COMISSÃO NATIVO DA CRIAÇÃO (Imutabilidade)
+                if (createdOrder.items && createdOrder.items.length > 0) {
+                    await createCommissionSnapshots(tx, ctx.tenantId!, createdOrder);
+                }
 
-            // 📦 AUTOMATIC INVENTORY TEMPLATES
-            // Fetch standard products for the services added
-            const serviceIds = input.items.filter(i => i.serviceId).map(i => i.serviceId as string);
-            if (serviceIds.length > 0) {
-                const templates = await ctx.db.serviceProductTemplate.findMany({
-                    where: { serviceId: { in: serviceIds } },
-                    include: { product: true }
-                });
+                // 📦 AUTOMATIC INVENTORY TEMPLATES
+                // Fetch standard products for the services added
+                const serviceIds = input.items.filter((i: any) => i.serviceId).map((i: any) => i.serviceId as string);
+                if (serviceIds.length > 0) {
+                    const templates = await tx.serviceProductTemplate.findMany({
+                        where: { serviceId: { in: serviceIds } },
+                        include: { product: true }
+                    });
 
-                if (templates.length > 0) {
-                    await ctx.db.orderProduct.createMany({
-                        data: templates.map(t => ({
-                            tenantId: ctx.tenantId!,
-                            orderId: order.id,
-                            productId: t.productId,
-                            quantity: t.quantity,
-                            costPrice: t.product.costPrice,
-                            customName: t.product.name,
-                        }))
+                    if (templates.length > 0) {
+                        await tx.orderProduct.createMany({
+                            data: templates.map((t: any) => ({
+                                tenantId: ctx.tenantId!,
+                                orderId: createdOrder.id,
+                                productId: t.productId,
+                                quantity: t.quantity,
+                                costPrice: t.product.costPrice,
+                                customName: t.product.name,
+                            }))
+                        });
+                    }
+                }
+
+                // Add manual products if any
+                if (input.products && input.products.length > 0) {
+                    // Fetch costs for stock products
+                    const stockProductIds = input.products.filter((p: any) => p.productId).map((p: any) => p.productId as string);
+                    const stockProducts = await tx.product.findMany({
+                        where: { id: { in: stockProductIds } },
+                        select: { id: true, costPrice: true, name: true }
+                    });
+
+                    await tx.orderProduct.createMany({
+                        data: input.products.map((p: any) => {
+                            const stockP = stockProducts.find((sp: any) => sp.id === p.productId);
+                            return {
+                                tenantId: ctx.tenantId!,
+                                orderId: createdOrder.id,
+                                productId: p.productId,
+                                quantity: p.quantity,
+                                costPrice: p.costPrice || stockP?.costPrice || 0,
+                                customName: p.customName || stockP?.name || 'Item Personalizado',
+                            };
+                        })
                     });
                 }
-            }
 
-            // Add manual products if any
-            if (input.products && input.products.length > 0) {
-                // Fetch costs for stock products
-                const stockProductIds = input.products.filter(p => p.productId).map(p => p.productId as string);
-                const stockProducts = await ctx.db.product.findMany({
-                    where: { id: { in: stockProductIds } },
-                    select: { id: true, costPrice: true, name: true }
+                await tx.notificationLog.create({
+                    data: {
+                        tenantId: ctx.tenantId!,
+                        orderId: createdOrder.id,
+                        type: 'AGENDAMENTO_CONFIRMADO',
+                        recipient: 'system', // Internal notification
+                        channel: 'in_app',
+                        message: `Nova OS #${createdOrder.code} criada para ${vehicle.plate}`,
+                        status: 'pending',
+                    }
                 });
 
-                await ctx.db.orderProduct.createMany({
-                    data: input.products.map(p => {
-                        const stockP = stockProducts.find(sp => sp.id === p.productId);
-                        return {
-                            tenantId: ctx.tenantId!,
-                            orderId: order.id,
-                            productId: p.productId,
-                            quantity: p.quantity,
-                            costPrice: p.costPrice || stockP?.costPrice || 0,
-                            customName: p.customName || stockP?.name || 'Item Personalizado',
-                        };
-                    })
-                });
-            }
-
-            await ctx.db.notificationLog.create({
-                data: {
-                    tenantId: ctx.tenantId!,
-                    orderId: order.id,
-                    type: 'AGENDAMENTO_CONFIRMADO',
-                    recipient: 'system', // Internal notification
-                    channel: 'in_app',
-                    message: `Nova OS #${order.code} criada para ${vehicle.plate}`,
-                    status: 'pending',
-                }
+                return createdOrder;
             });
 
             // Push notification para owners/managers
@@ -572,7 +572,7 @@ export const orderRouter = router({
         .mutation(async ({ ctx, input }) => {
             const item = await ctx.db.orderProduct.findFirst({
                 where: { id: input.id, tenantId: ctx.tenantId! },
-                include: { order: true }
+                include: { order: { include: { pendingRestocks: true } } }
             });
 
             if (!item) {
@@ -584,6 +584,7 @@ export const orderRouter = router({
             }
 
             const diff = input.quantity - item.quantity;
+            if (diff === 0) return item;
 
             return await ctx.db.$transaction(async (tx: any) => {
                 if (item.order.inventoryDeducted && item.productId) {
@@ -596,27 +597,71 @@ export const orderRouter = router({
                               AND stock >= ${diff}
                         `;
                         if (updatedRows === 0) {
-                            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Estoque insuficiente para ajuste' });
+                            const pending = item.order.pendingRestocks.find((p: any) => p.productId === item.productId && !p.resolved);
+                            if (pending) {
+                                await tx.pendingRestock.update({
+                                    where: { id: pending.id },
+                                    data: { quantity: pending.quantity + diff }
+                                });
+                            } else {
+                                await tx.pendingRestock.create({
+                                    data: {
+                                        tenantId: ctx.tenantId!,
+                                        orderId: item.orderId,
+                                        productId: item.productId,
+                                        quantity: diff
+                                    }
+                                });
+                            }
+                        } else {
+                            await tx.stockMovement.create({
+                                data: {
+                                    tenantId: ctx.tenantId!,
+                                    productId: item.productId,
+                                    type: 'SAIDA_OS',
+                                    quantity: -diff,
+                                    notes: `Ajuste manual (acréscimo) de quantidade na OS ${item.order.code}`,
+                                    createdBy: ctx.user!.id,
+                                    reference: `OS-${item.order.code}`,
+                                }
+                            });
                         }
                     } else if (diff < 0) {
-                        await tx.product.update({
-                            where: { id: item.productId },
-                            data: { stock: { increment: Math.abs(diff) } }
-                        });
-                    }
+                        const reduction = Math.abs(diff);
+                        let physicalRefund = reduction;
 
-                    if (diff !== 0) {
-                        await tx.stockMovement.create({
-                            data: {
-                                tenantId: ctx.tenantId!,
-                                productId: item.productId,
-                                type: 'AJUSTE',
-                                quantity: -diff,
-                                notes: `Ajuste manual de quantidade na OS ${item.order.code}`,
-                                createdBy: ctx.user!.id,
-                                reference: `OS-${item.order.code}`,
+                        const pending = item.order.pendingRestocks.find((p: any) => p.productId === item.productId && !p.resolved);
+                        if (pending) {
+                            if (reduction >= pending.quantity) {
+                                physicalRefund = reduction - pending.quantity;
+                                await tx.pendingRestock.delete({ where: { id: pending.id } });
+                            } else {
+                                physicalRefund = 0;
+                                await tx.pendingRestock.update({
+                                    where: { id: pending.id },
+                                    data: { quantity: pending.quantity - reduction }
+                                });
                             }
-                        });
+                        }
+
+                        if (physicalRefund > 0) {
+                            await tx.product.update({
+                                where: { id: item.productId },
+                                data: { stock: { increment: physicalRefund } }
+                            });
+
+                            await tx.stockMovement.create({
+                                data: {
+                                    tenantId: ctx.tenantId!,
+                                    productId: item.productId,
+                                    type: 'ENTRADA',
+                                    quantity: physicalRefund,
+                                    notes: `Ajuste manual (redução) de quantidade na OS ${item.order.code}`,
+                                    createdBy: ctx.user!.id,
+                                    reference: `OS-${item.order.code}`,
+                                }
+                            });
+                        }
                     }
                 }
 
@@ -648,12 +693,25 @@ export const orderRouter = router({
                 if (item.order.inventoryDeducted && item.productId) {
                     // 🛡️ SECURITY: Prevent shadow stock inflation from PendingRestock
                     const pending = item.order.pendingRestocks.find((p: any) => p.productId === item.productId && !p.resolved);
+                    let physicalRefund = item.quantity;
+
                     if (pending) {
-                        await tx.pendingRestock.delete({ where: { id: pending.id } });
-                    } else {
+                        if (item.quantity >= pending.quantity) {
+                            physicalRefund = item.quantity - pending.quantity;
+                            await tx.pendingRestock.delete({ where: { id: pending.id } });
+                        } else {
+                            physicalRefund = 0;
+                            await tx.pendingRestock.update({
+                                where: { id: pending.id },
+                                data: { quantity: pending.quantity - item.quantity }
+                            });
+                        }
+                    }
+
+                    if (physicalRefund > 0) {
                         await tx.product.update({
                             where: { id: item.productId },
-                            data: { stock: { increment: item.quantity } }
+                            data: { stock: { increment: physicalRefund } }
                         });
 
                         await tx.stockMovement.create({
@@ -661,8 +719,8 @@ export const orderRouter = router({
                                 tenantId: ctx.tenantId!,
                                 productId: item.productId,
                                 type: 'ENTRADA',
-                                quantity: item.quantity,
-                                notes: `Remoção manual na OS ${item.order.code} (Estorno)`,
+                                quantity: physicalRefund,
+                                notes: `Remoção manual na OS ${item.order.code} (Estorno parcial/total de físico)`,
                                 createdBy: ctx.user!.id,
                                 reference: `OS-${item.order.code}`,
                             }
@@ -931,7 +989,7 @@ export const orderRouter = router({
                 timestamps.completedAt = new Date();
             }
 
-            const { updatedOrder, isRevertingStatus } = await ctx.db.$transaction(async (tx: any) => {
+            const { updatedOrder } = await ctx.db.$transaction(async (tx: any) => {
                 // 🔒 LOCK PESSIMISTA (Anti-TOCTOU)
                 const lockedOrders = await tx.$queryRaw<any[]>`
                     SELECT "inventoryDeducted", status

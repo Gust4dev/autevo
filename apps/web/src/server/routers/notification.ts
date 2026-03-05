@@ -1,4 +1,5 @@
 import { router, protectedProcedure } from '../trpc';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 
@@ -13,14 +14,16 @@ export const notificationRouter = router({
             const userRole = String(ctx.user?.role || '');
             const isAdmin = ["ADMIN_SAAS", "OWNER", "MANAGER", "ADMIN", "admin"].includes(userRole);
 
+            if (!ctx.tenantId) throw new TRPCError({ code: 'UNAUTHORIZED' });
+
             const whereClause: Prisma.NotificationLogWhereInput = {
-                tenantId: ctx.user?.tenantId!,
+                tenantId: ctx.tenantId,
             };
 
             if (!isAdmin) {
                 const userOrders = await ctx.db.serviceOrder.findMany({
                     where: {
-                        tenantId: ctx.user?.tenantId!,
+                        tenantId: ctx.tenantId,
                         OR: [
                             { assignedToId: ctx.user?.id },
                             { createdById: ctx.user?.id },
@@ -57,10 +60,12 @@ export const notificationRouter = router({
     markAsRead: protectedProcedure
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            if (!ctx.tenantId) throw new TRPCError({ code: 'UNAUTHORIZED' });
+
             return ctx.db.notificationLog.update({
                 where: {
                     id: input.id,
-                    tenantId: ctx.user?.tenantId!,
+                    tenantId: ctx.tenantId,
                 },
                 data: {
                     status: 'read',
