@@ -496,6 +496,11 @@ export const inspectionRouter = router({
                     const urlPath = new URL(photoToRemove).pathname;
                     const objectKey = urlPath.startsWith('/') ? urlPath.substring(1) : urlPath;
 
+                    // 🛡️ SECURITY (P0-1): S3 IDOR Fix - Verify key corresponds to current tenant
+                    if (!objectKey.startsWith(`inspections/${ctx.tenantId}/`) && !objectKey.includes(ctx.tenantId!)) {
+                        throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado ao objeto S3.' });
+                    }
+
                     await s3Client.send(new DeleteObjectCommand({
                         Bucket: process.env.AWS_BUCKET_NAME!,
                         Key: objectKey,
@@ -783,8 +788,9 @@ export const inspectionRouter = router({
                     tenantId: ctx.tenantId!,
                     orderId: inspection.order.code,
                 },
-                items: inspection.items,
-                damages: inspection.damages,
+                // 🛡️ SECURITY (P1-5): Map to lightweight schema to prevent JSON.stringify OOM
+                items: inspection.items.map(i => ({ id: i.id, status: i.status, damageType: i.damageType, severity: i.severity })),
+                damages: inspection.damages.map(d => ({ id: d.id, position: d.position, damageType: d.damageType })),
             };
 
             const documentHash = crypto.createHash('sha256').update(JSON.stringify(forensicPayload)).digest('base64');
@@ -903,8 +909,9 @@ export const inspectionRouter = router({
                     tenantId: inspection.order.tenantId,
                     orderId: inspection.order.code,
                 },
-                items: inspection.items,
-                damages: inspection.damages,
+                // 🛡️ SECURITY (P1-5): Map to lightweight schema to prevent JSON.stringify OOM
+                items: inspection.items.map(i => ({ id: i.id, status: i.status, damageType: i.damageType, severity: i.severity })),
+                damages: inspection.damages.map(d => ({ id: d.id, position: d.position, damageType: d.damageType })),
             };
 
             const documentHash = cryptoModule.createHash('sha256').update(JSON.stringify(forensicPayload)).digest('base64');

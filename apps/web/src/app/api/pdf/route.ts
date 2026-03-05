@@ -13,6 +13,19 @@ export const maxDuration = 60;
 
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const pdfRateLimiter = process.env.UPSTASH_REDIS_REST_URL
+    ? new Ratelimit({
+        redis: new Redis({
+            url: process.env.UPSTASH_REDIS_REST_URL,
+            token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        }),
+        limiter: Ratelimit.slidingWindow(3, '1 m'),
+        analytics: true,
+    })
+    : null;
 
 const s3 = new S3Client({
     region: process.env.AWS_REGION || 'sa-east-1',
@@ -67,6 +80,16 @@ export async function POST(req: Request) {
 
         if (!isAuthorized || !tenantIdFromAuth) {
             return NextResponse.json({ error: 'Não autorizado. Autenticação ou token obrigatório.' }, { status: 401 });
+        }
+
+        // 🛡️ SECURITY (P1-8): API Abuse Prevention (Rate Limit 3 PDFs / min per tenant)
+        if (pdfRateLimiter && process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== 'true') {
+            const { success } = await pdfRateLimiter.limit(`pdf_render_${tenantIdFromAuth}`);
+            if (!success) {
+                return NextResponse.json({
+                    error: 'Limite de geração de PDFs excedido (3/minuto). Aguarde um instante para gerar outros PDFs.'
+                }, { status: 429 });
+            }
         }
 
         // 🛡️ SECURITY: Fetch data entirely server-side, never trusting client payload.

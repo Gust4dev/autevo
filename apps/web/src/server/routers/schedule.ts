@@ -127,18 +127,30 @@ export const scheduleRouter = router({
             const dates: any[] = [];
             const today = startOfDay(new Date());
 
+            const startDate = addDays(today, 1);
+            const endDate = addDays(today, 30);
+
+            // 🛡️ SECURITY (P1-3): Prevent N+1 DoS by grouping counts in a single query
+            const counts = await ctx.db.serviceOrder.groupBy({
+                by: ['scheduledAt'],
+                where: {
+                    tenantId: input.tenantId,
+                    scheduledAt: { gte: startOfDay(startDate), lte: endOfDay(endDate) },
+                    status: { not: 'CANCELADO' },
+                },
+                _count: { id: true },
+            });
+
+            const countMap = new Map<string, number>();
+            for (const c of counts) {
+                const dayKey = startOfDay(c.scheduledAt).toISOString();
+                countMap.set(dayKey, (countMap.get(dayKey) || 0) + c._count.id);
+            }
+
             for (let i = 1; i <= 30; i++) {
                 const date = addDays(today, i);
-                const count = await ctx.db.serviceOrder.count({
-                    where: {
-                        tenantId: input.tenantId,
-                        scheduledAt: {
-                            gte: startOfDay(date),
-                            lte: endOfDay(date),
-                        },
-                        status: { not: 'CANCELADO' },
-                    },
-                });
+                const dayKey = startOfDay(date).toISOString();
+                const count = countMap.get(dayKey) || 0;
 
                 dates.push({
                     date,
@@ -253,24 +265,7 @@ export const scheduleRouter = router({
                 });
             }
 
-            // 3. Buscar Cliente existente
-            // Se tem documento, busca por documento. Senão, busca por phone.
-            let customer = await ctx.db.customer.findFirst({
-                where: cleanDoc
-                    ? {
-                        tenantId: input.tenantId,
-                        document: cleanDoc,
-                        deletedAt: null,
-                    }
-                    : {
-                        tenantId: input.tenantId,
-                        phone: input.customer.phone,
-                        deletedAt: null,
-                    },
-            });
-
-            // Converter birthDate (formato "YYYY-MM-DD") para Date no fuso local
-            // Evita bug de timezone onde new Date("YYYY-MM-DD") interpreta como UTC
+            // Converter formatações fora da transação
             const birthDateData = input.customer.birthDate
                 ? (() => {
                     const [year, month, day] = input.customer.birthDate.split('-').map(Number);
@@ -278,203 +273,220 @@ export const scheduleRouter = router({
                 })()
                 : undefined;
 
-            // Converter email vazio para undefined
             const emailData = input.customer.email && input.customer.email.trim() !== ''
                 ? input.customer.email
                 : undefined;
 
-            if (customer) {
-                if (cleanDoc && !customer.document) {
-                    customer = await ctx.db.customer.update({
-                        where: { id: customer.id, tenantId: input.tenantId },
-                        data: { document: cleanDoc }
-                    });
-                }
-            } else {
-                // Criar novo cliente
-                customer = await ctx.db.customer.create({
-                    data: {
-                        tenantId: input.tenantId,
-                        document: cleanDoc || null,
-                        name: sanitizeInput(input.customer.name),
-                        phone: input.customer.phone,
-                        email: emailData,
-                        birthDate: birthDateData,
-                    },
-                });
-            }
-
-            // 4. Buscar ou Criar Veículo
-            let vehicleId: string;
-            let vehiclePlate: string;
-
-            if (input.existingVehicleId) {
-                // Usar veículo existente
-                const existingVehicle = await ctx.db.vehicle.findFirst({
+            // 🛡️ SECURITY (P1-1): Wrap everything in an ACID Transaction
+            return await ctx.db.$transaction(async (tx: any) => {
+                // 1. Verificar capacidade dentro da transação para consistência
+                const count = await tx.serviceOrder.count({
                     where: {
-                        id: input.existingVehicleId,
                         tenantId: input.tenantId,
-                        deletedAt: null,
+                        scheduledAt: {
+                            gte: startOfDay(input.scheduledAt),
+                            lte: endOfDay(input.scheduledAt),
+                        },
+                        status: { not: 'CANCELADO' },
                     },
                 });
 
-                if (!existingVehicle) {
+                if (count >= tenant.maxDailyCapacity) {
                     throw new TRPCError({
-                        code: 'NOT_FOUND',
-                        message: 'Veículo selecionado não encontrado.',
+                        code: 'BAD_REQUEST',
+                        message: 'Desculpe, a agenda para este dia já está cheia. Por favor, escolha outra data.',
                     });
                 }
 
-                vehicleId = existingVehicle.id;
-                vehiclePlate = existingVehicle.plate;
-            } else if (input.vehicle) {
-                // Verificar se veículo com essa placa já existe
-                const existingVehicle = await ctx.db.vehicle.findFirst({
-                    where: {
-                        tenantId: input.tenantId,
-                        plate: input.vehicle.plate.toUpperCase(),
-                        deletedAt: null,
-                    },
+                // 3. Buscar Cliente existente
+                let customer = await tx.customer.findFirst({
+                    where: cleanDoc
+                        ? {
+                            tenantId: input.tenantId,
+                            document: cleanDoc,
+                            deletedAt: null,
+                        }
+                        : {
+                            tenantId: input.tenantId,
+                            phone: input.customer.phone,
+                            deletedAt: null,
+                        },
                 });
 
-                if (existingVehicle) {
-                    if (existingVehicle.customerId === customer.id) {
-                        // Veículo pertence ao cliente atual - atualizar dados
-                        const updatedVehicle = await ctx.db.vehicle.update({
-                            where: { id: existingVehicle.id },
+                if (customer) {
+                    if (cleanDoc && !customer.document) {
+                        customer = await tx.customer.update({
+                            where: { id: customer.id, tenantId: input.tenantId },
+                            data: { document: cleanDoc }
+                        });
+                    }
+                } else {
+                    // Criar novo cliente
+                    customer = await tx.customer.create({
+                        data: {
+                            tenantId: input.tenantId,
+                            document: cleanDoc || null,
+                            name: sanitizeInput(input.customer.name),
+                            phone: input.customer.phone,
+                            email: emailData,
+                            birthDate: birthDateData,
+                        },
+                    });
+                }
+
+                // 4. Buscar ou Criar Veículo
+                let vehicleId: string;
+                let vehiclePlate: string;
+
+                if (input.existingVehicleId) {
+                    const existingVehicle = await tx.vehicle.findFirst({
+                        where: {
+                            id: input.existingVehicleId,
+                            tenantId: input.tenantId,
+                            deletedAt: null,
+                        },
+                    });
+
+                    if (!existingVehicle) {
+                        throw new TRPCError({
+                            code: 'NOT_FOUND',
+                            message: 'Veículo selecionado não encontrado.',
+                        });
+                    }
+
+                    vehicleId = existingVehicle.id;
+                    vehiclePlate = existingVehicle.plate;
+                } else if (input.vehicle) {
+                    const existingVehicle = await tx.vehicle.findFirst({
+                        where: {
+                            tenantId: input.tenantId,
+                            plate: input.vehicle.plate.toUpperCase(),
+                            deletedAt: null,
+                        },
+                    });
+
+                    if (existingVehicle) {
+                        if (existingVehicle.customerId === customer.id) {
+                            const updatedVehicle = await tx.vehicle.update({
+                                where: { id: existingVehicle.id },
+                                data: {
+                                    model: sanitizeInput(input.vehicle.model),
+                                    brand: sanitizeInput(input.vehicle.brand),
+                                    color: sanitizeInput(input.vehicle.color),
+                                },
+                            });
+                            vehicleId = updatedVehicle.id;
+                            vehiclePlate = updatedVehicle.plate;
+                        } else {
+                            vehicleId = existingVehicle.id;
+                            vehiclePlate = existingVehicle.plate;
+                        }
+                    } else {
+                        const newVehicle = await tx.vehicle.create({
                             data: {
+                                tenantId: input.tenantId,
+                                customerId: customer.id,
+                                plate: input.vehicle.plate.toUpperCase(),
                                 model: sanitizeInput(input.vehicle.model),
                                 brand: sanitizeInput(input.vehicle.brand),
                                 color: sanitizeInput(input.vehicle.color),
                             },
                         });
-                        vehicleId = updatedVehicle.id;
-                        vehiclePlate = updatedVehicle.plate;
-                    } else {
-                        vehicleId = existingVehicle.id;
-                        vehiclePlate = existingVehicle.plate;
+                        vehicleId = newVehicle.id;
+                        vehiclePlate = newVehicle.plate;
                     }
                 } else {
-                    const newVehicle = await ctx.db.vehicle.create({
-                        data: {
-                            tenantId: input.tenantId,
-                            customerId: customer.id,
-                            plate: input.vehicle.plate.toUpperCase(),
-                            model: sanitizeInput(input.vehicle.model),
-                            brand: sanitizeInput(input.vehicle.brand),
-                            color: sanitizeInput(input.vehicle.color),
-                        },
+                    throw new TRPCError({
+                        code: 'BAD_REQUEST',
+                        message: 'Dados do veículo são obrigatórios.',
                     });
-                    vehicleId = newVehicle.id;
-                    vehiclePlate = newVehicle.plate;
                 }
-            } else {
-                throw new TRPCError({
-                    code: 'BAD_REQUEST',
-                    message: 'Dados do veículo são obrigatórios.',
+
+                // 4. Buscar serviço para obter o preço base
+                const service = await tx.service.findUnique({
+                    where: { id: input.serviceId },
                 });
-            }
 
-            // 4. Buscar serviço para obter o preço base
-            const service = await ctx.db.service.findUnique({
-                where: { id: input.serviceId },
-            });
+                if (!service) throw new TRPCError({ code: 'NOT_FOUND', message: 'Serviço não encontrado' });
 
-            if (!service) throw new TRPCError({ code: 'NOT_FOUND', message: 'Serviço não encontrado' });
-
-            // 5. Criar Ordem de Serviço - Atribui ao funcionário com menos OS ativas
-            // Busca usuários ATIVOS (status ACTIVE ou INVITED) E com isActive: true
-            let allStaff = await ctx.db.user.findMany({
-                where: {
-                    tenantId: input.tenantId,
-                    role: { in: ['OWNER', 'MANAGER', 'MEMBER'] },
-                    status: { in: ['ACTIVE', 'INVITED'] },
-                    isActive: true,
-                },
-                select: {
-                    id: true,
-                },
-            });
-
-            // Fallback 1: busca qualquer usuário ativo (sem filtro de role ou status)
-            if (allStaff.length === 0) {
-                allStaff = await ctx.db.user.findMany({
+                let allStaff = await tx.user.findMany({
                     where: {
                         tenantId: input.tenantId,
+                        role: { in: ['OWNER', 'MANAGER', 'MEMBER'] },
+                        status: { in: ['ACTIVE', 'INVITED'] },
                         isActive: true,
                     },
                     select: {
                         id: true,
                     },
-                    take: 1,
                 });
-            }
 
-            // Fallback 2: busca QUALQUER usuário do tenant (último recurso)
-            if (allStaff.length === 0) {
-                allStaff = await ctx.db.user.findMany({
+                if (allStaff.length === 0) {
+                    allStaff = await tx.user.findMany({
+                        where: {
+                            tenantId: input.tenantId,
+                            isActive: true,
+                        },
+                        select: { id: true },
+                        take: 1,
+                    });
+                }
+
+                if (allStaff.length === 0) {
+                    allStaff = await tx.user.findMany({
+                        where: { tenantId: input.tenantId },
+                        select: { id: true },
+                        take: 1,
+                    });
+                }
+
+                if (allStaff.length === 0) {
+                    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Nenhum responsável encontrado para a oficina' });
+                }
+
+                const orderCounts = await tx.serviceOrder.groupBy({
+                    by: ['assignedToId'],
                     where: {
                         tenantId: input.tenantId,
+                        assignedToId: { in: allStaff.map((s: any) => s.id) },
+                        status: { notIn: [OrderStatus.CONCLUIDO, OrderStatus.CANCELADO] },
                     },
-                    select: {
-                        id: true,
-                    },
-                    take: 1,
+                    _count: true,
                 });
-            }
 
-            // Se ainda assim não encontrar, erro crítico
-            if (allStaff.length === 0) {
-                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Nenhum responsável encontrado para a oficina' });
-            }
+                const countMap = new Map(orderCounts.map((c: any) => [c.assignedToId, c._count]));
 
-            // Conta ordens ativas por funcionário
-            const orderCounts = await ctx.db.serviceOrder.groupBy({
-                by: ['assignedToId'],
-                where: {
-                    tenantId: input.tenantId,
-                    assignedToId: { in: allStaff.map(s => s.id) },
-                    status: { notIn: [OrderStatus.CONCLUIDO, OrderStatus.CANCELADO] },
-                },
-                _count: true,
-            });
+                const staff = allStaff.reduce((min: any, current: any) => {
+                    const minCount = countMap.get(min.id) || 0;
+                    const currentCount = countMap.get(current.id) || 0;
+                    return currentCount < minCount ? current : min;
+                });
 
-            // Mapeia contagens
-            const countMap = new Map(orderCounts.map(c => [c.assignedToId, c._count]));
-
-            // Seleciona o funcionário com menos ordens (ou 0 se não tiver nenhuma)
-            const staff = allStaff.reduce((min, current) => {
-                const minCount = countMap.get(min.id) || 0;
-                const currentCount = countMap.get(current.id) || 0;
-                return currentCount < minCount ? current : min;
-            });
-
-            const order = await ctx.db.serviceOrder.create({
-                data: {
-                    tenantId: input.tenantId,
-                    customerId: customer.id,
-                    vehicleId: vehicleId,
-                    assignedToId: staff.id,
-                    createdById: staff.id, // System created, linked to manager
-                    scheduledAt: input.scheduledAt,
-                    status: 'AGENDADO',
-                    subtotal: service.basePrice,
-                    total: service.basePrice,
-                    code: `AG-${Date.now().toString().slice(-6)}`,
-                    items: {
-                        create: {
-                            tenantId: input.tenantId,
-                            serviceId: service.id,
-                            price: service.basePrice,
-                            quantity: 1,
+                const order = await tx.serviceOrder.create({
+                    data: {
+                        tenantId: input.tenantId,
+                        customerId: customer.id,
+                        vehicleId: vehicleId,
+                        assignedToId: staff.id,
+                        createdById: staff.id,
+                        scheduledAt: input.scheduledAt,
+                        status: 'AGENDADO',
+                        subtotal: service.basePrice,
+                        total: service.basePrice,
+                        code: `AG-${Date.now().toString().slice(-6)}`,
+                        items: {
+                            create: {
+                                tenantId: input.tenantId,
+                                serviceId: service.id,
+                                price: service.basePrice,
+                                quantity: 1,
+                            },
                         },
                     },
-                },
-            });
+                });
 
-            // 6. Notificação interna (não bloqueia erro)
-            try {
-                await ctx.db.notificationLog.create({
+                // 6. Notificação interna
+                await tx.notificationLog.create({
                     data: {
                         tenantId: input.tenantId,
                         orderId: order.id,
@@ -484,11 +496,9 @@ export const scheduleRouter = router({
                         message: `Novo agendamento web para ${vehiclePlate} (${customer.name})`,
                         status: 'pending',
                     }
-                });
-            } catch (notifError) {
-                console.error('Failed to create notification log:', notifError);
-            }
+                }).catch(() => { });
 
-            return order;
+                return order;
+            });
         }),
 });

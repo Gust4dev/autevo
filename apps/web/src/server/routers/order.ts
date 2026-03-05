@@ -632,7 +632,7 @@ export const orderRouter = router({
         .mutation(async ({ ctx, input }) => {
             const item = await ctx.db.orderProduct.findFirst({
                 where: { id: input.id, tenantId: ctx.tenantId! },
-                include: { order: true }
+                include: { order: { include: { pendingRestocks: true } } }
             });
 
             if (!item) {
@@ -646,22 +646,28 @@ export const orderRouter = router({
             // 🔒 ATOMIC: Reverse stock + create movement + delete item in a single transaction
             await ctx.db.$transaction(async (tx: any) => {
                 if (item.order.inventoryDeducted && item.productId) {
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { increment: item.quantity } }
-                    });
+                    // 🛡️ SECURITY: Prevent shadow stock inflation from PendingRestock
+                    const pending = item.order.pendingRestocks.find((p: any) => p.productId === item.productId && !p.resolved);
+                    if (pending) {
+                        await tx.pendingRestock.delete({ where: { id: pending.id } });
+                    } else {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: { stock: { increment: item.quantity } }
+                        });
 
-                    await tx.stockMovement.create({
-                        data: {
-                            tenantId: ctx.tenantId!,
-                            productId: item.productId,
-                            type: 'ENTRADA',
-                            quantity: item.quantity,
-                            notes: `Remoção manual na OS ${item.order.code} (Estorno)`,
-                            createdBy: ctx.user!.id,
-                            reference: `OS-${item.order.code}`,
-                        }
-                    });
+                        await tx.stockMovement.create({
+                            data: {
+                                tenantId: ctx.tenantId!,
+                                productId: item.productId,
+                                type: 'ENTRADA',
+                                quantity: item.quantity,
+                                notes: `Remoção manual na OS ${item.order.code} (Estorno)`,
+                                createdBy: ctx.user!.id,
+                                reference: `OS-${item.order.code}`,
+                            }
+                        });
+                    }
                 }
 
                 await tx.orderProduct.delete({
@@ -706,92 +712,7 @@ export const orderRouter = router({
                 }
             }
 
-            // 🛡️ Lock Financeiro e de Repasses (Audit Report 1.2)
-            // Agora garantida pela PRESENÇA do timestamp startedAt, independente do status transiente.
-            const isFinanciallyLocked = existing.startedAt !== null;
-
-            if (isFinanciallyLocked) {
-                if (input.data.items || input.data.discountValue !== undefined || input.data.discountType !== undefined) {
-                    await ctx.db.auditLog.create({
-                        data: {
-                            tenantId: ctx.tenantId!,
-                            userId: ctx.user!.id,
-                            action: 'FINANCIAL_TAMPERING_BLOCKED',
-                            entityType: 'ServiceOrder',
-                            entityId: input.id,
-                            metadata: { targetStatus: existing.status } as any
-                        }
-                    }).catch(() => { });
-
-                    throw new TRPCError({
-                        code: 'FORBIDDEN',
-                        message: `Operação Bloqueada: Ordem em status ${existing.status} possui imutabilidade financeira. Reabra a OS para editar valores.`,
-                    });
-                }
-            }
-
-            if (input.data.items) {
-                // 🛡️ SECURITY: Pre-banco validação multi-tenant (IDOR)
-                const updateServiceIds = [...new Set(input.data.items.map((i: any) => i.serviceId).filter(Boolean))] as string[];
-                if (updateServiceIds.length > 0) {
-                    const count = await ctx.db.service.count({
-                        where: { id: { in: updateServiceIds }, tenantId: ctx.tenantId! }
-                    });
-                    if (count !== updateServiceIds.length) {
-                        throw new TRPCError({ code: 'FORBIDDEN', message: 'Serviço(s) inválido(s) ou pertencente a outro inquilino.' });
-                    }
-                }
-
-                // Delete existing items
-                await ctx.db.orderItem.deleteMany({
-                    where: { orderId: input.id },
-                });
-
-                // Create new items
-                await ctx.db.orderItem.createMany({
-                    data: input.data.items.map((item) => ({
-                        tenantId: ctx.tenantId!,
-                        orderId: input.id,
-                        serviceId: item.serviceId,
-                        customName: item.customName ? sanitizeInput(item.customName) : undefined,
-                        price: item.price,
-                        quantity: item.quantity,
-                        notes: item.notes ? sanitizeInput(item.notes) : undefined,
-                        technicianId: existing.assignedToId, // Default assignments inherit
-                    })),
-                });
-
-                // 📦 RE-CALCULATE INVENTORY TEMPLATES (only if inventory hasn't been deducted yet)
-                if (!existing.inventoryDeducted) {
-                    await ctx.db.orderProduct.deleteMany({
-                        where: { orderId: input.id }
-                    });
-
-                    const serviceIds = input.data.items.filter(i => i.serviceId).map(i => i.serviceId as string);
-                    if (serviceIds.length > 0) {
-                        const templates = await ctx.db.serviceProductTemplate.findMany({
-                            where: { serviceId: { in: serviceIds } },
-                            include: { product: true }
-                        });
-
-                        if (templates.length > 0) {
-                            await ctx.db.orderProduct.createMany({
-                                data: templates.map(t => ({
-                                    tenantId: ctx.tenantId!,
-                                    orderId: input.id,
-                                    productId: t.productId,
-                                    quantity: t.quantity,
-                                    costPrice: t.product.costPrice,
-                                    customName: t.product.name,
-                                }))
-                            });
-                        }
-                    }
-                }
-            }
-
             // Calculate new totals
-            // Use new items if provided, otherwise use existing
             const itemsToCalc = input.data.items
                 ? input.data.items
                 : existing.items.map((i: any) => ({
@@ -807,28 +728,112 @@ export const orderRouter = router({
                     : Number(existing.discountValue) || undefined
             );
 
-            const order = await ctx.db.serviceOrder.update({
-                where: { id: input.id },
-                data: {
-                    scheduledAt: input.data.scheduledAt,
-                    assignedToId: input.data.assignedToId,
-                    discountType: input.data.discountType,
-                    discountValue: input.data.discountValue,
-                    subtotal,
-                    total,
-                },
-                include: {
-                    items: { include: { service: true } },
-                    assignedTo: true,
-                }
-            });
+            const order = await ctx.db.$transaction(async (tx: any) => {
+                // 🛡️ Lock Financeiro e de Repasses (Audit Report 1.2 / Race Condition fix)
+                if (input.data.items || input.data.discountValue !== undefined || input.data.discountType !== undefined) {
+                    const lockedOrders = await tx.$queryRaw<any[]>`
+                        SELECT "startedAt", status FROM "ServiceOrder"
+                        WHERE id = ${input.id} AND "tenantId" = ${ctx.tenantId!} FOR UPDATE
+                    `;
+                    if (!lockedOrders.length) throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem não encontrada' });
 
-            // 📸 SNAPSHOT DE COMISSÃO NA EDIÇÃO (Recalcula recriados)
-            if (input.data.items && input.data.items.length > 0) {
-                await ctx.db.$transaction(async (tx: any) => {
-                    await createCommissionSnapshots(tx, ctx.tenantId!, order);
+                    if (lockedOrders[0].startedAt !== null) {
+                        await tx.auditLog.create({
+                            data: {
+                                tenantId: ctx.tenantId!,
+                                userId: ctx.user!.id,
+                                action: 'FINANCIAL_TAMPERING_BLOCKED',
+                                entityType: 'ServiceOrder',
+                                entityId: input.id,
+                                metadata: { targetStatus: lockedOrders[0].status } as any
+                            }
+                        });
+                        throw new TRPCError({
+                            code: 'FORBIDDEN',
+                            message: `Operação Bloqueada: Ordem em status ${lockedOrders[0].status} possui imutabilidade financeira. Reabra a OS para editar valores.`,
+                        });
+                    }
+                }
+
+                if (input.data.items) {
+                    // pre-banco val
+                    const updateServiceIds = [...new Set(input.data.items.map((i: any) => i.serviceId).filter(Boolean))] as string[];
+                    if (updateServiceIds.length > 0) {
+                        const count = await tx.service.count({
+                            where: { id: { in: updateServiceIds }, tenantId: ctx.tenantId! }
+                        });
+                        if (count !== updateServiceIds.length) {
+                            throw new TRPCError({ code: 'FORBIDDEN', message: 'Serviço(s) inválido(s) ou pertencente a outro inquilino.' });
+                        }
+                    }
+
+                    await tx.orderItem.deleteMany({
+                        where: { orderId: input.id },
+                    });
+
+                    await tx.orderItem.createMany({
+                        data: input.data.items.map((item) => ({
+                            tenantId: ctx.tenantId!,
+                            orderId: input.id,
+                            serviceId: item.serviceId,
+                            customName: item.customName ? sanitizeInput(item.customName) : undefined,
+                            price: item.price,
+                            quantity: item.quantity,
+                            notes: item.notes ? sanitizeInput(item.notes) : undefined,
+                            technicianId: existing.assignedToId,
+                        })),
+                    });
+
+                    if (!existing.inventoryDeducted) {
+                        await tx.orderProduct.deleteMany({
+                            where: { orderId: input.id }
+                        });
+
+                        const serviceIds = input.data.items.filter(i => i.serviceId).map(i => i.serviceId as string);
+                        if (serviceIds.length > 0) {
+                            const templates = await tx.serviceProductTemplate.findMany({
+                                where: { serviceId: { in: serviceIds } },
+                                include: { product: true }
+                            });
+
+                            if (templates.length > 0) {
+                                await tx.orderProduct.createMany({
+                                    data: templates.map(t => ({
+                                        tenantId: ctx.tenantId!,
+                                        orderId: input.id,
+                                        productId: t.productId,
+                                        quantity: t.quantity,
+                                        costPrice: t.product.costPrice,
+                                        customName: t.product.name,
+                                    }))
+                                });
+                            }
+                        }
+                    }
+                }
+
+                const updatedOrder = await tx.serviceOrder.update({
+                    where: { id: input.id },
+                    data: {
+                        scheduledAt: input.data.scheduledAt,
+                        assignedToId: input.data.assignedToId,
+                        discountType: input.data.discountType,
+                        discountValue: input.data.discountValue,
+                        subtotal,
+                        total,
+                    },
+                    include: {
+                        items: { include: { service: true } },
+                        assignedTo: true,
+                    }
                 });
-            }
+
+                if (input.data.items && input.data.items.length > 0) {
+                    await createCommissionSnapshots(tx, ctx.tenantId!, updatedOrder);
+                }
+
+                return updatedOrder;
+            });
 
             // Notificar membro se foi (re)atribuído
             if (input.data.assignedToId && input.data.assignedToId !== existing.assignedToId) {
@@ -1454,6 +1459,7 @@ export const orderRouter = router({
                 const commissions = await tx.orderItemCommission.findMany({
                     where: {
                         id: { in: input.commissionIds },
+                        tenantId: ctx.tenantId!, // 🛡️ SECURITY: P0-1 IDOR fix (Enforce tenant boundary)
                         userId: input.userId,
                         settlementId: null,
                         status: 'ACTIVE',
@@ -1484,7 +1490,7 @@ export const orderRouter = router({
                 });
 
                 await tx.orderItemCommission.updateMany({
-                    where: { id: { in: input.commissionIds } },
+                    where: { id: { in: input.commissionIds }, tenantId: ctx.tenantId! }, // 🛡️ SECURITY: P0-1 IDOR fix
                     data: { settlementId: settlement.id }
                 });
 
@@ -1774,13 +1780,15 @@ export const orderRouter = router({
                 include: {
                     items: {
                         select: {
-                            id: true, category: true, itemKey: true, label: true,
-                            isRequired: true, isCritical: true, photoUrl: true, photos: true,
-                            status: true, damageType: true, severity: true, completedAt: true,
+                            id: true, category: true, label: true,
+                            isCritical: true, photoUrl: true, photos: true,
+                            status: true, damageType: true, severity: true,
                         },
                         orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
                     },
-                    damages: true,
+                    damages: {
+                        select: { id: true, position: true, damageType: true, photoUrl: true }
+                    },
                 },
                 orderBy: { createdAt: 'asc' },
             });
