@@ -3,7 +3,6 @@ import { appRouter } from '../routers/_app';
 import { prisma } from '@autevo/database';
 
 // Helper to create a fully authenticated tRPC caller for tests
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const createTestCaller = (userContext: any) => {
     return appRouter.createCaller({
         db: prisma,

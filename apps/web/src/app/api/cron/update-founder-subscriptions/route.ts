@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@autevo/database';
 import { stripe } from '@/lib/stripe';
 
-// This endpoint should be called daily by a cron job (e.g., Vercel Cron)
 // Protected by CRON_SECRET in production
 export const dynamic = 'force-dynamic';
 

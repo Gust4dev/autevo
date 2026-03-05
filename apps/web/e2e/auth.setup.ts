@@ -36,8 +36,6 @@ setup('authenticate as test user', async ({ page }) => {
     await otpInput.focus();
     await page.keyboard.type('424242');
 
-    // Wokaround: Clerk sometimes hangs the Next/Vercel redirect after accepting the valid test code factor-two.
-    // Forcing navigation a short time after typing the code causes the browser to evaluate the set auth session and redirect to dashboard.
     await page.waitForTimeout(3000);
     await page.goto('http://localhost:3000/dashboard');
 

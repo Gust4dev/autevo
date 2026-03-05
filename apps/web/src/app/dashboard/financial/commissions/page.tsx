@@ -338,7 +338,7 @@ export default function CommissionsPage() {
                   userId: selectedUser,
                   commissionIds: selectedCommissions,
                   paymentMethod,
-                  periodStart: new Date(), // This should be calculated or input, but for simplicity...
+                  periodStart: new Date(),
                   periodEnd: new Date(),
                 });
               }}

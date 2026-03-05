@@ -241,7 +241,6 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
       setStep("welcome");
       setIsReturningCustomer(null);
     } else if (step === "service") {
-      // Se cliente é novo, volta pro welcome. Se é existente, volta pro identify
       if (isReturningCustomer) {
         setStep("identify");
       } else {
@@ -1423,7 +1422,6 @@ export default function PublicBookingPage({ params }: BookingPageProps) {
   );
 }
 
-// Helper icons specifically for this file to avoid conflicts
 function Wrench({ className }: { className?: string }) {
   return (
     <svg

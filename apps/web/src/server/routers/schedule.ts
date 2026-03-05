@@ -16,7 +16,7 @@ export const scheduleRouter = router({
     getByMonth: protectedProcedure
         .input(
             z.object({
-                month: z.number().min(0).max(11), // 0-indexed (Jan=0)
+                month: z.number().min(0).max(11),
                 year: z.number().min(2020).max(2100),
             })
         )
@@ -50,7 +50,7 @@ export const scheduleRouter = router({
                             },
                             customName: true,
                         },
-                        take: 1, // Apenas o primeiro serviço para preview
+                        take: 1,
                     },
                 },
                 orderBy: {
@@ -199,10 +199,10 @@ export const scheduleRouter = router({
             tenantId: z.string(),
             serviceId: z.string(),
             scheduledAt: z.date(),
-            existingCustomerId: z.string().optional(), // Se cliente já existe
-            existingVehicleId: z.string().optional(),  // Se veículo já existe
+            existingCustomerId: z.string().optional(),
+            existingVehicleId: z.string().optional(),
             customer: z.object({
-                document: z.string().optional().or(z.literal('')), // CPF opcional
+                document: z.string().optional().or(z.literal('')),
                 name: z.string().min(2),
                 phone: z.string().min(10),
                 email: z.string().email().optional().or(z.literal('')),
@@ -213,7 +213,7 @@ export const scheduleRouter = router({
                 model: z.string().min(2),
                 brand: z.string().min(2),
                 color: z.string(),
-            }).optional(), // Opcional se usar veículo existente
+            }).optional(),
         }))
         .mutation(async ({ ctx, input }) => {
             const tenant = await ctx.db.tenant.findUnique({
@@ -284,10 +284,6 @@ export const scheduleRouter = router({
                 : undefined;
 
             if (customer) {
-                // 🛡️ SECURITY: Não atualizamos os dados sensíveis (email, phone, name)
-                // de um cliente existente com base em um formulário público não-autenticado.
-                // Isso previne sequestro de cadastro (Account Takeover) e sabotagem de WhatsApp.
-                // Atualizamos apenas o documento se estiver em branco.
                 if (cleanDoc && !customer.document) {
                     customer = await ctx.db.customer.update({
                         where: { id: customer.id, tenantId: input.tenantId },
@@ -299,7 +295,7 @@ export const scheduleRouter = router({
                 customer = await ctx.db.customer.create({
                     data: {
                         tenantId: input.tenantId,
-                        document: cleanDoc || null, // null se não informado
+                        document: cleanDoc || null,
                         name: sanitizeInput(input.customer.name),
                         phone: input.customer.phone,
                         email: emailData,
@@ -355,13 +351,10 @@ export const scheduleRouter = router({
                         vehicleId = updatedVehicle.id;
                         vehiclePlate = updatedVehicle.plate;
                     } else {
-                        // Veículo pertence a outro cliente - usar o existente mas manter dono
-                        // (caso de família/empresa compartilhando veículo)
                         vehicleId = existingVehicle.id;
                         vehiclePlate = existingVehicle.plate;
                     }
                 } else {
-                    // Criar novo veículo
                     const newVehicle = await ctx.db.vehicle.create({
                         data: {
                             tenantId: input.tenantId,

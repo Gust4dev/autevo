@@ -389,8 +389,7 @@ export async function POST(request: Request) {
     });
 
     if (existingLog && existingLog.status === 'success') {
-        console.log(`[Webhook Idempotency] Ignorando evento já processado: ${event.id}`);
-        return NextResponse.json({ received: true, message: 'Already processed' });
+        return new NextResponse("Already processed", { status: 200 });
     }
 
     try {

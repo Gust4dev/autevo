@@ -319,7 +319,6 @@ export const partnershipRouter = router({
             throw new TRPCError({ code: 'NOT_FOUND' });
         }
 
-        // Se já tem código, retornar
         if (tenant.partnerCode) {
             return { suggestion: tenant.partnerCode, hasCode: true };
         }
